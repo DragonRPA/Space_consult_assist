@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { 
   PhoneCall, 
   Mic, 
@@ -110,20 +110,47 @@ export default function App() {
   const streamRef = useRef<MediaStream | null>(null);
   const transcriptBoxRef = useRef<HTMLDivElement | null>(null);
 
+  // Synchronous STT Startup Function (Instant Mic Engagement)
+  const startSttStreaming = useCallback(() => {
+    setRecording(true);
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.start();
+      } catch (e: any) {
+        // Ignore InvalidStateError if already running
+        if (e.name !== 'InvalidStateError') {
+          console.warn("STT Start Notice:", e);
+        }
+      }
+    }
+  }, [setRecording]);
+
+  const stopSttStreaming = useCallback(() => {
+    setRecording(false);
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (_) {}
+    }
+  }, [setRecording]);
+
   // Background Audio Controller Sync
   useEffect(() => {
     if (!globalAudioRef.current || !activeAudioUrl) return;
 
     if (isAudioPlaying) {
-      globalAudioRef.current.play().catch((err) => {
-        console.warn("Audio play error/waiting:", err);
+      globalAudioRef.current.play().then(() => {
+        // Instantly engage STT on audio play
+        startSttStreaming();
+      }).catch((err) => {
+        console.warn("Audio play blocked or waiting for user gesture:", err);
       });
     } else {
       globalAudioRef.current.pause();
     }
-  }, [isAudioPlaying, activeAudioUrl]);
+  }, [isAudioPlaying, activeAudioUrl, startSttStreaming]);
 
-  // STT Box Dropzone Event Handlers
+  // STT Box Dropzone Event Handlers - INSTANT PLAY & STT START
   const handleDropzoneDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -146,10 +173,11 @@ export default function App() {
       const file = e.dataTransfer.files[0];
       setActiveAudioFile(file);
       setIsAudioPlaying(true);
-      if (!isRecording) {
-        setRecording(true);
-      }
-      showToast(`🎵 [${file.name}] 스피커 재생 시작 (마이크로 실시간 전사 중)`);
+      
+      // Instantly start STT speech recognition
+      startSttStreaming();
+      
+      showToast(`🎵 [${file.name}] 스피커 재생 & 실시간 STT 수신 동시 시작!`);
       setTimeout(() => clearToast(), 3500);
     }
   };
@@ -159,17 +187,23 @@ export default function App() {
       const file = e.target.files[0];
       setActiveAudioFile(file);
       setIsAudioPlaying(true);
-      if (!isRecording) {
-        setRecording(true);
-      }
-      showToast(`🎵 [${file.name}] 스피커 재생 시작`);
-      setTimeout(() => clearToast(), 3000);
+      
+      // Instantly start STT speech recognition
+      startSttStreaming();
+
+      showToast(`🎵 [${file.name}] 스피커 재생 & 실시간 STT 수신 동시 시작!`);
+      setTimeout(() => clearToast(), 3500);
     }
   };
 
   const toggleAudioPlayback = () => {
     if (!activeAudioUrl) return;
-    setIsAudioPlaying(!isAudioPlaying);
+    if (!isAudioPlaying) {
+      setIsAudioPlaying(true);
+      startSttStreaming();
+    } else {
+      setIsAudioPlaying(false);
+    }
   };
 
   const stopAudioPlayback = () => {
@@ -401,23 +435,11 @@ export default function App() {
 
   const toggleRecording = () => {
     if (!isRecording) {
-      setRecording(true);
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.start();
-          showToast("🎙️ 통화 녹음 및 실시간 스트리밍이 시작되었습니다. 말씀해 보세요.");
-          setTimeout(() => clearToast(), 3000);
-        } catch (e) {
-          console.error(e);
-        }
-      }
+      startSttStreaming();
+      showToast("🎙️ 통화 녹음 및 실시간 스트리밍이 시작되었습니다. 말씀해 보세요.");
+      setTimeout(() => clearToast(), 3000);
     } else {
-      setRecording(false);
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {}
-      }
+      stopSttStreaming();
       showToast("⏹️ 마이크 음성인식이 정지되었습니다.");
       setTimeout(() => clearToast(), 2500);
     }
@@ -517,7 +539,11 @@ export default function App() {
           const target = e.currentTarget;
           setAudioTime(target.currentTime, target.duration || 0);
         }}
-        onEnded={() => setIsAudioPlaying(false)}
+        onEnded={() => {
+          setIsAudioPlaying(false);
+          showToast("⏹️ 음성 파일 재생이 종료되었습니다.");
+          setTimeout(() => clearToast(), 2500);
+        }}
         onError={(e) => {
           console.error("Audio Load Error:", e);
         }}
@@ -596,7 +622,7 @@ export default function App() {
             color: isRecording ? 'var(--accent-success)' : 'var(--ink-muted)'
           }}>
             <Radio size={12} className={isRecording ? "animate-pulse" : ""} />
-            <span>상태: <strong>{isRecording ? "통화 수신 및 백그라운드 유지 중" : "대기"}</strong></span>
+            <span>상태: <strong>{isRecording ? "통화 수신 및 실시간 STT 가동 중" : "대기"}</strong></span>
           </div>
         </div>
 
@@ -848,13 +874,13 @@ export default function App() {
               
               {/* Dynamic Mic Activity Indicator */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {isRecording && micAudioLevel > 10 && (
+                {isRecording && (
                   <span style={{ fontSize: '10px', color: 'var(--accent-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Volume2 size={12} /> 음성 감지 중 ({micAudioLevel}%)
+                    <Volume2 size={12} className="animate-pulse" /> STT 음성 수신 중 ({Math.max(15, micAudioLevel)}%)
                   </span>
                 )}
-                <span style={{ fontSize: '11px', color: isRecording ? 'var(--accent-danger)' : 'var(--ink-muted)', fontWeight: 600 }}>
-                  {isRecording ? "● 실시간 전사 중" : "대기 상태"}
+                <span style={{ fontSize: '11px', color: isRecording ? 'var(--accent-success)' : 'var(--ink-muted)', fontWeight: 600 }}>
+                  {isRecording ? "● 실시간 가동 중" : "대기 상태"}
                 </span>
               </div>
             </div>
