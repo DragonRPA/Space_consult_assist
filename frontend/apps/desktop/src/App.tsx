@@ -112,7 +112,6 @@ export default function App() {
   const [isLoopbackActive, setIsLoopbackActive] = useState(false);
   const [loopbackDevice, setLoopbackDevice] = useState<string>('');
   const [loopbackDevices, setLoopbackDevices] = useState<{id: string; name: string}[]>([]);
-  const [chunkSeconds, setChunkSeconds] = useState<0.5 | 1 | 2>(2);
   const [directEditableText, setDirectEditableText] = useState('');
   const [pastedInputText, setPastedInputText] = useState('');
   const [micAudioLevel, setMicAudioLevel] = useState(0);
@@ -282,75 +281,89 @@ export default function App() {
       try {
         recognitionRef.current.stop();
       } catch (_) {}
-    }
-  }, [setRecording]);
-
-  // ── WASAPI Loopback Real-time STT ─────────────────────────────────────────
-
+  // ── WASAPI Loopback Real-time STT (Always-On Auto-Connect) ────────────────
   const [lastRecordingFile, setLastRecordingFile] = useState<string | null>(null);
 
-  const startLoopbackSTT = useCallback((deviceName?: string, chunkSec: number = 2) => {
-    if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
-      return; // already connected
-    }
-    setLastRecordingFile(null);
-    const ws = new WebSocket('ws://127.0.0.1:8000/api/v1/stt/ws');
-    loopbackWsRef.current = ws;
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ action: 'start', device: deviceName || null, chunk_seconds: chunkSec }));
-      setIsLoopbackActive(true);
-      setRecording(true);
-      showToast(`[루프백 STT] WASAPI 실시간 캡처 시작 (${chunkSec}초 청크)`);
-      setTimeout(() => clearToast(), 2500);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.text) {
-          appendFinalParagraph(msg.text, msg.text, []);
-          evaluateUtteranceRules(msg.text);
-        }
-        if (msg.status === 'stopped' && msg.recording) {
-          // 녹음 파일 저장 완료 → 다운로드 배지 표출
-          setLastRecordingFile(msg.recording);
-          showToast(`[녹음 저장] ${msg.recording}`);
-          setTimeout(() => clearToast(), 4000);
-        }
-        if (msg.error) {
-          showToast(`[루프백 STT 오류] ${msg.error}`);
-          setTimeout(() => clearToast(), 4000);
-        }
-      } catch (_) {}
-    };
-
-    ws.onerror = () => {
-      setIsLoopbackActive(false);
-      setRecording(false);
-      showToast('[루프백 STT] 로컬 GPU 서버 연결 실패');
-      setTimeout(() => clearToast(), 3000);
-    };
-
-    ws.onclose = () => {
-      setIsLoopbackActive(false);
-      setRecording(false);
-      loopbackWsRef.current = null;
-    };
-  }, [appendFinalParagraph, showToast, clearToast, setRecording]);
-
-  const stopLoopbackSTT = useCallback(() => {
-    if (loopbackWsRef.current) {
-      if (loopbackWsRef.current.readyState === WebSocket.OPEN) {
-        loopbackWsRef.current.send(JSON.stringify({ action: 'stop' }));
-        // WebSocket은 서버가 stopped 응답 후 onclose에서 정리
+  useEffect(() => {
+    // Faster-Whisper GPU 모드 및 로컬 서버가 켜져 있으면 상시 루프백 연결 (Always-On)
+    if (sttEngine !== 'whisper_large_v3' || !gpuServerOnline) {
+      if (loopbackWsRef.current) {
+        try {
+          loopbackWsRef.current.send(JSON.stringify({ action: 'stop' }));
+          loopbackWsRef.current.close();
+        } catch (_) {}
+        loopbackWsRef.current = null;
       }
+      setIsLoopbackActive(false);
+      return;
     }
-    setIsLoopbackActive(false);
-    setRecording(false);
-    showToast('[루프백 STT] 실시간 캡처 중지 — 녹음 저장 중...');
-    setTimeout(() => clearToast(), 2500);
-  }, [showToast, clearToast, setRecording]);
+
+    let isDisposed = false;
+    let reconnectTimeout: number | null = null;
+
+    const connectLoopback = () => {
+      if (isDisposed) return;
+      try {
+        const ws = new WebSocket('ws://127.0.0.1:8000/api/v1/stt/ws');
+        loopbackWsRef.current = ws;
+
+        ws.onopen = () => {
+          if (isDisposed) { ws.close(); return; }
+          ws.send(JSON.stringify({ action: 'start', device: loopbackDevice || null }));
+          setIsLoopbackActive(true);
+          setRecording(true);
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.text) {
+              appendFinalParagraph(msg.text, msg.text, []);
+              evaluateUtteranceRules(msg.text);
+            }
+            if (msg.status === 'stopped' && msg.recording) {
+              setLastRecordingFile(msg.recording);
+              showToast(`[녹음 저장] ${msg.recording}`);
+              setTimeout(() => clearToast(), 4000);
+            }
+            if (msg.error) {
+              console.warn('[루프백 STT]', msg.error);
+            }
+          } catch (_) {}
+        };
+
+        ws.onerror = () => {
+          setIsLoopbackActive(false);
+        };
+
+        ws.onclose = () => {
+          setIsLoopbackActive(false);
+          loopbackWsRef.current = null;
+          // 연결이 비정상 종료된 경우 3초 후 자동 재연결
+          if (!isDisposed && sttEngine === 'whisper_large_v3' && gpuServerOnline) {
+            reconnectTimeout = window.setTimeout(connectLoopback, 3000);
+          }
+        };
+      } catch (err) {
+        console.warn('Loopback WS connection error:', err);
+      }
+    };
+
+    connectLoopback();
+
+    return () => {
+      isDisposed = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (loopbackWsRef.current) {
+        try {
+          loopbackWsRef.current.send(JSON.stringify({ action: 'stop' }));
+          loopbackWsRef.current.close();
+        } catch (_) {}
+        loopbackWsRef.current = null;
+      }
+      setIsLoopbackActive(false);
+    };
+  }, [sttEngine, gpuServerOnline, loopbackDevice, appendFinalParagraph, showToast, clearToast, setRecording]);
 
 
   const processAudioWithActiveEngine = useCallback(async (file: File) => {
@@ -1029,72 +1042,26 @@ export default function App() {
             gpuServerOnline ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 
-                {/* 상태 배지 */}
+                {/* 상태 배지 (Always-On) */}
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: '5px',
                   padding: '4px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
-                  backgroundColor: isLoopbackActive ? 'rgba(239, 68, 68, 0.15)' : isWhisperProcessing ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.12)',
-                  border: `1px solid ${isLoopbackActive ? 'rgba(239,68,68,0.5)' : isWhisperProcessing ? 'var(--accent-primary)' : 'rgba(16,185,129,0.35)'}`,
-                  color: isLoopbackActive ? '#fca5a5' : isWhisperProcessing ? '#93c5fd' : 'var(--accent-success)'
+                  backgroundColor: isLoopbackActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                  border: `1px solid ${isLoopbackActive ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`,
+                  color: isLoopbackActive ? 'var(--accent-success)' : 'var(--accent-warning)'
                 }}>
-                  {isLoopbackActive ? (
-                    <><span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ef4444' }} className="animate-pulse" /><span>루프백 실시간 수신 중</span></>
-                  ) : isWhisperProcessing ? (
-                    <><Loader2 size={11} className="animate-spin" /><span>GPU 연산 중</span></>
-                  ) : (
-                    <><span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', backgroundColor: 'var(--accent-success)' }} className="animate-pulse" /><span>GPU 대기 중</span></>
-                  )}
+                  <span
+                    style={{
+                      display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%',
+                      backgroundColor: isLoopbackActive ? 'var(--accent-success)' : 'var(--accent-warning)'
+                    }}
+                    className="animate-pulse"
+                  />
+                  <span>{isLoopbackActive ? '루프백 실시간 수신 상시 가동' : '루프백 연결 중'}</span>
                 </div>
 
-                {/* 루프백 STT 시작/중지 토글 버튼 */}
-                {isLoopbackActive ? (
-                  <button
-                    onClick={stopLoopbackSTT}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '4px',
-                      padding: '4px 10px', borderRadius: '6px',
-                      backgroundColor: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)',
-                      color: '#fca5a5', fontSize: '11px', fontWeight: 700, cursor: 'pointer'
-                    }}
-                  >
-                    <Square size={11} fill="#fca5a5" />
-                    <span>루프백 중지</span>
-                  </button>
-                ) : (
-                  <>
-                    {/* 청크 단위 선택 버튼 */}
-                    <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--surface-2)', borderRadius: '4px', border: '1px solid var(--hairline)', overflow: 'hidden' }}>
-                      {([0.5, 1, 2] as const).map(sec => (
-                        <button
-                          key={sec}
-                          onClick={() => setChunkSeconds(sec)}
-                          style={{
-                            padding: '3px 7px', fontSize: '10px', fontWeight: 700, border: 'none',
-                            backgroundColor: chunkSeconds === sec ? 'var(--accent-primary)' : 'transparent',
-                            color: chunkSeconds === sec ? '#fff' : 'var(--ink-muted)',
-                            cursor: 'pointer', whiteSpace: 'nowrap'
-                          }}
-                        >
-                          {sec}초
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => startLoopbackSTT(loopbackDevice || undefined, chunkSeconds)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '4px',
-                        padding: '4px 10px', borderRadius: '6px',
-                        backgroundColor: 'rgba(239,68,68,0.9)', border: 'none',
-                        color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer'
-                      }}
-                    >
-                      <Radio size={11} />
-                      <span>루프백 STT 시작</span>
-                    </button>
-                  </>
-                )}
-                {/* 녹음 다운로드 버튼 (루프백 중지 후 파일 준비 시) */}
-                {lastRecordingFile && !isLoopbackActive && (
+                {/* 녹음 다운로드 버튼 (녹음 파일 생성 시) */}
+                {lastRecordingFile && (
                   <a
                     href={`http://127.0.0.1:8000/api/v1/stt/recordings/${lastRecordingFile}`}
                     download={lastRecordingFile}
@@ -1111,7 +1078,7 @@ export default function App() {
                   </a>
                 )}
 
-                {loopbackDevices.length > 0 && !isLoopbackActive && (
+                {loopbackDevices.length > 0 && (
                   <select
                     value={loopbackDevice}
                     onChange={(e) => setLoopbackDevice(e.target.value)}
@@ -1127,6 +1094,7 @@ export default function App() {
                     ))}
                   </select>
                 )}
+
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
