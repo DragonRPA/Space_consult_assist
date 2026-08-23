@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import type { CorrectionEvent } from './contextCorrector';
+import { DOMAIN_KEYWORD_REGISTRY } from './keywordAssist';
+import type { KeywordEntity } from './keywordAssist';
 
 export interface CustomerInfo {
   id: string;
@@ -28,6 +30,7 @@ export interface MatchedDiagnosis {
   stock: number;
   confidence: number;
   source: string;
+  selfActionGuide?: string;
 }
 
 interface CounselWorkstationState {
@@ -41,6 +44,11 @@ interface CounselWorkstationState {
   isContextCorrectionEnabled: boolean;
   correctionHistory: CorrectionEvent[];
   toggleContextCorrection: () => void;
+
+  // Real-time Keyword & Auto-Assist Trigger
+  activeKeywordEntity: KeywordEntity | null;
+  detectedEntities: KeywordEntity[];
+  setActiveKeywordEntity: (entity: KeywordEntity) => void;
 
   // Panel A: Customer & Asset
   searchQuery: string;
@@ -145,6 +153,22 @@ export const useCounselStore = create<CounselWorkstationState>((set) => ({
   ],
   toggleContextCorrection: () => set((state) => ({ isContextCorrectionEnabled: !state.isContextCorrectionEnabled })),
 
+  activeKeywordEntity: DOMAIN_KEYWORD_REGISTRY[0],
+  detectedEntities: [DOMAIN_KEYWORD_REGISTRY[0], DOMAIN_KEYWORD_REGISTRY[1]],
+  setActiveKeywordEntity: (entity) => set({
+    activeKeywordEntity: entity,
+    matchedDiagnosis: {
+      category: entity.category,
+      partCode: entity.partCode,
+      partName: entity.partName,
+      stock: entity.stock,
+      confidence: entity.confidence,
+      source: `실시간 키워드 [${entity.keyword}] 즉시 연동`,
+      selfActionGuide: entity.selfActionGuide
+    },
+    actionChecklist: entity.checklist.map((txt, idx) => ({ id: idx + 1, text: txt, checked: false }))
+  }),
+
   searchQuery: '',
   customerList: DEFAULT_CUSTOMERS,
   selectedCustomer: DEFAULT_CUSTOMERS[0],
@@ -155,11 +179,12 @@ export const useCounselStore = create<CounselWorkstationState>((set) => ({
   detectedKeywords: ['흡입모터 굉음', '타는 냄새', '오수 흡입불량'],
   matchedDiagnosis: {
     category: 'POWER / 흡입·구동계통',
-    partCode: 'SUCTION',
+    partCode: 'SUCTION-500W',
     partName: '흡입모터 24V 500W 어셈블리',
     stock: 14,
-    confidence: 96,
-    source: '정식 등록 룰베이스 (pg_trgm 0.96)'
+    confidence: 98,
+    source: '실시간 키워드 [흡입모터] 즉시 연동',
+    selfActionGuide: '고객에게 전원을 끄고 모터 열기를 10분간 식힌 뒤, 폐수탱크 거름망 이물질을 털어내도록 안내하세요.'
   },
   manualOverrideKeyword: '',
 

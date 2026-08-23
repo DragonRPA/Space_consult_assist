@@ -14,11 +14,15 @@ import {
   Volume2, 
   Radio,
   BrainCircuit,
+  Zap,
+  HelpCircle,
   X 
 } from 'lucide-react';
 import { useCounselStore } from './store';
 import { MicTestModal } from './MicTestModal';
 import { applyContextualCorrection } from './contextCorrector';
+import { DOMAIN_KEYWORD_REGISTRY, renderHighlightedText } from './keywordAssist';
+import type { KeywordEntity } from './keywordAssist';
 import './index.css';
 
 declare global {
@@ -27,57 +31,6 @@ declare global {
     webkitSpeechRecognition: any;
   }
 }
-
-// Client-side Instantaneous Keyword Rule Table (<50ms trigger on interim audio)
-const INSTANT_SYMPTOM_RULES = [
-  {
-    pattern: /흡입|진공|굉음|타는\s*냄새|모터/i,
-    keyword: "흡입모터 굉음 및 과열",
-    category: "POWER / 흡입·구동계통",
-    partCode: "SUCTION",
-    partName: "흡입모터 24V 500W 어셈블리",
-    stock: 14,
-    confidence: 98,
-    checklist: [
-      "전원 스위치 즉시 차단 및 모터 하우징 열기 냉각 안내",
-      "폐수탱크 플로트 밸브(만수 차단기) 오작동/이물질 확인",
-      "흡입 호스 및 스퀴지 연결부 막힘 육안 점검",
-      "10분 후 재가동 시 동일 소음/타는 냄새 지속 여부 확인",
-      "증상 지속 시 1차 셀프조치 중단 및 현장 긴급 정밀점검 배차"
-    ]
-  },
-  {
-    pattern: /배터리|충전|전원|안\s*켜|방전/i,
-    keyword: "배터리 충전 불량 / 메인 전원 미인가",
-    category: "ELECTRICAL / 배터리·전원계통",
-    partCode: "BATTERY-24V",
-    partName: "딥사이클 산업용 배터리 24V 105AH",
-    stock: 8,
-    confidence: 95,
-    checklist: [
-      "충전기 플러그 220V 콘센트 정상 통전 여부 확인",
-      "장비 후면 메인 비상정지(Emergency) 버튼 해제 확인",
-      "배터리 단자 체결 상태 및 부식/단선 육안 점검",
-      "충전기 표시등 에러 코드(적색 점멸) 패턴 확인",
-      "완전 방전 의심 시 현장 급속 충전기 및 배터리 출장 점검"
-    ]
-  },
-  {
-    pattern: /물|누수|급수|밸브|세제/i,
-    keyword: "솔레노이드 급수 차단 불량 / 바닥 누수",
-    category: "WATER / 급수·솔레노이드",
-    partCode: "SOLENOID-VALVE",
-    partName: "전자식 급수 솔레노이드 밸브 24V",
-    stock: 22,
-    confidence: 94,
-    checklist: [
-      "세수탱크(청수통) 필터망 이물질 막힘 청소 안내",
-      "솔레노이드 밸브 전원 커넥터 접촉 불량 점검",
-      "급수 레버 작동 시 '딸깍' 작동음 발생 여부 확인",
-      "밸브 고착으로 지속 누수 시 밸브 신품 교체 출장 배차"
-    ]
-  }
-];
 
 export default function App() {
   const {
@@ -88,13 +41,14 @@ export default function App() {
     isContextCorrectionEnabled,
     correctionHistory,
     toggleContextCorrection,
+    activeKeywordEntity,
+    setActiveKeywordEntity,
     searchQuery,
     customerList,
     selectedCustomer,
     rawFinalSttText,
     finalSttText,
     interimSttText,
-    detectedKeywords,
     matchedDiagnosis,
     manualOverrideKeyword,
     actionChecklist,
@@ -109,7 +63,6 @@ export default function App() {
     selectCustomer,
     appendFinalSttText,
     setInterimSttText,
-    setDiagnosisResult,
     toggleChecklist,
     setManualOverrideKeyword,
     setDispatchDrawerOpen,
@@ -124,7 +77,7 @@ export default function App() {
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [isMicTestOpen, setIsMicTestOpen] = useState(false);
   const [micAudioLevel, setMicAudioLevel] = useState(0);
-  const [showCorrectionsPopover, setShowCorrectionsPopover] = useState(false);
+  const [justTriggeredKeyword, setJustTriggeredKeyword] = useState<string | null>(null);
 
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -192,7 +145,7 @@ export default function App() {
     };
   }, [isRecording]);
 
-  // Real-time Web Speech API with Interim Token Processing & Context Correction
+  // Real-time Web Speech API with Auto-Query Assist Trigger
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -235,22 +188,15 @@ export default function App() {
           setInterimSttText(interim);
         }
 
-        // Instantaneous Real-time Keyword & SOP Trigger (<50ms on interim speech tokens!)
+        // Real-Time Keyword Auto-Query Trigger (<50ms)
         const fullCurrentStream = ((isContextCorrectionEnabled ? finalSttText : rawFinalSttText) + ' ' + interim).trim();
-        for (const rule of INSTANT_SYMPTOM_RULES) {
-          if (rule.pattern.test(fullCurrentStream)) {
-            setDiagnosisResult(
-              [rule.keyword],
-              {
-                category: rule.category,
-                partCode: rule.partCode,
-                partName: rule.partName,
-                stock: rule.stock,
-                confidence: rule.confidence,
-                source: "실시간 스트리밍 룰 트리거 (<50ms)"
-              },
-              rule.checklist
-            );
+        for (const entity of DOMAIN_KEYWORD_REGISTRY) {
+          if (entity.synonyms.test(fullCurrentStream)) {
+            if (!activeKeywordEntity || activeKeywordEntity.id !== entity.id) {
+              setActiveKeywordEntity(entity);
+              setJustTriggeredKeyword(entity.keyword);
+              setTimeout(() => setJustTriggeredKeyword(null), 2500);
+            }
             break;
           }
         }
@@ -277,7 +223,7 @@ export default function App() {
 
       recognitionRef.current = recognition;
     }
-  }, [appendFinalSttText, setInterimSttText, finalSttText, rawFinalSttText, isContextCorrectionEnabled, isRecording, setRecording, setDiagnosisResult, showToast, clearToast]);
+  }, [appendFinalSttText, setInterimSttText, finalSttText, rawFinalSttText, isContextCorrectionEnabled, isRecording, setRecording, activeKeywordEntity, setActiveKeywordEntity, showToast, clearToast]);
 
   const toggleRecording = () => {
     if (!isRecording) {
@@ -301,6 +247,12 @@ export default function App() {
       showToast("⏹️ 마이크 음성인식이 정지되었습니다.");
       setTimeout(() => clearToast(), 2500);
     }
+  };
+
+  const handleKeywordSelect = (entity: KeywordEntity) => {
+    setActiveKeywordEntity(entity);
+    showToast(`🔍 키워드 [${entity.keyword}] 어시스트 즉시 조회 연동됨`);
+    setTimeout(() => clearToast(), 2500);
   };
 
   const handleResolveComplete = () => {
@@ -394,7 +346,6 @@ export default function App() {
 
         {/* Semantic Contextual STT Correction Toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          
           <button
             onClick={toggleContextCorrection}
             style={{
@@ -412,7 +363,7 @@ export default function App() {
             }}
           >
             <BrainCircuit size={13} style={{ color: isContextCorrectionEnabled ? 'var(--accent-primary)' : 'var(--ink-subtle)' }} />
-            <span>맥락적 STT 자동 보정: <strong>{isContextCorrectionEnabled ? "ON (활성)" : "OFF"}</strong></span>
+            <span>맥락적 STT 자동 보정: <strong>{isContextCorrectionEnabled ? "ON" : "OFF"}</strong></span>
           </button>
 
           {/* Real-time Streaming Status Badge */}
@@ -474,7 +425,7 @@ export default function App() {
             <span className="font-mono">{formatTimer(callSeconds)}</span>
           </div>
 
-          {/* STT Start/Stop Button with Live VU Level Bar */}
+          {/* STT Start/Stop Button */}
           <button 
             onClick={toggleRecording}
             style={{
@@ -675,7 +626,7 @@ export default function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Sparkles size={14} style={{ color: 'var(--accent-primary)' }} />
-                실시간 음성 스트리밍 전사 & AI 추론
+                실시간 전사 자막 및 키워드 자동 감지
               </span>
               
               {/* Dynamic Mic Activity Indicator */}
@@ -686,7 +637,7 @@ export default function App() {
                   </span>
                 )}
                 <span style={{ fontSize: '11px', color: isRecording ? 'var(--accent-danger)' : 'var(--ink-muted)', fontWeight: 600 }}>
-                  {isRecording ? "● 실시간 음성 스트리밍 중" : "대기 상태"}
+                  {isRecording ? "● 실시간 전사 중" : "대기 상태"}
                 </span>
               </div>
             </div>
@@ -704,27 +655,17 @@ export default function App() {
             </div>
           </div>
 
-          {/* STT Live Transcript Box */}
+          {/* STT Live Transcript Box with Keyword Highlighting */}
           <div style={{ flex: '1.2', padding: '12px', display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--hairline)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
-                  실시간 전사 자막 (말하는 즉시 0.1초 단위 표시)
+                  전사 자막 (단어 클릭 시 해당 어시스트로 즉시 이동)
                 </label>
                 {correctionHistory.length > 0 && isContextCorrectionEnabled && (
-                  <button 
-                    onClick={() => setShowCorrectionsPopover(!showCorrectionsPopover)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--accent-primary)',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    ✨ 교정 {correctionHistory.length}건
-                  </button>
+                  <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                    ✨ 맥락 보정 {correctionHistory.length}건
+                  </span>
                 )}
               </div>
               <button 
@@ -743,59 +684,90 @@ export default function App() {
               padding: '12px', 
               overflowY: 'auto',
               fontSize: '13px',
-              lineHeight: 1.6,
+              lineHeight: 1.7,
               color: 'var(--ink)'
             }}>
-              {/* 1) Confirmed Sentences */}
-              <span>{isContextCorrectionEnabled ? finalSttText : rawFinalSttText} </span>
+              {/* Highlighted Confirmed Sentences */}
+              <span>
+                {renderHighlightedText(
+                  isContextCorrectionEnabled ? finalSttText : rawFinalSttText,
+                  handleKeywordSelect,
+                  activeKeywordEntity?.id
+                )}
+              </span>
 
-              {/* 2) Real-time Interim Streaming Words (Glowing Blue) */}
+              {/* Real-time Interim Streaming Words (Glowing Blue) */}
               {interimSttText && (
-                <span style={{ color: '#93c5fd', backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '1px 4px', borderRadius: '3px', fontWeight: 600 }}>
+                <span style={{ color: '#93c5fd', backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '1px 4px', borderRadius: '3px', fontWeight: 600, marginLeft: '4px' }}>
                   {interimSttText}
                 </span>
               )}
 
-              {/* 3) Pulsing Cursor */}
+              {/* Pulsing Cursor */}
               {isRecording && (
                 <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '14px', backgroundColor: 'var(--accent-primary)', marginLeft: '4px', verticalAlign: 'middle' }} />
               )}
 
               {!finalSttText && !interimSttText && (
-                <span style={{ color: 'var(--ink-subtle)' }}>상단 [STT 수신 시작] 버튼을 누르고 말씀하시면 말하는 즉시 글자가 표출됩니다...</span>
+                <span style={{ color: 'var(--ink-subtle)' }}>상단 [STT 수신 시작]을 누르고 '흡입모터 소음'이나 '스퀴지 잔수'라고 말씀해 보세요...</span>
               )}
             </div>
           </div>
 
-          {/* Detected Keywords & Diagnosis Card */}
+          {/* Detected Keywords Bar (Clickable Pills) */}
           <div style={{ flex: '1.5', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
             <div>
-              <label style={{ fontSize: '11px', color: 'var(--ink-muted)', display: 'block', marginBottom: '6px' }}>
-                자동 감지 증상 키워드 (실시간 발화 중 즉시 추출)
-              </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {detectedKeywords.map((kw, idx) => (
-                  <span 
-                    key={idx}
-                    style={{
-                      padding: '4px 10px',
-                      borderRadius: '4px',
-                      backgroundColor: 'var(--badge-bg)',
-                      border: '1px solid var(--hairline)',
-                      color: 'var(--badge-text)',
-                      fontSize: '12px',
-                      fontWeight: 600
-                    }}
-                  >
-                    #{kw}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--ink-muted)', display: 'block' }}>
+                  감지된 증상 키워드 (클릭 시 해당 어시스트 즉시 전환)
+                </label>
+                {justTriggeredKeyword && (
+                  <span style={{ fontSize: '11px', color: 'var(--accent-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Zap size={12} /> [{justTriggeredKeyword}] 자동 조회됨!
                   </span>
-                ))}
+                )}
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {DOMAIN_KEYWORD_REGISTRY.map((entity) => {
+                  const isSelected = activeKeywordEntity?.id === entity.id;
+                  return (
+                    <button
+                      key={entity.id}
+                      onClick={() => handleKeywordSelect(entity)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 10px',
+                        borderRadius: '4px',
+                        backgroundColor: isSelected ? 'var(--accent-primary)' : 'var(--badge-bg)',
+                        border: `1px solid ${isSelected ? 'var(--accent-primary)' : 'var(--hairline)'}`,
+                        color: isSelected ? '#fff' : 'var(--badge-text)',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <span>#{entity.keyword}</span>
+                      <span style={{ fontSize: '10px', opacity: 0.8 }}>({entity.confidence}%)</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Diagnosis Result Card */}
             {matchedDiagnosis && (
-              <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
+              <div style={{ 
+                backgroundColor: 'var(--surface-2)', 
+                padding: '12px', 
+                borderRadius: '6px', 
+                border: '1px solid var(--hairline)',
+                boxShadow: justTriggeredKeyword ? '0 0 16px rgba(37, 99, 235, 0.4)' : 'none',
+                transition: 'box-shadow 0.3s ease'
+              }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-primary)' }}>{matchedDiagnosis.category}</span>
                   <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-success)', fontWeight: 600 }}>
@@ -879,6 +851,26 @@ export default function App() {
               {checkedCount} / {totalCount} 완료 ({Math.round((checkedCount / totalCount) * 100)}%)
             </span>
           </div>
+
+          {/* Self Action Counselor Script Card */}
+          {matchedDiagnosis?.selfActionGuide && (
+            <div style={{
+              margin: '12px 12px 0 12px',
+              padding: '10px 12px',
+              backgroundColor: 'rgba(37, 99, 235, 0.1)',
+              border: '1px solid rgba(37, 99, 235, 0.3)',
+              borderRadius: '6px',
+              fontSize: '12px',
+              lineHeight: 1.4,
+              color: '#bfdbfe'
+            }}>
+              <div style={{ fontWeight: 700, color: '#93c5fd', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <HelpCircle size={13} />
+                상담사 안내 권장 스크립트:
+              </div>
+              "{matchedDiagnosis.selfActionGuide}"
+            </div>
+          )}
 
           {/* Checklist Items Container */}
           <div style={{ flex: 1, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
