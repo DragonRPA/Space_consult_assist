@@ -91,6 +91,7 @@ class LoopbackSTTService:
         self._stop_event: threading.Event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._device_name: Optional[str] = None
+        self._chunk_seconds: float = 2.0
 
     @property
     def is_running(self) -> bool:
@@ -99,7 +100,8 @@ class LoopbackSTTService:
     def start(
         self,
         segment_callback: Callable[[dict], None],
-        device_name: Optional[str] = None
+        device_name: Optional[str] = None,
+        chunk_seconds: float = 2.0
     ):
         """루프백 캡처 스레드 시작"""
         if self.is_running:
@@ -108,6 +110,7 @@ class LoopbackSTTService:
 
         self._stop_event.clear()
         self._device_name = device_name
+        self._chunk_seconds = max(0.3, float(chunk_seconds))  # 최소 0.3초 보장
         self._thread = threading.Thread(
             target=self._capture_loop,
             args=(segment_callback,),
@@ -115,7 +118,7 @@ class LoopbackSTTService:
             name="wasapi-loopback-stt"
         )
         self._thread.start()
-        logger.info("LoopbackSTTService started")
+        logger.info(f"LoopbackSTTService started (chunk={self._chunk_seconds}s)")
 
     def stop(self):
         """루프백 캡처 스레드 중지"""
@@ -136,6 +139,8 @@ class LoopbackSTTService:
                 segment_callback({"error": "Faster-Whisper 모델 로드 실패"})
                 return
 
+            chunk_frames = int(CAPTURE_SAMPLE_RATE * self._chunk_seconds)
+
             # 장치 탐색
             if self._device_name:
                 target = next(
@@ -149,8 +154,8 @@ class LoopbackSTTService:
                 segment_callback({"error": "오디오 캡처 장치를 찾을 수 없습니다"})
                 return
 
-            segment_callback({"status": "connected", "device": target.name})
-            logger.info(f"WASAPI Loopback 캡처 장치: {target.name}")
+            segment_callback({"status": "connected", "device": target.name, "chunk_seconds": self._chunk_seconds})
+            logger.info(f"WASAPI Loopback 캡처 장치: {target.name} / 청크: {self._chunk_seconds}s")
 
             mic = sc.get_microphone(id=str(target.name), include_loopback=True)
             with mic.recorder(
@@ -159,19 +164,15 @@ class LoopbackSTTService:
                 blocksize=4096
             ) as recorder:
                 while not self._stop_event.is_set():
-                    # 2초 청크 캡처
-                    chunk = recorder.record(numframes=CHUNK_FRAMES)
+                    chunk = recorder.record(numframes=chunk_frames)
                     audio_mono = chunk[:, 0] if chunk.ndim > 1 else chunk
 
-                    # 에너지 기반 VAD: 무음 구간 스킵
                     rms = float(np.sqrt(np.mean(audio_mono.astype(np.float32) ** 2)))
                     if rms < SILENCE_THRESHOLD_RMS:
                         continue
 
-                    # 16kHz 모노 리샘플링
                     audio_16k = resample_to_16k(audio_mono, CAPTURE_SAMPLE_RATE)
 
-                    # Faster-Whisper 추론
                     segments, _info = model.transcribe(
                         audio_16k,
                         language="ko",
@@ -192,6 +193,7 @@ class LoopbackSTTService:
         except Exception as e:
             logger.error(f"LoopbackSTT capture error: {e}", exc_info=True)
             segment_callback({"error": str(e)})
+
 
 
 # 글로벌 싱글턴

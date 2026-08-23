@@ -85,8 +85,10 @@ async def stt_loopback_websocket(websocket: WebSocket):
                 if loopback_svc.is_running:
                     loopback_svc.stop()
                 device_name = msg.get("device", None)
-                logger.info(f"▶ [STT-WS] Loopback STT 시작 (device={device_name})")
-                loopback_svc.start(on_segment, device_name=device_name)
+                chunk_seconds = float(msg.get("chunk_seconds", 2.0))
+                chunk_seconds = max(0.3, min(chunk_seconds, 10.0))  # 0.3s ~ 10s 범위 제한
+                logger.info(f"▶ [STT-WS] Loopback STT 시작 (device={device_name}, chunk={chunk_seconds}s)")
+                loopback_svc.start(on_segment, device_name=device_name, chunk_seconds=chunk_seconds)
 
             elif action == "stop":
                 logger.info("⏹ [STT-WS] Loopback STT 중지")

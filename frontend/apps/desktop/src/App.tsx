@@ -112,6 +112,7 @@ export default function App() {
   const [isLoopbackActive, setIsLoopbackActive] = useState(false);
   const [loopbackDevice, setLoopbackDevice] = useState<string>('');
   const [loopbackDevices, setLoopbackDevices] = useState<{id: string; name: string}[]>([]);
+  const [chunkSeconds, setChunkSeconds] = useState<0.5 | 1 | 2>(2);
   const [directEditableText, setDirectEditableText] = useState('');
   const [pastedInputText, setPastedInputText] = useState('');
   const [micAudioLevel, setMicAudioLevel] = useState(0);
@@ -287,7 +288,7 @@ export default function App() {
 
   // ── WASAPI Loopback Real-time STT ─────────────────────────────────────────
 
-  const startLoopbackSTT = useCallback((deviceName?: string) => {
+  const startLoopbackSTT = useCallback((deviceName?: string, chunkSec: number = 2) => {
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
       return; // already connected
     }
@@ -295,10 +296,10 @@ export default function App() {
     loopbackWsRef.current = ws;
 
     ws.onopen = () => {
-      ws.send(JSON.stringify({ action: 'start', device: deviceName || null }));
+      ws.send(JSON.stringify({ action: 'start', device: deviceName || null, chunk_seconds: chunkSec }));
       setIsLoopbackActive(true);
       setRecording(true);
-      showToast('[루프백 STT] WASAPI 실시간 캡처 시작');
+      showToast(`[루프백 STT] WASAPI 실시간 캡처 시작 (${chunkSec}초 청크)`);
       setTimeout(() => clearToast(), 2500);
     };
 
@@ -1078,19 +1079,39 @@ export default function App() {
                     <span>루프백 중지</span>
                   </button>
                 ) : (
-                  <button
-                    onClick={() => startLoopbackSTT(loopbackDevice || undefined)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '4px',
-                      padding: '4px 10px', borderRadius: '6px',
-                      backgroundColor: 'rgba(239,68,68,0.9)', border: 'none',
-                      color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer'
-                    }}
-                  >
-                    <Radio size={11} />
-                    <span>실시간 루프백 STT</span>
-                  </button>
+                  <>
+                    {/* 청크 단위 선택 버튼 */}
+                    <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--surface-2)', borderRadius: '4px', border: '1px solid var(--hairline)', overflow: 'hidden' }}>
+                      {([0.5, 1, 2] as const).map(sec => (
+                        <button
+                          key={sec}
+                          onClick={() => setChunkSeconds(sec)}
+                          style={{
+                            padding: '3px 7px', fontSize: '10px', fontWeight: 700, border: 'none',
+                            backgroundColor: chunkSeconds === sec ? 'var(--accent-primary)' : 'transparent',
+                            color: chunkSeconds === sec ? '#fff' : 'var(--ink-muted)',
+                            cursor: 'pointer', whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {sec}초
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => startLoopbackSTT(loopbackDevice || undefined, chunkSeconds)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '4px',
+                        padding: '4px 10px', borderRadius: '6px',
+                        backgroundColor: 'rgba(239,68,68,0.9)', border: 'none',
+                        color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer'
+                      }}
+                    >
+                      <Radio size={11} />
+                      <span>루프백 STT 시작</span>
+                    </button>
+                  </>
                 )}
+
 
                 {/* 장치 선택 드롭다운 */}
                 {loopbackDevices.length > 0 && !isLoopbackActive && (
