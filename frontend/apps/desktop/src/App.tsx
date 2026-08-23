@@ -12,7 +12,6 @@ import {
   Square, 
   Sparkles, 
   Volume2, 
-  VolumeX,
   Radio,
   BrainCircuit,
   Zap,
@@ -97,8 +96,7 @@ export default function App() {
   const [isMicTestOpen, setIsMicTestOpen] = useState(false);
   const [micAudioLevel, setMicAudioLevel] = useState(0);
   const [justTriggeredKeyword, setJustTriggeredKeyword] = useState<string | null>(null);
-  const [playerVolume, setPlayerVolume] = useState<number>(1.0);
-  const [isPlayerMuted, setIsPlayerMuted] = useState<boolean>(false);
+  const [isDragOverDropzone, setIsDragOverDropzone] = useState(false);
 
   const globalAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -118,32 +116,41 @@ export default function App() {
 
     if (isAudioPlaying) {
       globalAudioRef.current.play().catch((err) => {
-        console.warn("Audio play blocked or waiting:", err);
+        console.warn("Audio play error/waiting:", err);
       });
     } else {
       globalAudioRef.current.pause();
     }
   }, [isAudioPlaying, activeAudioUrl]);
 
-  // Drag and Drop Audio File onto Screen - NO MODAL, Direct Background Play!
-  const handleDragOver = (e: React.DragEvent) => {
+  // STT Box Dropzone Event Handlers
+  const handleDropzoneDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = 'copy';
+    if (!isDragOverDropzone) setIsDragOverDropzone(true);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDropzoneDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverDropzone(false);
+  };
+
+  const handleDropzoneDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverDropzone(false);
+
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
-      if (file.name.match(/\.(m4a|mp3|wav|ogg|aac|flac)$/i)) {
-        setActiveAudioFile(file);
-        setIsAudioPlaying(true);
-        if (!isRecording) {
-          setRecording(true);
-        }
-        showToast(`🎵 [${file.name}] 스피커 재생 시작 (화면에서 실시간 전사 관찰)`);
-        setTimeout(() => clearToast(), 3500);
+      setActiveAudioFile(file);
+      setIsAudioPlaying(true);
+      if (!isRecording) {
+        setRecording(true);
       }
+      showToast(`🎵 [${file.name}] 스피커 재생 시작 (마이크로 실시간 전사 중)`);
+      setTimeout(() => clearToast(), 3500);
     }
   };
 
@@ -172,35 +179,6 @@ export default function App() {
     }
     setIsAudioPlaying(false);
     setAudioTime(0, audioDuration);
-  };
-
-  const handleAudioSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = parseFloat(e.target.value);
-    if (globalAudioRef.current) {
-      globalAudioRef.current.currentTime = newTime;
-    }
-    setAudioTime(newTime, audioDuration);
-  };
-
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value);
-    setPlayerVolume(val);
-    if (globalAudioRef.current) {
-      globalAudioRef.current.volume = val;
-      globalAudioRef.current.muted = val === 0;
-      setIsPlayerMuted(val === 0);
-    }
-  };
-
-  const togglePlayerMute = () => {
-    if (!globalAudioRef.current) return;
-    if (isPlayerMuted) {
-      globalAudioRef.current.muted = false;
-      setIsPlayerMuted(false);
-    } else {
-      globalAudioRef.current.muted = true;
-      setIsPlayerMuted(true);
-    }
   };
 
   const formatAudioTime = (sec: number) => {
@@ -524,12 +502,9 @@ export default function App() {
   const totalCount = actionChecklist.length;
 
   return (
-    <div 
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: 'var(--canvas)', color: 'var(--ink)' }}
-    >
-      {/* Permanent Background Audio Element (Hardware Speaker Output) */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: 'var(--canvas)', color: 'var(--ink)' }}>
+      
+      {/* Permanent Background Audio Element (Real Hardware Speaker Output) */}
       <audio
         ref={globalAudioRef}
         src={activeAudioUrl || undefined}
@@ -548,7 +523,7 @@ export default function App() {
         }}
       />
 
-      {/* Hidden File Input for Button Trigger */}
+      {/* Hidden File Input for Direct File Choice */}
       <input
         ref={fileInputRef}
         type="file"
@@ -628,27 +603,6 @@ export default function App() {
         {/* Live Audio & STT Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           
-          {/* File Picker Button (.m4a local playback) */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '5px 12px',
-              borderRadius: '6px',
-              backgroundColor: 'rgba(37, 99, 235, 0.15)',
-              border: '1px solid rgba(37, 99, 235, 0.35)',
-              color: '#93c5fd',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            <Upload size={14} />
-            <span className="nowrap">음성파일 열기 (.m4a)</span>
-          </button>
-
           {/* Dedicated Mic Test Button */}
           <button
             onClick={() => setIsMicTestOpen(true)}
@@ -946,38 +900,52 @@ export default function App() {
             </div>
           </div>
 
-          {/* INLINE HARDWARE AUDIO PLAYER BAR (NO BLOCKING POPUPS!) */}
-          {activeAudioFile && (
-            <div style={{
-              padding: '8px 12px',
-              backgroundColor: 'rgba(37, 99, 235, 0.12)',
-              borderBottom: '1px solid var(--hairline)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* STT Header Bar & PLAY/STOP BUTTONS DIRECTLY ABOVE TEXT BOX */}
+          <div style={{ 
+            padding: '8px 12px', 
+            borderBottom: '1px solid var(--hairline)', 
+            backgroundColor: activeAudioFile ? 'rgba(37, 99, 235, 0.14)' : 'var(--surface-1)',
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            transition: 'background-color 0.2s ease'
+          }}>
+            {/* Left: Transcript title or Active Audio Info */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+              {activeAudioFile ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                  <FileAudio size={14} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                  <FileAudio size={15} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#93c5fd', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {activeAudioFile.name}
                   </span>
+                  <span className="font-mono" style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
+                    ({formatAudioTime(audioCurrentTime)} / {formatAudioTime(audioDuration)})
+                  </span>
                 </div>
-                <button 
-                  onClick={clearAudioFile} 
-                  title="음성 파일 닫기" 
-                  style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
+                    전사 자막 (음성 파일을 아래 박스에 던져 넣으세요)
+                  </label>
+                  {correctionHistory.length > 0 && isContextCorrectionEnabled && (
+                    <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                      ✨ 맥락 보정 {correctionHistory.length}건
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                {/* Play/Pause/Stop */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {/* Right: PLAY / PAUSE / STOP BUTTONS (DIRECTLY ABOVE TEXT BOX) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+              {activeAudioFile ? (
+                <>
                   <button
                     onClick={toggleAudioPlayback}
                     style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
                       padding: '4px 10px',
                       backgroundColor: isAudioPlaying ? 'var(--accent-danger)' : 'var(--accent-primary)',
                       color: '#fff',
@@ -986,9 +954,7 @@ export default function App() {
                       fontSize: '11px',
                       fontWeight: 700,
                       cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
+                      boxShadow: isAudioPlaying ? '0 0 10px rgba(239, 68, 68, 0.4)' : '0 0 10px rgba(37, 99, 235, 0.4)'
                     }}
                   >
                     {isAudioPlaying ? <Pause size={12} /> : <Play size={12} />}
@@ -997,6 +963,7 @@ export default function App() {
 
                   <button
                     onClick={stopAudioPlayback}
+                    title="음성 정지"
                     style={{
                       padding: '4px 8px',
                       backgroundColor: 'var(--surface-3)',
@@ -1009,85 +976,90 @@ export default function App() {
                   >
                     <Square size={11} />
                   </button>
-                </div>
 
-                {/* Timeline Slider */}
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="font-mono" style={{ fontSize: '11px', color: '#93c5fd' }}>{formatAudioTime(audioCurrentTime)}</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max={audioDuration || 100}
-                    step="0.1"
-                    value={audioCurrentTime}
-                    onChange={handleAudioSeek}
-                    style={{ flex: 1, height: '4px', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
-                  />
-                  <span className="font-mono" style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>{formatAudioTime(audioDuration)}</span>
-                </div>
-
-                {/* Speaker Volume Slider */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <button onClick={togglePlayerMute} style={{ background: 'none', border: 'none', color: isPlayerMuted ? 'var(--accent-danger)' : 'var(--ink)', cursor: 'pointer' }}>
-                    {isPlayerMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                  <button
+                    onClick={clearAudioFile}
+                    title="음성 파일 제거"
+                    style={{
+                      padding: '4px 6px',
+                      background: 'none',
+                      color: 'var(--ink-muted)',
+                      border: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <X size={14} />
                   </button>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={isPlayerMuted ? 0 : playerVolume}
-                    onChange={handleVolumeChange}
-                    style={{ width: '50px', height: '4px', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* STT Live Transcript Box with Multi-Color Entity Highlights */}
-          <div style={{ flex: '1.2', padding: '12px', display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--hairline)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
-                  전사 자막 (단어 클릭 시 해당 고객/증상/조치 연동)
-                </label>
-                {correctionHistory.length > 0 && isContextCorrectionEnabled && (
-                  <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 600 }}>
-                    ✨ 맥락 보정 {correctionHistory.length}건
-                  </span>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
+                </>
+              ) : (
                 <button 
                   onClick={() => fileInputRef.current?.click()}
-                  style={{ background: 'none', border: 'none', color: '#93c5fd', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '4px', 
+                    padding: '3px 8px', 
+                    backgroundColor: 'var(--surface-2)', 
+                    border: '1px solid var(--hairline)', 
+                    borderRadius: '4px', 
+                    color: '#93c5fd', 
+                    fontSize: '11px', 
+                    cursor: 'pointer', 
+                    fontWeight: 600 
+                  }}
                 >
-                  📁 .m4a 파일 선택
+                  <Upload size={12} />
+                  <span>.m4a 파일 열기</span>
                 </button>
-                <button 
-                  onClick={() => setIsMicTestOpen(true)}
-                  style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
-                >
-                  마이크 진단
-                </button>
-              </div>
+              )}
             </div>
-            
+          </div>
+
+          {/* STT Live Transcript Box: ACTS AS THE DROPZONE! */}
+          <div 
+            style={{ flex: '1.2', padding: '10px', display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--hairline)' }}
+          >
             <div 
               ref={transcriptBoxRef}
+              onDragOver={handleDropzoneDragOver}
+              onDragLeave={handleDropzoneDragLeave}
+              onDrop={handleDropzoneDrop}
               style={{ 
                 flex: 1, 
-                backgroundColor: 'var(--surface-2)', 
-                border: '1px solid var(--hairline)', 
+                backgroundColor: isDragOverDropzone ? 'rgba(37, 99, 235, 0.18)' : 'var(--surface-2)', 
+                border: isDragOverDropzone ? '2px dashed var(--accent-primary)' : '1px solid var(--hairline)', 
                 borderRadius: '6px', 
                 padding: '12px', 
                 overflowY: 'auto',
                 fontSize: '13px',
                 lineHeight: 1.6,
-                color: 'var(--ink)'
+                color: 'var(--ink)',
+                position: 'relative',
+                transition: 'all 0.15s ease'
               }}
             >
+              {/* Dragging Overlay Guide */}
+              {isDragOverDropzone && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  backgroundColor: 'rgba(37, 99, 235, 0.25)',
+                  backdropFilter: 'blur(2px)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  zIndex: 20,
+                  borderRadius: '6px'
+                }}>
+                  <Upload size={32} className="animate-bounce" style={{ marginBottom: '8px', color: '#93c5fd' }} />
+                  <span>🎯 여기에 .m4a 음성 파일을 놓으면 즉시 스피커 재생 및 STT가 시작됩니다!</span>
+                </div>
+              )}
+
               {/* Multi-Color Highlighted Paragraphs */}
               {activeParagraphs.length > 0 ? (
                 <div>
@@ -1142,8 +1114,8 @@ export default function App() {
                   )}
                 </div>
               ) : (
-                <div style={{ color: 'var(--ink-subtle)', padding: '16px 8px', textAlign: 'center', fontSize: '12px' }}>
-                  🎙️ 상단 <strong>[STT 수신 시작]</strong> 또는 <strong>[.m4a 음성파일을 화면에 드래그&드롭]</strong>하세요.
+                <div style={{ color: 'var(--ink-subtle)', padding: '24px 8px', textAlign: 'center', fontSize: '12px' }}>
+                  🎙️ 상단 <strong>[STT 수신 시작]</strong>을 누르거나, <strong>외부 .m4a 음성 파일을 이 박스에 끌어다 놓으세요.</strong>
                 </div>
               )}
             </div>
