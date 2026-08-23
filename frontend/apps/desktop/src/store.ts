@@ -42,10 +42,15 @@ interface CounselWorkstationState {
   // Real Hardware Audio Player State
   activeAudioFile: File | null;
   activeAudioUrl: string | null;
+  isAudioPlaying: boolean;
   isAudioPlayerOpen: boolean;
+  audioCurrentTime: number;
+  audioDuration: number;
   setActiveAudioFile: (file: File) => void;
   clearAudioFile: () => void;
   setIsAudioPlayerOpen: (open: boolean) => void;
+  setIsAudioPlaying: (playing: boolean) => void;
+  setAudioTime: (current: number, duration: number) => void;
 
   // Contextual STT Semantic Correction Engine
   isContextCorrectionEnabled: boolean;
@@ -155,23 +160,29 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
   // Real Hardware Audio Player State
   activeAudioFile: null,
   activeAudioUrl: null,
+  isAudioPlaying: false,
   isAudioPlayerOpen: false,
+  audioCurrentTime: 0,
+  audioDuration: 0,
   setActiveAudioFile: (file: File) => {
     const currentUrl = get().activeAudioUrl;
     if (currentUrl) URL.revokeObjectURL(currentUrl);
     const newUrl = URL.createObjectURL(file);
     set({ 
       activeAudioFile: file, 
-      activeAudioUrl: newUrl, 
-      isAudioPlayerOpen: true 
+      activeAudioUrl: newUrl,
+      isAudioPlaying: true,
+      isAudioPlayerOpen: false // Auto close modal on drop per user instruction!
     });
   },
   clearAudioFile: () => {
     const currentUrl = get().activeAudioUrl;
     if (currentUrl) URL.revokeObjectURL(currentUrl);
-    set({ activeAudioFile: null, activeAudioUrl: null });
+    set({ activeAudioFile: null, activeAudioUrl: null, isAudioPlaying: false, audioCurrentTime: 0, audioDuration: 0 });
   },
   setIsAudioPlayerOpen: (open: boolean) => set({ isAudioPlayerOpen: open }),
+  setIsAudioPlaying: (playing: boolean) => set({ isAudioPlaying: playing }),
+  setAudioTime: (current: number, duration: number) => set({ audioCurrentTime: current, audioDuration: duration }),
 
   isContextCorrectionEnabled: true,
   correctionHistory: [],

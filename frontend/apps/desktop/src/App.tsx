@@ -12,16 +12,19 @@ import {
   Square, 
   Sparkles, 
   Volume2, 
+  VolumeX,
   Radio,
   BrainCircuit,
   Zap,
   HelpCircle,
-  Music,
+  Play,
+  Pause,
+  Upload,
+  FileAudio,
   X 
 } from 'lucide-react';
 import { useCounselStore } from './store';
 import { MicTestModal } from './MicTestModal';
-import { AudioTestPlayer } from './AudioTestPlayer';
 import { applyContextualCorrection } from './contextCorrector';
 import { 
   DOMAIN_KEYWORD_REGISTRY, 
@@ -45,9 +48,15 @@ export default function App() {
     callSeconds,
     counselorName,
     toastMessage,
-    isAudioPlayerOpen,
-    setIsAudioPlayerOpen,
+    activeAudioFile,
+    activeAudioUrl,
+    isAudioPlaying,
+    audioCurrentTime,
+    audioDuration,
     setActiveAudioFile,
+    clearAudioFile,
+    setIsAudioPlaying,
+    setAudioTime,
     isContextCorrectionEnabled,
     correctionHistory,
     toggleContextCorrection,
@@ -88,24 +97,11 @@ export default function App() {
   const [isMicTestOpen, setIsMicTestOpen] = useState(false);
   const [micAudioLevel, setMicAudioLevel] = useState(0);
   const [justTriggeredKeyword, setJustTriggeredKeyword] = useState<string | null>(null);
+  const [playerVolume, setPlayerVolume] = useState<number>(1.0);
+  const [isPlayerMuted, setIsPlayerMuted] = useState<boolean>(false);
 
-  // Drag and Drop Audio File onto Window
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      setActiveAudioFile(file);
-      setIsAudioPlayerOpen(true);
-      showToast(`🎵 [${file.name}] 음성 파일 로드 완료. 스피커 출력을 시작합니다.`);
-      setTimeout(() => clearToast(), 3500);
-    }
-  };
-
+  const globalAudioRef = useRef<HTMLAudioElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isRecordingRef = useRef(isRecording);
   isRecordingRef.current = isRecording;
 
@@ -115,6 +111,104 @@ export default function App() {
   const animFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const transcriptBoxRef = useRef<HTMLDivElement | null>(null);
+
+  // Background Audio Controller Sync
+  useEffect(() => {
+    if (!globalAudioRef.current || !activeAudioUrl) return;
+
+    if (isAudioPlaying) {
+      globalAudioRef.current.play().catch((err) => {
+        console.warn("Audio play blocked or waiting:", err);
+      });
+    } else {
+      globalAudioRef.current.pause();
+    }
+  }, [isAudioPlaying, activeAudioUrl]);
+
+  // Drag and Drop Audio File onto Screen - NO MODAL, Direct Background Play!
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (file.name.match(/\.(m4a|mp3|wav|ogg|aac|flac)$/i)) {
+        setActiveAudioFile(file);
+        setIsAudioPlaying(true);
+        if (!isRecording) {
+          setRecording(true);
+        }
+        showToast(`🎵 [${file.name}] 스피커 재생 시작 (화면에서 실시간 전사 관찰)`);
+        setTimeout(() => clearToast(), 3500);
+      }
+    }
+  };
+
+  const handleManualFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      setActiveAudioFile(file);
+      setIsAudioPlaying(true);
+      if (!isRecording) {
+        setRecording(true);
+      }
+      showToast(`🎵 [${file.name}] 스피커 재생 시작`);
+      setTimeout(() => clearToast(), 3000);
+    }
+  };
+
+  const toggleAudioPlayback = () => {
+    if (!activeAudioUrl) return;
+    setIsAudioPlaying(!isAudioPlaying);
+  };
+
+  const stopAudioPlayback = () => {
+    if (globalAudioRef.current) {
+      globalAudioRef.current.pause();
+      globalAudioRef.current.currentTime = 0;
+    }
+    setIsAudioPlaying(false);
+    setAudioTime(0, audioDuration);
+  };
+
+  const handleAudioSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTime = parseFloat(e.target.value);
+    if (globalAudioRef.current) {
+      globalAudioRef.current.currentTime = newTime;
+    }
+    setAudioTime(newTime, audioDuration);
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setPlayerVolume(val);
+    if (globalAudioRef.current) {
+      globalAudioRef.current.volume = val;
+      globalAudioRef.current.muted = val === 0;
+      setIsPlayerMuted(val === 0);
+    }
+  };
+
+  const togglePlayerMute = () => {
+    if (!globalAudioRef.current) return;
+    if (isPlayerMuted) {
+      globalAudioRef.current.muted = false;
+      setIsPlayerMuted(false);
+    } else {
+      globalAudioRef.current.muted = true;
+      setIsPlayerMuted(true);
+    }
+  };
+
+  const formatAudioTime = (sec: number) => {
+    if (isNaN(sec) || !isFinite(sec)) return "00:00";
+    const m = String(Math.floor(sec / 60)).padStart(2, '0');
+    const s = String(Math.floor(sec % 60)).padStart(2, '0');
+    return `${m}:${s}`;
+  };
 
   // Call timer interval
   useEffect(() => {
@@ -435,6 +529,33 @@ export default function App() {
       onDrop={handleDrop}
       style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: 'var(--canvas)', color: 'var(--ink)' }}
     >
+      {/* Permanent Background Audio Element (Hardware Speaker Output) */}
+      <audio
+        ref={globalAudioRef}
+        src={activeAudioUrl || undefined}
+        preload="auto"
+        onTimeUpdate={(e) => {
+          const target = e.currentTarget;
+          setAudioTime(target.currentTime, target.duration || 0);
+        }}
+        onLoadedMetadata={(e) => {
+          const target = e.currentTarget;
+          setAudioTime(target.currentTime, target.duration || 0);
+        }}
+        onEnded={() => setIsAudioPlaying(false)}
+        onError={(e) => {
+          console.error("Audio Load Error:", e);
+        }}
+      />
+
+      {/* Hidden File Input for Button Trigger */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.flac"
+        onChange={handleManualFileSelect}
+        style={{ display: 'none' }}
+      />
       
       {/* ========================================================= */}
       {/* 1. TOP GLOBAL NAVIGATION (Linear High-Density Bar)        */}
@@ -507,9 +628,9 @@ export default function App() {
         {/* Live Audio & STT Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           
-          {/* Audio Test Player Button (.m4a local playback) */}
+          {/* File Picker Button (.m4a local playback) */}
           <button
-            onClick={() => setIsAudioPlayerOpen(true)}
+            onClick={() => fileInputRef.current?.click()}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -524,8 +645,8 @@ export default function App() {
               cursor: 'pointer'
             }}
           >
-            <Music size={14} />
-            <span className="nowrap">음성파일 플레이어 (.m4a)</span>
+            <Upload size={14} />
+            <span className="nowrap">음성파일 열기 (.m4a)</span>
           </button>
 
           {/* Dedicated Mic Test Button */}
@@ -825,6 +946,105 @@ export default function App() {
             </div>
           </div>
 
+          {/* INLINE HARDWARE AUDIO PLAYER BAR (NO BLOCKING POPUPS!) */}
+          {activeAudioFile && (
+            <div style={{
+              padding: '8px 12px',
+              backgroundColor: 'rgba(37, 99, 235, 0.12)',
+              borderBottom: '1px solid var(--hairline)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                  <FileAudio size={14} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#93c5fd', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {activeAudioFile.name}
+                  </span>
+                </div>
+                <button 
+                  onClick={clearAudioFile} 
+                  title="음성 파일 닫기" 
+                  style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                {/* Play/Pause/Stop */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <button
+                    onClick={toggleAudioPlayback}
+                    style={{
+                      padding: '4px 10px',
+                      backgroundColor: isAudioPlaying ? 'var(--accent-danger)' : 'var(--accent-primary)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    {isAudioPlaying ? <Pause size={12} /> : <Play size={12} />}
+                    <span>{isAudioPlaying ? '일시정지' : '스피커 재생'}</span>
+                  </button>
+
+                  <button
+                    onClick={stopAudioPlayback}
+                    style={{
+                      padding: '4px 8px',
+                      backgroundColor: 'var(--surface-3)',
+                      color: 'var(--ink)',
+                      border: '1px solid var(--hairline)',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Square size={11} />
+                  </button>
+                </div>
+
+                {/* Timeline Slider */}
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="font-mono" style={{ fontSize: '11px', color: '#93c5fd' }}>{formatAudioTime(audioCurrentTime)}</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max={audioDuration || 100}
+                    step="0.1"
+                    value={audioCurrentTime}
+                    onChange={handleAudioSeek}
+                    style={{ flex: 1, height: '4px', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                  />
+                  <span className="font-mono" style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>{formatAudioTime(audioDuration)}</span>
+                </div>
+
+                {/* Speaker Volume Slider */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <button onClick={togglePlayerMute} style={{ background: 'none', border: 'none', color: isPlayerMuted ? 'var(--accent-danger)' : 'var(--ink)', cursor: 'pointer' }}>
+                    {isPlayerMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                  </button>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={isPlayerMuted ? 0 : playerVolume}
+                    onChange={handleVolumeChange}
+                    style={{ width: '50px', height: '4px', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* STT Live Transcript Box with Multi-Color Entity Highlights */}
           <div style={{ flex: '1.2', padding: '12px', display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--hairline)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
@@ -840,10 +1060,10 @@ export default function App() {
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button 
-                  onClick={() => setIsAudioPlayerOpen(true)}
+                  onClick={() => fileInputRef.current?.click()}
                   style={{ background: 'none', border: 'none', color: '#93c5fd', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
                 >
-                  📁 음성파일 플레이어
+                  📁 .m4a 파일 선택
                 </button>
                 <button 
                   onClick={() => setIsMicTestOpen(true)}
@@ -1389,10 +1609,9 @@ export default function App() {
       )}
 
       {/* ========================================================= */}
-      {/* 6. MODALS: MIC TEST & AUDIO FILE TEST PLAYER              */}
+      {/* 6. MIC TEST MODAL                                         */}
       {/* ========================================================= */}
       <MicTestModal isOpen={isMicTestOpen} onClose={() => setIsMicTestOpen(false)} />
-      <AudioTestPlayer isOpen={isAudioPlayerOpen} onClose={() => setIsAudioPlayerOpen(false)} />
 
     </div>
   );
