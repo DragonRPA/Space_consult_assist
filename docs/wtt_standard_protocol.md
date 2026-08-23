@@ -58,10 +58,19 @@ sequenceDiagram
 
 ## 4. WTT 실행 및 검증 자동화 도구
 
-- **테스트 러너**: `backend/scripts/run_wtt_tests.py`
-- **모의 데이터 생성기**: `backend/scripts/generate_wtt_mock_sql.py`
-- **모의 데이터 배포본**: `backend/scripts/seed_wtt_mock_data.sql`
+- **테스트 러너**: `backend/scripts/run_wtt_tests.py` / `run_wtt_tests_phase2.py`
+- **모의 데이터 생성기**: `backend/scripts/generate_wtt_mock_sql_all.py`
+- **모의 데이터 배포본**: `backend/scripts/seed_wtt_master_all.sql`
 - **실행 명령**:
   ```bash
   python backend/scripts/run_wtt_tests.py
+  python backend/scripts/run_wtt_tests_phase2.py
   ```
+
+---
+
+## 5. 🚨 감사 SA의 절대 철칙: 배포 산출물 실서버 사전 검증 의무 (Mandatory Pre-flight Dry-Run)
+
+> **"테스트 러너 스크립트가 초록색(PASS)을 띄웠다고 해서 WTT가 끝난 것이 아니다.  
+> 사용자에게 전달될 최종 산출물(SQL 시드 파일, 배포 번들 등) 자체를 실제 대상 환경에 직접 실행(Dry-Run)하여 0-Error 로그를 입증하지 않는 한, 그 어떤 코드도 '완료'나 '승인'을 선언할 수 없다." (글로벌 이슈 E-017 영구 적용)**
+
