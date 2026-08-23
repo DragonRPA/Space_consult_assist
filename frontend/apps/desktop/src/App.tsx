@@ -112,8 +112,6 @@ export default function App() {
   const isRecordingRef = useRef(isRecording);
   isRecordingRef.current = isRecording;
 
-  const speechPauseTimerRef = useRef<number | null>(null);
-
   // Standalone rule evaluator (Evaluates on live typing or speech without duplicate append)
   const evaluateUtteranceRules = (text: string) => {
     // 1. Symptom Keyword & Part Matching
@@ -469,27 +467,13 @@ export default function App() {
         }
       }
 
-      if (speechPauseTimerRef.current) {
-        window.clearTimeout(speechPauseTimerRef.current);
-        speechPauseTimerRef.current = null;
-      }
-
-      // Finalized utterance commit
+      // Natural STT stream processing (No artificial line-break interruption)
       if (final.trim()) {
         const rawSentence = final.trim();
         processIncomingSpeechUtterance(rawSentence);
         setInterimSttText('');
-      } else if (interim.trim()) {
+      } else if (interim) {
         setInterimSttText(interim);
-
-        // Fast silence detection (200ms / 0.2s): Stops recognition to force buffer flush and clean restart
-        speechPauseTimerRef.current = window.setTimeout(() => {
-          if (isRecordingRef.current && recognitionRef.current) {
-            try {
-              recognitionRef.current.stop();
-            } catch (_) {}
-          }
-        }, 200);
       }
 
       // Real-time Multi-Entity Detection (Customer, Site, Symptom, Action)
@@ -545,7 +529,7 @@ export default function App() {
       }
     };
 
-    // Keep-Alive Auto-Recovery (Ultra-Fast 30ms Instant Restart)
+    // Keep-Alive Auto-Recovery
     recognition.onend = () => {
       if (isRecordingRef.current) {
         setTimeout(() => {
@@ -557,10 +541,10 @@ export default function App() {
                 if (isRecordingRef.current) {
                   try { recognition.start(); } catch (_) {}
                 }
-              }, 200);
+              }, 400);
             }
           }
-        }, 30);
+        }, 150);
       }
     };
 
