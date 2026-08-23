@@ -92,7 +92,8 @@ function App() {
     
     debounceTimer.current = window.setTimeout(async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/v1/counsel/classify", {
+        const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+        const res = await fetch(`${apiBase}/counsel/classify`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: sttText })
