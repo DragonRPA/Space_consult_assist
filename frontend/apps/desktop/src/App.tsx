@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { 
   PhoneCall, 
   Mic, 
-  MicOff, 
   Search, 
   CheckCircle2, 
   Clock, 
@@ -764,26 +763,6 @@ export default function App() {
   }, [sttEngine, appendFinalParagraph, setInterimSttText, isContextCorrectionEnabled, setRecording, activeKeywordEntity, setActiveKeywordEntity, selectedCustomer, customerList, selectCustomer, actionChecklist, toggleChecklist, showToast, clearToast]);
 
 
-  const toggleRecording = () => {
-    if (!isRecording) {
-      startSttStreaming();
-      if (activeAudioUrl && globalAudioRef.current && !isAudioPlaying) {
-        setIsAudioPlaying(true);
-        globalAudioRef.current.play().catch(() => {});
-      }
-      showToast("🎙️ 실시간 통화 음성 STT 수신이 활성화되었습니다.");
-      setTimeout(() => clearToast(), 2500);
-    } else {
-      stopSttStreaming();
-      if (isAudioPlaying && globalAudioRef.current) {
-        setIsAudioPlaying(false);
-        globalAudioRef.current.pause();
-      }
-      showToast("⏹️ STT 수신이 일시 정지되었습니다.");
-      setTimeout(() => clearToast(), 2000);
-    }
-  };
-
   const handleKeywordSelect = (entity: KeywordEntity) => {
     setActiveKeywordEntity(entity);
     showToast(`🔍 키워드 [${entity.keyword}] 어시스트 즉시 조회 연동됨`);
@@ -1177,41 +1156,35 @@ export default function App() {
             <span className="font-mono">{formatTimer(callSeconds)}</span>
           </div>
 
-          {/* STT Start/Stop Button */}
-          <button 
-            onClick={toggleRecording}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '5px 14px',
-              borderRadius: '6px',
-              backgroundColor: isRecording ? 'var(--accent-danger)' : 'var(--accent-primary)',
-              color: '#fff',
-              border: 'none',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            {isRecording ? <MicOff size={14} /> : <Mic size={14} />}
-            <span className="nowrap">{isRecording ? "STT 정지" : "STT 수신 시작"}</span>
-            
-            {/* Live Visualizer Bar */}
-            {isRecording && (
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'flex-end',
-                gap: '2px',
-                height: '12px',
-                marginLeft: '4px'
-              }}>
-                <span style={{ width: '3px', height: `${Math.max(20, micAudioLevel)}%`, backgroundColor: '#fff', borderRadius: '1px' }} />
-                <span style={{ width: '3px', height: `${Math.max(40, micAudioLevel * 1.2)}%`, backgroundColor: '#fff', borderRadius: '1px' }} />
-                <span style={{ width: '3px', height: `${Math.max(10, micAudioLevel * 0.8)}%`, backgroundColor: '#fff', borderRadius: '1px' }} />
-              </span>
-            )}
-          </button>
+          {/* Always-On Live Visualizer Indicator */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '5px 12px',
+            borderRadius: '6px',
+            backgroundColor: 'var(--surface-2)',
+            border: '1px solid var(--hairline)',
+            fontSize: '12px',
+            color: 'var(--ink)'
+          }}>
+            <Mic size={14} style={{ color: 'var(--accent-success)' }} />
+            <span className="nowrap" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-success)' }}>
+              상시 수신 대기
+            </span>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'flex-end',
+              gap: '2px',
+              height: '12px',
+              marginLeft: '4px'
+            }}>
+              <span style={{ width: '3px', height: `${Math.max(20, micAudioLevel)}%`, backgroundColor: 'var(--accent-success)', borderRadius: '1px' }} />
+              <span style={{ width: '3px', height: `${Math.max(40, micAudioLevel * 1.2)}%`, backgroundColor: 'var(--accent-success)', borderRadius: '1px' }} />
+              <span style={{ width: '3px', height: `${Math.max(10, micAudioLevel * 0.8)}%`, backgroundColor: 'var(--accent-success)', borderRadius: '1px' }} />
+            </span>
+          </div>
+
         </div>
       </header>
 
