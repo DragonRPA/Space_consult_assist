@@ -1,7 +1,7 @@
 import React from 'react';
 import type { CustomerInfo } from './store';
 
-export type EntityType = 'symptom' | 'customer' | 'site';
+export type EntityType = 'symptom' | 'customer' | 'site' | 'action';
 
 export interface KeywordEntity {
   id: string;
@@ -30,6 +30,7 @@ export interface EntityRule {
   };
   customerId?: string;
   keywordId?: string;
+  actionIndex?: number; // Map to SOP checklist step
 }
 
 // 1. Symptom & Part Keyword Master
@@ -106,7 +107,7 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
   }
 ];
 
-// 2. Comprehensive Multi-Category Named Entity Registry
+// 2. Comprehensive 4-Category Named Entity Registry
 export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
   // A. CUSTOMER & PERSON (고객사명 / 담당자명 - Purple / Violet)
   {
@@ -252,6 +253,78 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
       text: '#93c5fd',
       glow: '0 0 8px rgba(37, 99, 235, 0.5)'
     }
+  },
+
+  // D. ACTION & RESOLUTION (상담원 조치사항 / SOP 해결 가이드 - Emerald / Green)
+  {
+    id: 'ent-act-power-off',
+    type: 'action',
+    label: '조치사항',
+    pattern: /전원\s*(스위치)?\s*차단|전원\s*(스위치)?\s*끄|모터\s*냉각|열기\s*식히|10분\s*식히/i,
+    icon: '🛠️',
+    actionIndex: 1,
+    colorScheme: {
+      bg: 'rgba(16, 185, 129, 0.2)',
+      border: '#10b981',
+      text: '#6ee7b7',
+      glow: '0 0 8px rgba(16, 185, 129, 0.6)'
+    }
+  },
+  {
+    id: 'ent-act-filter-clean',
+    type: 'action',
+    label: '조치사항',
+    pattern: /거름망\s*청소|필터\s*(망)?\s*세척|이물질\s*(제거|청소|털어)|탱크\s*비우|오수\s*비우/i,
+    icon: '🛠️',
+    actionIndex: 2,
+    colorScheme: {
+      bg: 'rgba(16, 185, 129, 0.2)',
+      border: '#10b981',
+      text: '#6ee7b7',
+      glow: '0 0 8px rgba(16, 185, 129, 0.6)'
+    }
+  },
+  {
+    id: 'ent-act-squeegee-flip',
+    type: 'action',
+    label: '조치사항',
+    pattern: /날\s*뒤집|4면\s*뒤집|반대로\s*끼우|날\s*교체|수평\s*조절|노브\s*조절/i,
+    icon: '🛠️',
+    actionIndex: 2,
+    colorScheme: {
+      bg: 'rgba(16, 185, 129, 0.2)',
+      border: '#10b981',
+      text: '#6ee7b7',
+      glow: '0 0 8px rgba(16, 185, 129, 0.6)'
+    }
+  },
+  {
+    id: 'ent-act-emergency-switch',
+    type: 'action',
+    label: '조치사항',
+    pattern: /비상\s*정지\s*(버튼)?\s*(해제|당기)|빨간\s*버튼\s*당기|220V\s*콘센트|충전기\s*확인|단자\s*체결/i,
+    icon: '🛠️',
+    actionIndex: 2,
+    colorScheme: {
+      bg: 'rgba(16, 185, 129, 0.2)',
+      border: '#10b981',
+      text: '#6ee7b7',
+      glow: '0 0 8px rgba(16, 185, 129, 0.6)'
+    }
+  },
+  {
+    id: 'ent-act-dispatch',
+    type: 'action',
+    label: '조치사항',
+    pattern: /출장\s*배차|기사\s*(님)?\s*방문|현장\s*점검|정비\s*배차|부품\s*교체\s*출장/i,
+    icon: '🚗',
+    actionIndex: 5,
+    colorScheme: {
+      bg: 'rgba(16, 185, 129, 0.2)',
+      border: '#10b981',
+      text: '#6ee7b7',
+      glow: '0 0 8px rgba(16, 185, 129, 0.6)'
+    }
   }
 ];
 
@@ -259,6 +332,7 @@ export interface EntityClickHandlers {
   onSymptomClick: (entity: KeywordEntity) => void;
   onCustomerClick?: (customer: CustomerInfo) => void;
   onSiteClick?: (customer: CustomerInfo) => void;
+  onActionClick?: (actionRule: EntityRule) => void;
 }
 
 export function renderMultiColorHighlightedText(
@@ -270,8 +344,8 @@ export function renderMultiColorHighlightedText(
 ): React.ReactNode[] {
   if (!text) return [];
 
-  // Master Unified Regex capturing Customers, Sites, and Symptoms
-  const masterRegex = /(스페이스\s*클린|스페이스|최관리\s*(팀장)?|미래\s*물류(\s*센터)?|정센터장|미래물류|케이\s*로지스|오센터장|강남점|방재실|테헤란로|지하\s*1층|평택점|물류\s*데크|산단로|화성\s*센터|하역장|남양읍|남양로|흡입\s*모터|진공압|굉음|타는\s*냄새|모터\s*소리|스퀴지|바닥\s*물기|잔수|고무\s*블레이드|배터리|충전|방전|솔레노이드|누수|급수\s*밸브)/gi;
+  // Master Unified Regex capturing Customers, Sites, Symptoms, and Action SOP steps
+  const masterRegex = /(스페이스\s*클린|스페이스|최관리\s*(팀장)?|미래\s*물류(\s*센터)?|정센터장|미래물류|케이\s*로지스|오센터장|강남점|방재실|테헤란로|지하\s*1층|평택점|물류\s*데크|산단로|화성\s*센터|하역장|남양읍|남양로|흡입\s*모터|진공압|굉음|타는\s*냄새|모터\s*소리|스퀴지|바닥\s*물기|잔수|고무\s*블레이드|배터리|충전|방전|솔레노이드|누수|급수\s*밸브|전원\s*(스위치)?\s*차단|전원\s*(스위치)?\s*끄|모터\s*냉각|열기\s*식히|10분\s*식히|거름망\s*청소|필터\s*(망)?\s*세척|이물질\s*(제거|청소|털어)|탱크\s*비우|오수\s*비우|날\s*뒤집|4면\s*뒤집|반대로\s*끼우|날\s*교체|수평\s*조절|노브\s*조절|비상\s*정지\s*(버튼)?\s*(해제|당기)|빨간\s*버튼\s*당기|220V\s*콘센트|충전기\s*확인|단자\s*체결|출장\s*배차|기사\s*(님)?\s*방문|현장\s*점검|정비\s*배차|부품\s*교체\s*출장)/gi;
 
   const parts = text.split(masterRegex);
 
@@ -297,6 +371,8 @@ export function renderMultiColorHighlightedText(
           if (cust && handlers.onCustomerClick) {
             handlers.onCustomerClick(cust);
           }
+        } else if (matchedRule.type === 'action' && handlers.onActionClick) {
+          handlers.onActionClick(matchedRule);
         }
       };
 
@@ -304,6 +380,8 @@ export function renderMultiColorHighlightedText(
         ? `[고객사: ${part}] 클릭 시 고객 카드 자동 식별` 
         : matchedRule.type === 'site' 
         ? `[현장/위치: ${part}] 클릭 시 해당 지점 고객 카드 연동` 
+        : matchedRule.type === 'action'
+        ? `[조치사항: ${part}] 클릭 시 체크리스트 자동 체크`
         : `[증상: ${part}] 클릭 시 어시스트 조치 가이드 연동`;
 
       return (
@@ -315,7 +393,7 @@ export function renderMultiColorHighlightedText(
             display: 'inline-flex',
             alignItems: 'center',
             gap: '2px',
-            backgroundColor: isSelected ? matchedRule.colorScheme.bg.replace('0.18', '0.38') : matchedRule.colorScheme.bg,
+            backgroundColor: isSelected ? matchedRule.colorScheme.bg.replace('0.2', '0.4').replace('0.18', '0.38') : matchedRule.colorScheme.bg,
             borderBottom: `2px solid ${matchedRule.colorScheme.border}`,
             color: matchedRule.colorScheme.text,
             fontWeight: 700,

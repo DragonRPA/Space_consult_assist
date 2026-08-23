@@ -28,7 +28,7 @@ import {
   NAMED_ENTITY_REGISTRY, 
   renderMultiColorHighlightedText 
 } from './keywordAssist';
-import type { KeywordEntity } from './keywordAssist';
+import type { KeywordEntity, EntityRule } from './keywordAssist';
 import type { CustomerInfo } from './store';
 import './index.css';
 
@@ -169,7 +169,7 @@ export default function App() {
     };
   }, [isRecording]);
 
-  // Robust Persistent Web Speech API with Multi-Entity Auto-Trigger
+  // Robust Persistent Web Speech API with Multi-Entity & Action Auto-Trigger
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
@@ -214,7 +214,7 @@ export default function App() {
         setInterimSttText(interim);
       }
 
-      // Real-time Multi-Entity Detection (Customer, Site, Symptom)
+      // Real-time Multi-Entity Detection (Customer, Site, Symptom, Action)
       const currentStream = interim.trim() || final.trim();
       if (currentStream) {
         // 1. Symptom Trigger
@@ -239,6 +239,18 @@ export default function App() {
                 showToast(`${entRule.icon} [${matchedCust.name}] 음성 식별 자동 매핑됨`);
                 setTimeout(() => clearToast(), 3000);
               }
+            }
+            break;
+          }
+        }
+
+        // 3. Action Trigger: Auto-check SOP checklist step on counselor speech
+        for (const entRule of NAMED_ENTITY_REGISTRY) {
+          if (entRule.type === 'action' && entRule.pattern.test(currentStream)) {
+            if (entRule.actionIndex && actionChecklist[entRule.actionIndex - 1] && !actionChecklist[entRule.actionIndex - 1].checked) {
+              toggleChecklist(entRule.actionIndex);
+              showToast(`🛠️ 조치 발화 감지: [${actionChecklist[entRule.actionIndex - 1].text.slice(0, 18)}...] 자동 체크 완료`);
+              setTimeout(() => clearToast(), 3000);
             }
             break;
           }
@@ -294,7 +306,7 @@ export default function App() {
         recognition.stop();
       } catch (_) {}
     };
-  }, [appendFinalParagraph, setInterimSttText, isContextCorrectionEnabled, setRecording, activeKeywordEntity, setActiveKeywordEntity, selectedCustomer, customerList, selectCustomer, showToast, clearToast]);
+  }, [appendFinalParagraph, setInterimSttText, isContextCorrectionEnabled, setRecording, activeKeywordEntity, setActiveKeywordEntity, selectedCustomer, customerList, selectCustomer, actionChecklist, toggleChecklist, showToast, clearToast]);
 
   const toggleRecording = () => {
     if (!isRecording) {
@@ -330,6 +342,14 @@ export default function App() {
     selectCustomer(customer);
     showToast(`🏢 고객사 [${customer.name}] 선택됨`);
     setTimeout(() => clearToast(), 2500);
+  };
+
+  const handleActionSelect = (rule: EntityRule) => {
+    if (rule.actionIndex && actionChecklist[rule.actionIndex - 1]) {
+      toggleChecklist(rule.actionIndex);
+      showToast(`🛠️ 조치 체크리스트 [${rule.label}] 전환`);
+      setTimeout(() => clearToast(), 2500);
+    }
   };
 
   const handleResolveComplete = () => {
@@ -741,11 +761,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* Entity Color Scheme Legend Bar */}
+            {/* 4-Entity Color Scheme Legend Bar */}
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
-              gap: '8px', 
+              flexWrap: 'wrap',
+              gap: '6px', 
               fontSize: '11px', 
               backgroundColor: 'var(--surface-2)', 
               padding: '5px 8px', 
@@ -761,7 +782,10 @@ export default function App() {
                 📍 현장/위치 (황색)
               </span>
               <span style={{ color: '#93c5fd', backgroundColor: 'rgba(37, 99, 235, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
-                🔍 고장증상 (푸른색)
+                🔍 고장증상 (청색)
+              </span>
+              <span style={{ color: '#6ee7b7', backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+                🛠️ 조치사항 (녹색)
               </span>
             </div>
 
@@ -783,7 +807,7 @@ export default function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
-                  전사 자막 (단어 클릭 시 해당 고객/증상으로 즉시 이동)
+                  전사 자막 (단어 클릭 시 해당 고객/증상/조치 연동)
                 </label>
                 {correctionHistory.length > 0 && isContextCorrectionEnabled && (
                   <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 600 }}>
@@ -842,7 +866,8 @@ export default function App() {
                           {
                             onSymptomClick: handleKeywordSelect,
                             onCustomerClick: handleCustomerSelect,
-                            onSiteClick: handleCustomerSelect
+                            onSiteClick: handleCustomerSelect,
+                            onActionClick: handleActionSelect
                           },
                           activeKeywordEntity?.id,
                           selectedCustomer?.id,
@@ -1055,8 +1080,9 @@ export default function App() {
                     gap: '10px',
                     padding: '10px',
                     borderRadius: '6px',
-                    backgroundColor: item.checked ? 'rgba(16, 185, 129, 0.08)' : 'var(--surface-2)',
-                    border: item.checked ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid var(--hairline)',
+                    backgroundColor: item.checked ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface-2)',
+                    border: item.checked ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid var(--hairline)',
+                    boxShadow: item.checked ? '0 0 10px rgba(16, 185, 129, 0.2)' : 'none',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease'
                   }}
