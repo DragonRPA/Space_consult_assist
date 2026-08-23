@@ -284,6 +284,15 @@ export default function App() {
           resetSessionForNewAudio();
           setActiveAudioFile(file);
           setIsAudioPlaying(true);
+          setRecording(true);
+          
+          // Instantly trigger the 0s opening line without waiting for audio latency!
+          const cues = getTranscriptTrackForFile(file.name);
+          if (cues.length > 0 && cues[0].timeSec === 0 && !playedCueIndicesRef.current.has(0)) {
+            playedCueIndicesRef.current.add(0);
+            processIncomingSpeechUtterance(cues[0].text);
+          }
+
           showToast(`🎧 [${file.name}] 디지털 오디오 스트림 수신 시작 (무소음 STT 동기화)`);
           setTimeout(() => clearToast(), 3500);
         }
@@ -309,7 +318,7 @@ export default function App() {
       window.removeEventListener('drop', handleGlobalDrop);
       window.removeEventListener('paste', handleGlobalPaste);
     };
-  }, [resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, showToast, clearToast]);
+  }, [resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, setRecording, showToast, clearToast]);
 
   // Background Audio Controller Sync
   useEffect(() => {
@@ -343,17 +352,30 @@ export default function App() {
       resetSessionForNewAudio();
       setActiveAudioFile(file);
       setIsAudioPlaying(true);
+      setRecording(true);
+
+      // Instantly trigger 0s opening line
+      const cues = getTranscriptTrackForFile(file.name);
+      if (cues.length > 0 && cues[0].timeSec === 0 && !playedCueIndicesRef.current.has(0)) {
+        playedCueIndicesRef.current.add(0);
+        processIncomingSpeechUtterance(cues[0].text);
+      }
+
       showToast(`🎧 [${file.name}] 디지털 오디오 스트림 수신 시작 (무소음 STT 동기화)`);
       setTimeout(() => clearToast(), 3500);
     }
   };
 
   const toggleAudioPlayback = () => {
-    if (!activeAudioUrl) return;
+    if (!activeAudioUrl || !globalAudioRef.current) return;
     if (!isAudioPlaying) {
       setIsAudioPlaying(true);
+      setRecording(true);
+      globalAudioRef.current.play().catch(() => {});
     } else {
       setIsAudioPlaying(false);
+      setRecording(false);
+      globalAudioRef.current.pause();
     }
   };
 
@@ -364,6 +386,7 @@ export default function App() {
     }
     playedCueIndicesRef.current.clear();
     setIsAudioPlaying(false);
+    setRecording(false);
     setAudioTime(0, audioDuration);
     showToast("⏹️ 음성 재생 및 STT 수신 정지됨");
     setTimeout(() => clearToast(), 2000);
@@ -595,12 +618,20 @@ export default function App() {
   const toggleRecording = () => {
     if (!isRecording) {
       startSttStreaming();
-      showToast("🎙️ 통화 녹음 및 실시간 스트리밍이 시작되었습니다. 말씀해 보세요.");
-      setTimeout(() => clearToast(), 3000);
+      if (activeAudioUrl && globalAudioRef.current && !isAudioPlaying) {
+        setIsAudioPlaying(true);
+        globalAudioRef.current.play().catch(() => {});
+      }
+      showToast("🎙️ 실시간 통화 음성 STT 수신이 활성화되었습니다.");
+      setTimeout(() => clearToast(), 2500);
     } else {
       stopSttStreaming();
-      showToast("⏹️ 마이크 음성인식이 정지되었습니다.");
-      setTimeout(() => clearToast(), 2500);
+      if (isAudioPlaying && globalAudioRef.current) {
+        setIsAudioPlaying(false);
+        globalAudioRef.current.pause();
+      }
+      showToast("⏹️ STT 수신이 일시 정지되었습니다.");
+      setTimeout(() => clearToast(), 2000);
     }
   };
 
@@ -690,6 +721,11 @@ export default function App() {
         ref={globalAudioRef}
         src={activeAudioUrl || undefined}
         preload="auto"
+        onCanPlay={(e) => {
+          if (isAudioPlaying) {
+            e.currentTarget.play().catch(() => {});
+          }
+        }}
         onTimeUpdate={(e) => {
           const target = e.currentTarget;
           setAudioTime(target.currentTime, target.duration || 0);
@@ -698,9 +734,13 @@ export default function App() {
         onLoadedMetadata={(e) => {
           const target = e.currentTarget;
           setAudioTime(target.currentTime, target.duration || 0);
+          if (isAudioPlaying) {
+            target.play().catch(() => {});
+          }
         }}
         onEnded={() => {
           setIsAudioPlaying(false);
+          setRecording(false);
           showToast("⏹️ 음성 파일 재생 완료 (STT 수신이 자동으로 종료되었습니다)");
           setTimeout(() => clearToast(), 3500);
         }}
