@@ -1,0 +1,8 @@
+﻿{
+  "name": "space-consult-assist",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

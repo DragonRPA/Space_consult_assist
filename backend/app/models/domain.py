@@ -1,6 +1,6 @@
 ﻿import uuid
 from datetime import datetime
-from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, Text, SmallInteger, func
+from sqlalchemy import UniqueConstraint, String, Integer, Boolean, DateTime, ForeignKey, Text, SmallInteger, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from .base import Base
@@ -113,6 +113,7 @@ class SalesInquiry(Base):
 
 class SymptomRule(Base):
     __tablename__ = "symptom_rules"
+    __table_args__ = (UniqueConstraint('keyword', 'part_code', name='uq_keyword_part_code'),)
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     keyword: Mapped[str] = mapped_column(Text, nullable=False)
     part_code: Mapped[str] = mapped_column(ForeignKey("part_codes.code"), nullable=False)

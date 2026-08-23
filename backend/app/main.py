@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import asyncio
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -10,6 +10,9 @@ from app.core.config import get_settings
 settings = get_settings()
 
 app = FastAPI(title="Space Advisor API", version="1.0.0")
+
+from app.api.v1.api import api_router
+app.include_router(api_router, prefix="/api/v1")
 
 # CORS setup
 origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
