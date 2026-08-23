@@ -45,6 +45,9 @@ export default function App() {
     callSeconds,
     counselorName,
     toastMessage,
+    isAudioPlayerOpen,
+    setIsAudioPlayerOpen,
+    setActiveAudioFile,
     isContextCorrectionEnabled,
     correctionHistory,
     toggleContextCorrection,
@@ -83,24 +86,23 @@ export default function App() {
 
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [isMicTestOpen, setIsMicTestOpen] = useState(false);
-  const [isAudioPlayerOpen, setIsAudioPlayerOpen] = useState(false);
   const [micAudioLevel, setMicAudioLevel] = useState(0);
   const [justTriggeredKeyword, setJustTriggeredKeyword] = useState<string | null>(null);
 
   // Drag and Drop Audio File onto Window
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
-      if (file.name.match(/\.(m4a|mp3|wav|ogg|aac|flac)$/i)) {
-        setIsAudioPlayerOpen(true);
-        showToast(`📁 [${file.name}] 음성 파일이 드롭되어 플레이어에 로드되었습니다.`);
-        setTimeout(() => clearToast(), 3000);
-      }
+      setActiveAudioFile(file);
+      setIsAudioPlayerOpen(true);
+      showToast(`🎵 [${file.name}] 음성 파일 로드 완료. 스피커 출력을 시작합니다.`);
+      setTimeout(() => clearToast(), 3500);
     }
   };
 
@@ -841,7 +843,7 @@ export default function App() {
                   onClick={() => setIsAudioPlayerOpen(true)}
                   style={{ background: 'none', border: 'none', color: '#93c5fd', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
                 >
-                  📁 음성파일 테스트
+                  📁 음성파일 플레이어
                 </button>
                 <button 
                   onClick={() => setIsMicTestOpen(true)}
@@ -921,7 +923,7 @@ export default function App() {
                 </div>
               ) : (
                 <div style={{ color: 'var(--ink-subtle)', padding: '16px 8px', textAlign: 'center', fontSize: '12px' }}>
-                  🎙️ 상단 <strong>[STT 수신 시작]</strong> 버튼이나 <strong>[음성파일 플레이어]</strong>를 통해 테스트해 보세요.
+                  🎙️ 상단 <strong>[STT 수신 시작]</strong> 또는 <strong>[.m4a 음성파일을 화면에 드래그&드롭]</strong>하세요.
                 </div>
               )}
             </div>

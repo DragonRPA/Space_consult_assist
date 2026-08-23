@@ -39,6 +39,14 @@ interface CounselWorkstationState {
   counselorName: string;
   toastMessage: string | null;
 
+  // Real Hardware Audio Player State
+  activeAudioFile: File | null;
+  activeAudioUrl: string | null;
+  isAudioPlayerOpen: boolean;
+  setActiveAudioFile: (file: File) => void;
+  clearAudioFile: () => void;
+  setIsAudioPlayerOpen: (open: boolean) => void;
+
   // Contextual STT Semantic Correction Engine
   isContextCorrectionEnabled: boolean;
   correctionHistory: CorrectionEvent[];
@@ -138,11 +146,32 @@ const DEFAULT_CUSTOMERS: CustomerInfo[] = [
   }
 ];
 
-export const useCounselStore = create<CounselWorkstationState>((set) => ({
+export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
   isRecording: false,
   callSeconds: 0,
   counselorName: '이지은 상담원 (선임)',
   toastMessage: null,
+
+  // Real Hardware Audio Player State
+  activeAudioFile: null,
+  activeAudioUrl: null,
+  isAudioPlayerOpen: false,
+  setActiveAudioFile: (file: File) => {
+    const currentUrl = get().activeAudioUrl;
+    if (currentUrl) URL.revokeObjectURL(currentUrl);
+    const newUrl = URL.createObjectURL(file);
+    set({ 
+      activeAudioFile: file, 
+      activeAudioUrl: newUrl, 
+      isAudioPlayerOpen: true 
+    });
+  },
+  clearAudioFile: () => {
+    const currentUrl = get().activeAudioUrl;
+    if (currentUrl) URL.revokeObjectURL(currentUrl);
+    set({ activeAudioFile: null, activeAudioUrl: null });
+  },
+  setIsAudioPlayerOpen: (open: boolean) => set({ isAudioPlayerOpen: open }),
 
   isContextCorrectionEnabled: true,
   correctionHistory: [],
@@ -167,7 +196,7 @@ export const useCounselStore = create<CounselWorkstationState>((set) => ({
   customerList: DEFAULT_CUSTOMERS,
   selectedCustomer: DEFAULT_CUSTOMERS[0],
 
-  // Completely empty initial state per request
+  // Clean initial state
   rawParagraphs: [],
   finalParagraphs: [],
   interimSttText: '',

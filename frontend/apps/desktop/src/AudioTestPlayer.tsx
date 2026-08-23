@@ -19,10 +19,16 @@ interface RealAudioPlayerProps {
 }
 
 export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClose }) => {
-  const { showToast, clearToast, isRecording, setRecording } = useCounselStore();
+  const { 
+    showToast, 
+    clearToast, 
+    isRecording, 
+    setRecording,
+    activeAudioFile,
+    activeAudioUrl,
+    setActiveAudioFile
+  } = useCounselStore();
 
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
@@ -33,58 +39,59 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Cleanup blob URL on unmount or file change
+  // Auto-play when a new file is loaded
   useEffect(() => {
-    return () => {
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
-    };
-  }, [audioUrl]);
+    if (activeAudioUrl && audioRef.current) {
+      audioRef.current.currentTime = 0;
+      setCurrentTime(0);
 
-  // Handle Real Audio File Selection (.m4a, .mp3, .wav, .aac, .ogg)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      // Auto start STT recording if not active
+      if (!isRecording) {
+        setRecording(true);
+      }
+
+      // Try auto play
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+        showToast(`▶ [${activeAudioFile?.name}] 스피커 소리 출력을 시작합니다.`);
+        setTimeout(() => clearToast(), 3000);
+      }).catch((err) => {
+        console.warn("Auto-play waiting for user click:", err);
+        setIsPlaying(false);
+      });
+    }
+  }, [activeAudioUrl, activeAudioFile, isRecording, setRecording, showToast, clearToast]);
+
+  // Handle Manual File Upload (.m4a, .mp3, .wav, etc.)
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      loadAudioFile(file);
+      setActiveAudioFile(file);
     }
   };
 
-  const loadAudioFile = (file: File) => {
-    setAudioFile(file);
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
-    
-    // Create direct browser Object URL for real speaker playback
-    const url = URL.createObjectURL(file);
-    setAudioUrl(url);
-    setIsPlaying(false);
-    setCurrentTime(0);
-
-    showToast(`🎵 [${file.name}] 실제 음성 파일이 로드되었습니다. [재생]을 누르면 스피커로 소리가 출력됩니다.`);
-    setTimeout(() => clearToast(), 3500);
-  };
-
-  // Real Speaker Audio Playback
+  // Real Speaker Audio Playback Toggle
   const togglePlayAudio = () => {
-    if (!audioRef.current || !audioUrl) return;
+    if (!audioRef.current || !activeAudioUrl) return;
 
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
-      showToast("⏸️ 음성 파일 일시정지");
+      showToast("⏸️ 일시정지됨");
       setTimeout(() => clearToast(), 2000);
     } else {
-      // If STT is not recording yet, prompt or auto-turn on
       if (!isRecording) {
         setRecording(true);
-        showToast("🎙️ 마이크 STT 수신이 함께 켜졌습니다. 스피커 소리가 실시간으로 전사됩니다.");
-        setTimeout(() => clearToast(), 3500);
       }
 
       audioRef.current.play().then(() => {
         setIsPlaying(true);
+        showToast("▶ 스피커로 소리 출력 중 (마이크로 실시간 전사)");
+        setTimeout(() => clearToast(), 3000);
       }).catch(err => {
         console.error("Audio playback error:", err);
-        showToast("⚠ 브라우저 오디오 재생 오류가 발생했습니다. 볼륨을 확인해 주세요.");
-        setTimeout(() => clearToast(), 3000);
+        showToast("⚠ 브라우저 오디오 재생 실패: 볼륨 및 오디오 장치를 확인해 주세요.");
+        setTimeout(() => clearToast(), 3500);
       });
     }
   };
@@ -187,7 +194,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>실제 음성 파일(.m4a) 미디어 플레이어</h3>
-              <p style={{ margin: 0, fontSize: '11px', color: 'var(--ink-muted)' }}>윈도우 미디어 플레이어와 동일하게 PC 스피커로 소리를 직접 재생합니다.</p>
+              <p style={{ margin: 0, fontSize: '11px', color: 'var(--ink-muted)' }}>스피커로 실제 소리를 출력하여 STT 및 AI 어시스트를 검증합니다.</p>
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}>
@@ -195,25 +202,30 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
           </button>
         </div>
 
-        {/* Real Audio Element (Direct Hardware Sound Output) */}
-        {audioUrl && (
+        {/* Real HTML5 Audio Element */}
+        {activeAudioUrl && (
           <audio
             ref={audioRef}
-            src={audioUrl}
+            src={activeAudioUrl}
+            preload="auto"
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onEnded={() => setIsPlaying(false)}
+            onError={(e) => {
+              console.error("Audio Load Error:", e);
+              showToast("⚠ 음성 파일 재생 오류: 파일 코덱을 확인해 주세요.");
+            }}
           />
         )}
 
-        {/* File Drop & Select Zone */}
+        {/* File Select & Drop Area */}
         <div 
           onClick={() => fileInputRef.current?.click()}
           style={{ 
-            backgroundColor: audioFile ? 'var(--surface-2)' : 'rgba(37, 99, 235, 0.08)', 
+            backgroundColor: activeAudioFile ? 'var(--surface-2)' : 'rgba(37, 99, 235, 0.08)', 
             padding: '20px', 
             borderRadius: '8px', 
-            border: audioFile ? '1px solid var(--hairline)' : '2px dashed var(--accent-primary)',
+            border: activeAudioFile ? '1px solid var(--hairline)' : '2px dashed var(--accent-primary)',
             cursor: 'pointer',
             textAlign: 'center',
             transition: 'all 0.2s ease'
@@ -223,17 +235,17 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
             ref={fileInputRef}
             type="file" 
             accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.flac" 
-            onChange={handleFileUpload} 
+            onChange={handleFileInputChange} 
             style={{ display: 'none' }} 
           />
 
-          {audioFile ? (
+          {activeAudioFile ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-              <FileAudio size={24} style={{ color: 'var(--accent-primary)' }} />
+              <FileAudio size={28} style={{ color: 'var(--accent-primary)' }} />
               <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)' }}>{audioFile.name}</div>
+                <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)' }}>{activeAudioFile.name}</div>
                 <div style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
-                  크기: {(audioFile.size / (1024 * 1024)).toFixed(2)} MB · 길이: {formatTime(duration)} (클릭 시 다른 파일 선택)
+                  크기: {(activeAudioFile.size / (1024 * 1024)).toFixed(2)} MB · 길이: {formatTime(duration)} (클릭 시 다른 파일 선택)
                 </div>
               </div>
             </div>
@@ -244,14 +256,14 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
                 내 PC의 통화 녹음 파일(.m4a, .mp3, .wav)을 클릭하여 선택하세요
               </div>
               <div style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
-                선택 즉시 브라우저 내장 오디오 엔진으로 스피커를 통해 실제 소리가 재생됩니다.
+                파일을 끌어다 놓으셔도 즉시 로드되어 스피커로 소리가 출력됩니다.
               </div>
             </div>
           )}
         </div>
 
-        {/* Real Hardware Playback Control Panel */}
-        {audioUrl ? (
+        {/* Hardware Playback Control Panel */}
+        {activeAudioUrl ? (
           <div style={{ backgroundColor: 'var(--surface-2)', padding: '16px', borderRadius: '8px', border: '1px solid var(--hairline)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             
             {/* Timeline Scrub Slider */}
@@ -373,7 +385,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
               <Sparkles size={16} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--accent-primary)' }} />
               <div>
                 <strong>💡 실시간 STT 검증 안내:</strong><br/>
-                [스피커로 소리 재생]을 누르시면 PC 스피커로 실제 통화 음성이 나오며, 마이크가 이 소리를 수신하여 상담 화면에 실시간으로 자막 전사 및 키워드 어시스트를 자동 실행합니다.
+                스피커로 재생되는 실제 음성이 PC 마이크로 입력되어 중앙 자막창에 4색 하이라이트로 실시간 전사됩니다.
               </div>
             </div>
 
