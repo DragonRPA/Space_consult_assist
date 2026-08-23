@@ -22,6 +22,8 @@ import {
   FileAudio, 
   FileText,
   ClipboardList,
+  Edit3,
+  Eye,
   X 
 } from 'lucide-react';
 import { useCounselStore } from './store';
@@ -99,6 +101,8 @@ export default function App() {
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [isMicTestOpen, setIsMicTestOpen] = useState(false);
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
+  const [isDirectEditMode, setIsDirectEditMode] = useState(false);
+  const [directEditableText, setDirectEditableText] = useState('');
   const [pastedInputText, setPastedInputText] = useState('');
   const [micAudioLevel, setMicAudioLevel] = useState(0);
   const [justTriggeredKeyword, setJustTriggeredKeyword] = useState<string | null>(null);
@@ -112,14 +116,11 @@ export default function App() {
 
   const playedCueIndicesRef = useRef<Set<number>>(new Set());
 
-  // Function to process incoming speech (Shared across Live Mic, Digital Audio Sync, and Text Paste)
-  const processIncomingSpeechUtterance = (rawText: string) => {
-    const { correctedText, corrections } = applyContextualCorrection(rawText);
-    appendFinalParagraph(rawText, correctedText, corrections);
-
+  // Standalone rule evaluator (Evaluates on live typing or speech without duplicate append)
+  const evaluateUtteranceRules = (text: string) => {
     // 1. Symptom Keyword & Part Matching
     for (const entity of DOMAIN_KEYWORD_REGISTRY) {
-      if (entity.synonyms.test(correctedText)) {
+      if (entity.synonyms.test(text)) {
         if (activeKeywordEntity?.id !== entity.id) {
           setActiveKeywordEntity(entity);
           setJustTriggeredKeyword(entity.keyword);
@@ -133,7 +134,7 @@ export default function App() {
 
     // 2. Customer Identification
     for (const entRule of NAMED_ENTITY_REGISTRY) {
-      if (entRule.type === 'customer' && entRule.pattern.test(correctedText)) {
+      if (entRule.type === 'customer' && entRule.pattern.test(text)) {
         if (entRule.customerId && selectedCustomer?.id !== entRule.customerId) {
           const targetCust = customerList.find(c => c.id === entRule.customerId);
           if (targetCust) {
@@ -148,7 +149,7 @@ export default function App() {
 
     // 3. Action SOP Auto-Check
     for (const entRule of NAMED_ENTITY_REGISTRY) {
-      if (entRule.type === 'action' && entRule.pattern.test(correctedText)) {
+      if (entRule.type === 'action' && entRule.pattern.test(text)) {
         if (entRule.actionIndex && actionChecklist[entRule.actionIndex - 1] && !actionChecklist[entRule.actionIndex - 1].checked) {
           toggleChecklist(entRule.actionIndex);
           showToast(`🛠️ 조치 발화 감지: [${actionChecklist[entRule.actionIndex - 1].text.slice(0, 18)}...] 자동 체크 완료`);
@@ -159,12 +160,20 @@ export default function App() {
     }
   };
 
+  // Function to process incoming speech (Shared across Live Mic and Digital Audio Sync)
+  const processIncomingSpeechUtterance = (rawText: string) => {
+    const { correctedText, corrections } = applyContextualCorrection(rawText);
+    appendFinalParagraph(rawText, correctedText, corrections);
+    evaluateUtteranceRules(correctedText);
+  };
+
   // Direct Text Conversation Parser (Instant Diagnosis & SOP Checklist trigger)
   const handlePasteText = (content: string, sourceName = '대화록 텍스트') => {
     if (!content || !content.trim()) return;
     resetSessionForNewAudio();
     clearAudioFile();
     playedCueIndicesRef.current.clear();
+    setDirectEditableText(content);
 
     const rawLines = content.split('\n');
     const validLines: string[] = [];
@@ -188,6 +197,24 @@ export default function App() {
 
     showToast(`📋 [${sourceName}] ${validLines.length}줄 분석 ➔ 증상·고객·조치 즉시 표출 완료!`);
     setTimeout(() => clearToast(), 3500);
+  };
+
+  // Handle direct interactive editing in the transcript box
+  const handleDirectTextChange = (text: string) => {
+    setDirectEditableText(text);
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    useCounselStore.setState({
+      rawParagraphs: lines,
+      finalParagraphs: lines
+    });
+
+    lines.forEach(line => {
+      const cleanLine = line.replace(/^\[\d{1,2}:\d{2}(:\d{2})?\]\s*/, '');
+      if (cleanLine) {
+        evaluateUtteranceRules(cleanLine);
+      }
+    });
   };
 
   const recognitionRef = useRef<any>(null);
@@ -1104,11 +1131,37 @@ export default function App() {
                   </span>
                 </div>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    onClick={() => {
+                      if (!isDirectEditMode) {
+                        setDirectEditableText(activeParagraphs.join('\n'));
+                      }
+                      setIsDirectEditMode(!isDirectEditMode);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '3px 8px',
+                      backgroundColor: isDirectEditMode ? 'var(--accent-warning)' : 'var(--surface-3)',
+                      color: isDirectEditMode ? '#000' : 'var(--ink)',
+                      border: '1px solid var(--hairline)',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    title={isDirectEditMode ? "하이라이트 뷰로 전환" : "텍스트 직접 편집 모드로 전환"}
+                  >
+                    {isDirectEditMode ? <Eye size={12} /> : <Edit3 size={12} />}
+                    <span>{isDirectEditMode ? '하이라이트 보기' : '텍스트 직접 편집'}</span>
+                  </button>
+
                   <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
-                    전사 자막 (음성 파일을 아래 박스에 던져 넣으세요)
+                    {isDirectEditMode ? '대화록을 직접 수정/작성 중' : '전사 자막 (더블클릭 시 직접 편집 가능)'}
                   </label>
-                  {correctionHistory.length > 0 && isContextCorrectionEnabled && (
+                  {correctionHistory.length > 0 && isContextCorrectionEnabled && !isDirectEditMode && (
                     <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 600 }}>
                       ✨ 맥락 보정 {correctionHistory.length}건
                     </span>
@@ -1261,14 +1314,20 @@ export default function App() {
               ref={transcriptBoxRef}
               onDragEnter={() => setIsDragOverDropzone(true)}
               onDragLeave={() => setIsDragOverDropzone(false)}
+              onDoubleClick={() => {
+                if (!isDirectEditMode) {
+                  setDirectEditableText(activeParagraphs.join('\n'));
+                  setIsDirectEditMode(true);
+                }
+              }}
               style={{ 
                 flex: 1, 
                 minHeight: 0,
                 backgroundColor: isDragOverDropzone ? 'rgba(37, 99, 235, 0.18)' : 'var(--surface-2)', 
                 border: isDragOverDropzone ? '2px dashed var(--accent-primary)' : '1px solid var(--hairline)', 
                 borderRadius: '6px', 
-                padding: '12px', 
-                overflowY: 'auto',
+                padding: isDirectEditMode ? '4px' : '12px', 
+                overflowY: isDirectEditMode ? 'hidden' : 'auto',
                 overflowX: 'hidden',
                 wordBreak: 'break-word',
                 fontSize: '13px',
@@ -1300,8 +1359,31 @@ export default function App() {
                 </div>
               )}
 
-              {/* Multi-Color Highlighted Paragraphs */}
-              {activeParagraphs.length > 0 ? (
+              {/* DIRECT EDITABLE TEXTAREA MODE */}
+              {isDirectEditMode ? (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+                  <textarea
+                    autoFocus
+                    value={directEditableText}
+                    onChange={(e) => handleDirectTextChange(e.target.value)}
+                    placeholder="여기에 대화 내용을 직접 타이핑하거나 붙여넣으세요. 한 글자 한 줄 입력하는 즉시 실시간으로 구어체 증상과 우측 조치 SOP가 반응합니다!"
+                    style={{
+                      flex: 1,
+                      width: '100%',
+                      height: '100%',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      padding: '8px',
+                      color: 'var(--ink)',
+                      fontSize: '13px',
+                      fontFamily: 'monospace',
+                      lineHeight: 1.6,
+                      resize: 'none',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              ) : activeParagraphs.length > 0 ? (
                 <div>
                   {activeParagraphs.map((paragraph, pIdx) => (
                     <div 
@@ -1355,7 +1437,7 @@ export default function App() {
                 </div>
               ) : (
                 <div style={{ color: 'var(--ink-subtle)', padding: '24px 8px', textAlign: 'center', fontSize: '12px' }}>
-                  🎙️ 상단 <strong>[STT 수신 시작]</strong>을 누르거나, <strong>외부 .m4a 음성 파일을 이 박스에 끌어다 놓으세요.</strong>
+                  ✏️ <strong>이 영역을 더블클릭</strong>하거나 상단 <strong>[텍스트 직접 편집]</strong> 버튼을 누르면 자유롭게 글을 쓰고 수정할 수 있습니다.
                 </div>
               )}
             </div>
