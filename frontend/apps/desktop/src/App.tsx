@@ -10,7 +10,6 @@ import {
   Building2, 
   CheckSquare, 
   Square, 
-  Sparkles, 
   Volume2, 
   Radio, 
   BrainCircuit, 
@@ -122,7 +121,7 @@ export default function App() {
           setActiveKeywordEntity(entity);
           setJustTriggeredKeyword(entity.keyword);
           setTimeout(() => setJustTriggeredKeyword(null), 3000);
-          showToast(`⚡ 실시간 구어체 감지: [${entity.keyword}] 진단 및 SOP 가이드 자동 표출!`);
+          showToast(`[구어체 감지: ${entity.keyword}] 진단 및 조치 가이드 자동 표출`);
           setTimeout(() => clearToast(), 3000);
         }
         break;
@@ -136,7 +135,7 @@ export default function App() {
           const targetCust = customerList.find(c => c.id === entRule.customerId);
           if (targetCust) {
             selectCustomer(targetCust);
-            showToast(`🏢 고객사 감지: [${targetCust.name}] 자동 선택 완료`);
+            showToast(`[고객사 감지: ${targetCust.name}] 자동 선택 완료`);
             setTimeout(() => clearToast(), 3000);
           }
         }
@@ -149,7 +148,7 @@ export default function App() {
       if (entRule.type === 'action' && entRule.pattern.test(text)) {
         if (entRule.actionIndex && actionChecklist[entRule.actionIndex - 1] && !actionChecklist[entRule.actionIndex - 1].checked) {
           toggleChecklist(entRule.actionIndex);
-          showToast(`🛠️ 조치 발화 감지: [${actionChecklist[entRule.actionIndex - 1].text.slice(0, 18)}...] 자동 체크 완료`);
+          showToast(`[조치 발화 감지: ${actionChecklist[entRule.actionIndex - 1].text.slice(0, 18)}...] 자동 체크 완료`);
           setTimeout(() => clearToast(), 3000);
         }
         break;
@@ -191,7 +190,7 @@ export default function App() {
       processIncomingSpeechUtterance(line);
     });
 
-    showToast(`📋 [${sourceName}] ${validLines.length}줄 분석 ➔ 증상·고객·조치 즉시 표출 완료!`);
+    showToast(`[${sourceName}] ${validLines.length}줄 분석: 증상/고객/조치 표출 완료`);
     setTimeout(() => clearToast(), 3500);
   };
 
@@ -1058,8 +1057,7 @@ export default function App() {
           <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Sparkles size={14} style={{ color: 'var(--accent-primary)' }} />
-                실시간 전사 자막 및 개체(Entity) 자동 감지
+                전사 자막 및 개체 감지
               </span>
               
               {/* Dynamic Mic Activity Indicator */}
@@ -1090,16 +1088,16 @@ export default function App() {
             }}>
               <span style={{ color: 'var(--ink-muted)', fontWeight: 600 }}>식별 범례:</span>
               <span style={{ color: '#e9d5ff', backgroundColor: 'rgba(168, 85, 247, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
-                🏢 고객사/담당자 (보라)
+                고객사/담당자 (보라)
               </span>
               <span style={{ color: '#fde68a', backgroundColor: 'rgba(245, 158, 11, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
-                📍 현장/위치 (황색)
+                현장/위치 (황색)
               </span>
               <span style={{ color: '#93c5fd', backgroundColor: 'rgba(37, 99, 235, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
-                🔍 고장증상 (청색)
+                고장증상 (청색)
               </span>
               <span style={{ color: '#6ee7b7', backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
-                🛠️ 조치사항 (녹색)
+                조치사항 (녹색)
               </span>
             </div>
 
@@ -1112,7 +1110,7 @@ export default function App() {
               color: 'var(--ars-text)',
               lineHeight: 1.2 
             }}>
-              ⚖️ [ARS 고지 필수] "본 통화는 품질 향상 및 AI 상담 지원을 위해 녹음/분석됩니다."
+              [ARS 고지 필수] "본 통화는 품질 향상 및 AI 상담 지원을 위해 녹음/분석됩니다."
             </div>
           </div>
 
@@ -1172,7 +1170,7 @@ export default function App() {
                   </label>
                   {correctionHistory.length > 0 && isContextCorrectionEnabled && !isDirectEditMode && (
                     <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 600 }}>
-                      ✨ 맥락 보정 {correctionHistory.length}건
+                      맥락 보정 {correctionHistory.length}건
                     </span>
                   )}
                 </div>
@@ -1364,7 +1362,7 @@ export default function App() {
                   borderRadius: '6px'
                 }}>
                   <Upload size={32} className="animate-bounce" style={{ marginBottom: '8px', color: '#93c5fd' }} />
-                  <span>🎯 여기에 .txt 대화록이나 .m4a 음성 파일을 놓으면 즉시 분석/동기화됩니다!</span>
+                  <span>대화록(.txt) 또는 음성(.m4a) 파일을 놓으면 분석됩니다.</span>
                 </div>
               )}
 
@@ -1375,7 +1373,7 @@ export default function App() {
                     autoFocus
                     value={directEditableText}
                     onChange={(e) => handleDirectTextChange(e.target.value)}
-                    placeholder="여기에 대화 내용을 직접 타이핑하거나 붙여넣으세요. 한 글자 한 줄 입력하는 즉시 실시간으로 구어체 증상과 우측 조치 SOP가 반응합니다!"
+                    placeholder="대화 내용을 직접 타이핑하거나 붙여넣으세요. 입력 즉시 고장 증상과 조치 SOP가 반응합니다."
                     style={{
                       flex: 1,
                       width: '100%',
@@ -1446,7 +1444,7 @@ export default function App() {
                 </div>
               ) : (
                 <div style={{ color: 'var(--ink-subtle)', padding: '24px 8px', textAlign: 'center', fontSize: '12px' }}>
-                  ✏️ <strong>이 영역을 더블클릭</strong>하거나 상단 <strong>[텍스트 직접 편집]</strong> 버튼을 누르면 자유롭게 글을 쓰고 수정할 수 있습니다.
+                  이 영역을 더블클릭하거나 상단 <strong>[텍스트 직접 편집]</strong> 버튼을 누르면 글을 쓰고 수정할 수 있습니다.
                 </div>
               )}
             </div>
@@ -2019,7 +2017,7 @@ export default function App() {
                   boxShadow: pastedInputText.trim() ? '0 0 12px rgba(37, 99, 235, 0.4)' : 'none'
                 }}
               >
-                ⚡ 즉시 분석 실행
+                분석 실행
               </button>
             </div>
           </div>
