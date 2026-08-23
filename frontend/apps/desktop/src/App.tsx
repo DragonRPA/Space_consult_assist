@@ -12,14 +12,14 @@ import {
   Square, 
   Sparkles, 
   Volume2, 
-  Radio,
-  BrainCircuit,
-  Zap,
-  HelpCircle,
-  Play,
-  Pause,
-  Upload,
-  FileAudio,
+  Radio, 
+  BrainCircuit, 
+  Zap, 
+  HelpCircle, 
+  Play, 
+  Pause, 
+  Upload, 
+  FileAudio, 
   X 
 } from 'lucide-react';
 import { useCounselStore } from './store';
@@ -117,7 +117,6 @@ export default function App() {
       try {
         recognitionRef.current.start();
       } catch (e: any) {
-        // Ignore InvalidStateError if already running
         if (e.name !== 'InvalidStateError') {
           console.warn("STT Start Notice:", e);
         }
@@ -134,13 +133,48 @@ export default function App() {
     }
   }, [setRecording]);
 
+  // GLOBAL WINDOW DRAG & DROP INTERCEPTOR (Prevents browser from opening new window/tab!)
+  useEffect(() => {
+    const handleGlobalDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    };
+
+    const handleGlobalDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOverDropzone(false);
+
+      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        if (file.name.match(/\.(m4a|mp3|wav|ogg|aac|flac)$/i)) {
+          setActiveAudioFile(file);
+          setIsAudioPlaying(true);
+          startSttStreaming();
+          showToast(`🎵 [${file.name}] 스피커 재생 & 실시간 STT 수신 시작!`);
+          setTimeout(() => clearToast(), 3500);
+        }
+      }
+    };
+
+    window.addEventListener('dragover', handleGlobalDragOver);
+    window.addEventListener('drop', handleGlobalDrop);
+
+    return () => {
+      window.removeEventListener('dragover', handleGlobalDragOver);
+      window.removeEventListener('drop', handleGlobalDrop);
+    };
+  }, [setActiveAudioFile, setIsAudioPlaying, startSttStreaming, showToast, clearToast]);
+
   // Background Audio Controller Sync
   useEffect(() => {
     if (!globalAudioRef.current || !activeAudioUrl) return;
 
     if (isAudioPlaying) {
       globalAudioRef.current.play().then(() => {
-        // Instantly engage STT on audio play
         startSttStreaming();
       }).catch((err) => {
         console.warn("Audio play blocked or waiting for user gesture:", err);
@@ -150,48 +184,13 @@ export default function App() {
     }
   }, [isAudioPlaying, activeAudioUrl, startSttStreaming]);
 
-  // STT Box Dropzone Event Handlers - INSTANT PLAY & STT START
-  const handleDropzoneDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = 'copy';
-    if (!isDragOverDropzone) setIsDragOverDropzone(true);
-  };
-
-  const handleDropzoneDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOverDropzone(false);
-  };
-
-  const handleDropzoneDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOverDropzone(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      setActiveAudioFile(file);
-      setIsAudioPlaying(true);
-      
-      // Instantly start STT speech recognition
-      startSttStreaming();
-      
-      showToast(`🎵 [${file.name}] 스피커 재생 & 실시간 STT 수신 동시 시작!`);
-      setTimeout(() => clearToast(), 3500);
-    }
-  };
-
   const handleManualFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       setActiveAudioFile(file);
       setIsAudioPlaying(true);
-      
-      // Instantly start STT speech recognition
       startSttStreaming();
-
-      showToast(`🎵 [${file.name}] 스피커 재생 & 실시간 STT 수신 동시 시작!`);
+      showToast(`🎵 [${file.name}] 스피커 재생 & 실시간 STT 수신 시작!`);
       setTimeout(() => clearToast(), 3500);
     }
   };
@@ -1056,9 +1055,8 @@ export default function App() {
           >
             <div 
               ref={transcriptBoxRef}
-              onDragOver={handleDropzoneDragOver}
-              onDragLeave={handleDropzoneDragLeave}
-              onDrop={handleDropzoneDrop}
+              onDragEnter={() => setIsDragOverDropzone(true)}
+              onDragLeave={() => setIsDragOverDropzone(false)}
               style={{ 
                 flex: 1, 
                 backgroundColor: isDragOverDropzone ? 'rgba(37, 99, 235, 0.18)' : 'var(--surface-2)', 
