@@ -1,38 +1,44 @@
 """
-STT Router: Faster-Whisper Large-v3 Endpoints & WebSocket
+STT Router: Faster-Whisper Large-v3 Endpoints & WebSocket (Loopback + File)
 """
 
+import asyncio
+import threading
+import logging
 from fastapi import APIRouter, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import JSONResponse
-import logging
 from app.services.stt_service import transcribe_audio_file, get_whisper_model
+from app.services.wasapi_loopback_service import get_loopback_service, list_loopback_devices
 
 router = APIRouter()
 logger = logging.getLogger("space_advisor.stt_api")
 
+
 @router.get("/status")
 async def get_stt_engine_status():
-    """
-    Returns the current status of the Faster-Whisper Large-v3 engine.
-    """
+    """Faster-Whisper 엔진 상태 및 루프백 캡처 가능 장치 목록 반환"""
     model = get_whisper_model()
     is_gpu_ready = model is not None
+    loopback_svc = get_loopback_service()
+    devices = list_loopback_devices()
     return {
-        "engine": "Faster-Whisper Large-v3",
-        "device": "NVIDIA GeForce RTX 5080 (CUDA 13.1)" if is_gpu_ready else "CPU/Standby",
+        "engine": "Faster-Whisper Large-v3-Turbo",
+        "device": "NVIDIA GeForce RTX 5080 (CUDA / float16)" if is_gpu_ready else "CPU/Standby",
         "is_ready": is_gpu_ready,
+        "loopback_running": loopback_svc.is_running,
+        "loopback_devices": devices,
         "max_concurrent": 8,
         "supported_formats": [".m4a", ".wav", ".mp3", ".flac", ".ogg", ".webm"]
     }
 
+
 @router.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
     """
-    Transcribes an uploaded audio file (.m4a, .wav, .mp3) using Faster-Whisper Large-v3.
+    파일 기반 배치 전사: 업로드된 오디오 파일을 Faster-Whisper로 전사합니다.
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="No audio file provided.")
-
     try:
         content = await file.read()
         logger.info(f"🎙️ [STT] Received audio file '{file.filename}' ({len(content):,} bytes) for Large-v3 transcription...")
@@ -42,27 +48,54 @@ async def transcribe_audio(file: UploadFile = File(...)):
         logger.error(f"❌ [STT Error]: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.websocket("/ws")
-async def stt_websocket_stream(websocket: WebSocket):
+async def stt_loopback_websocket(websocket: WebSocket):
     """
-    Live streaming WebSocket connection for real-time microphone / softphone audio chunks.
+    WASAPI Loopback 실시간 STT WebSocket.
+    
+    클라이언트 → 서버: JSON {"action": "start", "device": "CABLE Input (VB-Audio Virtual Cable)"}
+    클라이언트 → 서버: JSON {"action": "stop"}
+    서버 → 클라이언트: JSON {"text": "...", "start": 0.0, "end": 2.1}  (실시간 세그먼트)
+    서버 → 클라이언트: JSON {"status": "connected", "device": "..."}
+    서버 → 클라이언트: JSON {"error": "..."}
     """
     await websocket.accept()
-    logger.info("⚡ [STT WebSocket] Client connected for live Faster-Whisper streaming.")
+    logger.info("⚡ [STT-WS] Client connected for WASAPI Loopback real-time STT")
+
+    loopback_svc = get_loopback_service()
+    loop = asyncio.get_event_loop()
+
+    def on_segment(segment: dict):
+        """백그라운드 스레드 → WebSocket 비동기 전송"""
+        try:
+            asyncio.run_coroutine_threadsafe(
+                websocket.send_json(segment),
+                loop
+            )
+        except Exception:
+            pass
+
     try:
         while True:
-            # Receive audio chunk (bytes)
-            data = await websocket.receive_bytes()
-            if data:
-                # Transcribe chunk
-                res = transcribe_audio_file(data, filename="chunk.wav")
-                if res and res.get("full_transcript"):
-                    await websocket.send_json({
-                        "type": "transcript",
-                        "text": res["full_transcript"],
-                        "segments": res.get("segments", [])
-                    })
+            msg = await websocket.receive_json()
+            action = msg.get("action", "")
+
+            if action == "start":
+                if loopback_svc.is_running:
+                    loopback_svc.stop()
+                device_name = msg.get("device", None)
+                logger.info(f"▶ [STT-WS] Loopback STT 시작 (device={device_name})")
+                loopback_svc.start(on_segment, device_name=device_name)
+
+            elif action == "stop":
+                logger.info("⏹ [STT-WS] Loopback STT 중지")
+                loopback_svc.stop()
+                await websocket.send_json({"status": "stopped"})
+
     except WebSocketDisconnect:
-        logger.info("🔌 [STT WebSocket] Client disconnected.")
+        logger.info("🔌 [STT-WS] Client disconnected → stopping loopback")
     except Exception as e:
-        logger.warning(f"⚠️ [STT WebSocket Error]: {e}")
+        logger.warning(f"⚠️ [STT-WS] Error: {e}")
+    finally:
+        loopback_svc.stop()

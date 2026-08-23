@@ -109,6 +109,9 @@ export default function App() {
   const [isWhisperLauncherModalOpen, setIsWhisperLauncherModalOpen] = useState(false);
   const [isWhisperProcessing, setIsWhisperProcessing] = useState(false);
   const [gpuServerOnline, setGpuServerOnline] = useState<boolean | null>(null);
+  const [isLoopbackActive, setIsLoopbackActive] = useState(false);
+  const [loopbackDevice, setLoopbackDevice] = useState<string>('');
+  const [loopbackDevices, setLoopbackDevices] = useState<{id: string; name: string}[]>([]);
   const [directEditableText, setDirectEditableText] = useState('');
   const [pastedInputText, setPastedInputText] = useState('');
   const [micAudioLevel, setMicAudioLevel] = useState(0);
@@ -121,8 +124,14 @@ export default function App() {
     const checkGpuServer = async () => {
       try {
         const res = await fetch('http://127.0.0.1:8000/api/v1/stt/status');
-        if (isMounted) {
-          setGpuServerOnline(res.ok);
+        if (isMounted && res.ok) {
+          const data = await res.json();
+          setGpuServerOnline(true);
+          if (data.loopback_devices && data.loopback_devices.length > 0) {
+            setLoopbackDevices(data.loopback_devices);
+          }
+        } else if (isMounted) {
+          setGpuServerOnline(false);
         }
       } catch (_) {
         if (isMounted) {
@@ -141,6 +150,7 @@ export default function App() {
   const globalAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const txtFileInputRef = useRef<HTMLInputElement | null>(null);
+  const loopbackWsRef = useRef<WebSocket | null>(null);
   const isRecordingRef = useRef(isRecording);
   isRecordingRef.current = isRecording;
 
@@ -276,14 +286,89 @@ export default function App() {
     }
   }, [setRecording]);
 
+  // ── WASAPI Loopback Real-time STT ─────────────────────────────────────────
+
+  const startLoopbackSTT = useCallback((deviceName?: string) => {
+    if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
+      return; // already connected
+    }
+    const ws = new WebSocket('ws://127.0.0.1:8000/api/v1/stt/ws');
+    loopbackWsRef.current = ws;
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ action: 'start', device: deviceName || null }));
+      setIsLoopbackActive(true);
+      setRecording(true);
+      showToast('[루프백 STT] WASAPI 실시간 캡처 시작');
+      setTimeout(() => clearToast(), 2500);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.text) {
+          appendFinalParagraph(msg.text, msg.text, []);
+          evaluateUtteranceRules(msg.text);
+        }
+        if (msg.error) {
+          showToast(`[루프백 STT 오류] ${msg.error}`);
+          setTimeout(() => clearToast(), 4000);
+        }
+      } catch (_) {}
+    };
+
+    ws.onerror = () => {
+      setIsLoopbackActive(false);
+      setRecording(false);
+      showToast('[루프백 STT] 로컬 GPU 서버 연결 실패');
+      setTimeout(() => clearToast(), 3000);
+    };
+
+    ws.onclose = () => {
+      setIsLoopbackActive(false);
+      setRecording(false);
+      loopbackWsRef.current = null;
+    };
+  }, [appendFinalParagraph, showToast, clearToast, setRecording]);
+
+  const stopLoopbackSTT = useCallback(() => {
+    if (loopbackWsRef.current) {
+      if (loopbackWsRef.current.readyState === WebSocket.OPEN) {
+        loopbackWsRef.current.send(JSON.stringify({ action: 'stop' }));
+        loopbackWsRef.current.close();
+      }
+      loopbackWsRef.current = null;
+    }
+    setIsLoopbackActive(false);
+    setRecording(false);
+    showToast('[루프백 STT] 실시간 캡처 중지');
+    setTimeout(() => clearToast(), 2000);
+  }, [showToast, clearToast, setRecording]);
+
   const processAudioWithActiveEngine = useCallback(async (file: File) => {
+    // 이전 세그먼트 타이머 전부 취소
+    if ((window as any).__segTimers) {
+      (window as any).__segTimers.forEach((id: number) => clearTimeout(id));
+    }
+    (window as any).__segTimers = [];
+
     resetSessionForNewAudio();
     setActiveAudioFile(file);
     setIsAudioPlaying(true);
 
+    // ─── 실시간 루프백 STT 활성 상태 ───────────────────────────────────────
+    // 루프백 WebSocket이 켜져 있으면 배치 전사를 차단한다.
+    // 오디오는 시스템(VB-CABLE)으로 나가고 Python 루프백이 2초 청크씩 처리한다.
+    if (isLoopbackActive) {
+      showToast(`[루프백 STT] '${file.name}' → VB-CABLE 실시간 캡처 중`);
+      setTimeout(() => clearToast(), 2500);
+      return;
+    }
+
     if (sttEngine === 'whisper_large_v3') {
       setIsWhisperProcessing(true);
-      showToast(`[Faster-Whisper GPU] '${file.name}' RTX 5080 GPU 고속 전사 중...`);
+      showToast(`[Faster-Whisper GPU] '${file.name}' 전사 중...`);
+
       const formData = new FormData();
       formData.append('file', file);
 
@@ -293,31 +378,45 @@ export default function App() {
       const abortController = new AbortController();
       whisperAbortControllerRef.current = abortController;
 
+      // 오디오 재생 시작 시각 기록 (전사 요청과 동시에 음성도 흘러간다)
+      const audioPlayStartTime = Date.now();
+
       try {
         const response = await fetch('http://127.0.0.1:8000/api/v1/stt/transcribe', {
           method: 'POST',
           body: formData,
           signal: abortController.signal
         });
+
         if (response.ok) {
           const data = await response.json();
+
           if (data.segments && data.segments.length > 0) {
-            data.segments.forEach((seg: any) => {
-              appendFinalParagraph(seg.text, seg.text, []);
-              evaluateUtteranceRules(seg.text);
-            });
-            showToast(`[Faster-Whisper GPU] ${data.segments.length}개 세그먼트 고품질 전사 완료!`);
-            setTimeout(() => clearToast(), 3500);
             setIsWhisperProcessing(false);
+            const elapsed = Date.now() - audioPlayStartTime; // 전사 소요시간(ms)
+
+            showToast(`[Faster-Whisper GPU] ${data.segments.length}개 세그먼트 → 타임라인 동기화 표출`);
+            setTimeout(() => clearToast(), 2500);
+
+            // ── 핵심: 각 세그먼트를 오디오 타임스탬프에 맞춰 순차 표출 ──
+            // seg.start는 오디오 파일 내 발화 시작 시각(초)
+            // elapsed를 빼서 이미 흐른 시간만큼 앞당긴다 (최솟값 0)
+            data.segments.forEach((seg: any) => {
+              const delay = Math.max(0, seg.start * 1000 - elapsed);
+              const timerId = window.setTimeout(() => {
+                appendFinalParagraph(seg.text, seg.text, []);
+                evaluateUtteranceRules(seg.text);
+              }, delay);
+              (window as any).__segTimers.push(timerId);
+            });
             return;
           }
         }
       } catch (err: any) {
         if (err.name === 'AbortError') {
-          console.log("Faster-Whisper GPU 전사 요청이 즉시 취소되었습니다.");
           return;
         }
-        console.warn("Local Faster-Whisper agent offline, fallback to Web Speech audio stream:", err);
+        console.warn('Faster-Whisper offline, fallback:', err);
       } finally {
         setIsWhisperProcessing(false);
         whisperAbortControllerRef.current = null;
@@ -327,7 +426,10 @@ export default function App() {
     startSttStreaming();
     showToast(`[${file.name}] 음성 파일 재생 및 실시간 STT 수신 시작`);
     setTimeout(() => clearToast(), 3500);
-  }, [sttEngine, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, appendFinalParagraph, showToast, clearToast]);
+  }, [sttEngine, isLoopbackActive, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, appendFinalParagraph, showToast, clearToast]);
+
+
+
 
   // GLOBAL WINDOW DRAG & DROP & PASTE INTERCEPTOR
   useEffect(() => {
@@ -956,46 +1058,82 @@ export default function App() {
             </button>
           </div>
 
-          {/* Local Whisper Live State Indicator & 1-Click Launcher Button */}
+          {/* Local Whisper Live State Indicator + Loopback STT Controls */}
           {sttEngine === 'whisper_large_v3' && (
             gpuServerOnline ? (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 10px',
-                borderRadius: '6px',
-                backgroundColor: isWhisperProcessing ? 'rgba(59, 130, 246, 0.2)' : 'rgba(16, 185, 129, 0.12)',
-                border: `1px solid ${isWhisperProcessing ? 'var(--accent-primary)' : 'rgba(16, 185, 129, 0.35)'}`,
-                fontSize: '11px',
-                fontWeight: 700,
-                color: isWhisperProcessing ? '#93c5fd' : 'var(--accent-success)'
-              }}>
-                {isWhisperProcessing ? (
-                  <>
-                    <Loader2 size={12} className="animate-spin" />
-                    <span>⚡ GPU 연산 진행 중 (RTX 5080)</span>
-                  </>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+
+                {/* 상태 배지 */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '5px',
+                  padding: '4px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
+                  backgroundColor: isLoopbackActive ? 'rgba(239, 68, 68, 0.15)' : isWhisperProcessing ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.12)',
+                  border: `1px solid ${isLoopbackActive ? 'rgba(239,68,68,0.5)' : isWhisperProcessing ? 'var(--accent-primary)' : 'rgba(16,185,129,0.35)'}`,
+                  color: isLoopbackActive ? '#fca5a5' : isWhisperProcessing ? '#93c5fd' : 'var(--accent-success)'
+                }}>
+                  {isLoopbackActive ? (
+                    <><span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ef4444' }} className="animate-pulse" /><span>루프백 실시간 수신 중</span></>
+                  ) : isWhisperProcessing ? (
+                    <><Loader2 size={11} className="animate-spin" /><span>GPU 연산 중</span></>
+                  ) : (
+                    <><span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', backgroundColor: 'var(--accent-success)' }} className="animate-pulse" /><span>GPU 대기 중</span></>
+                  )}
+                </div>
+
+                {/* 루프백 STT 시작/중지 토글 버튼 */}
+                {isLoopbackActive ? (
+                  <button
+                    onClick={stopLoopbackSTT}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '4px',
+                      padding: '4px 10px', borderRadius: '6px',
+                      backgroundColor: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)',
+                      color: '#fca5a5', fontSize: '11px', fontWeight: 700, cursor: 'pointer'
+                    }}
+                  >
+                    <Square size={11} fill="#fca5a5" />
+                    <span>루프백 중지</span>
+                  </button>
                 ) : (
-                  <>
-                    <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', backgroundColor: 'var(--accent-success)' }} className="animate-pulse" />
-                    <span>로컬 휘스퍼 가동 중 (RTX 5080)</span>
-                  </>
+                  <button
+                    onClick={() => startLoopbackSTT(loopbackDevice || undefined)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '4px',
+                      padding: '4px 10px', borderRadius: '6px',
+                      backgroundColor: 'rgba(239,68,68,0.9)', border: 'none',
+                      color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer'
+                    }}
+                  >
+                    <Radio size={11} />
+                    <span>실시간 루프백 STT</span>
+                  </button>
+                )}
+
+                {/* 장치 선택 드롭다운 */}
+                {loopbackDevices.length > 0 && !isLoopbackActive && (
+                  <select
+                    value={loopbackDevice}
+                    onChange={(e) => setLoopbackDevice(e.target.value)}
+                    style={{
+                      padding: '3px 6px', borderRadius: '4px', fontSize: '10px',
+                      backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)',
+                      color: 'var(--ink-muted)', maxWidth: '160px', cursor: 'pointer'
+                    }}
+                  >
+                    <option value="">자동 감지 (VB-CABLE 우선)</option>
+                    {loopbackDevices.map(d => (
+                      <option key={d.id} value={d.name}>{d.name.length > 28 ? d.name.slice(0, 28) + '…' : d.name}</option>
+                    ))}
+                  </select>
                 )}
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  color: 'var(--accent-danger)'
+                  display: 'flex', alignItems: 'center', gap: '5px',
+                  padding: '4px 8px', borderRadius: '6px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                  fontSize: '11px', fontWeight: 600, color: 'var(--accent-danger)'
                 }}>
                   <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--accent-danger)' }} />
                   <span>로컬 휘스퍼 미실행</span>
@@ -1003,17 +1141,10 @@ export default function App() {
                 <button
                   onClick={() => setIsWhisperLauncherModalOpen(true)}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    backgroundColor: 'var(--accent-primary)',
-                    color: '#fff',
-                    border: 'none',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer'
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    padding: '4px 10px', borderRadius: '6px',
+                    backgroundColor: 'var(--accent-primary)', color: '#fff',
+                    border: 'none', fontSize: '11px', fontWeight: 700, cursor: 'pointer'
                   }}
                 >
                   <Play size={11} fill="#fff" />
@@ -1022,6 +1153,7 @@ export default function App() {
               </div>
             )
           )}
+
 
           {/* Dedicated Mic Test Button */}
           <button
