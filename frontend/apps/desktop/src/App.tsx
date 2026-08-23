@@ -199,10 +199,27 @@ export default function App() {
     }
   };
 
-  // Function to process incoming speech (Shared across Live Mic and Digital Audio Sync)
+  const formatTimer = (sec: number) => {
+    const m = String(Math.floor(sec / 60)).padStart(2, '0');
+    const s = String(sec % 60).padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  // Function to process incoming speech (Shared across Live Mic, Web Speech, and Digital Audio Sync)
   const processIncomingSpeechUtterance = (rawText: string) => {
-    const { correctedText, corrections } = applyContextualCorrection(rawText);
-    appendFinalParagraph(rawText, correctedText, corrections);
+    if (!rawText || !rawText.trim()) return;
+    const trimmed = rawText.trim();
+    // 텍스트 앞머리에 이미 [mm:ss] 타임스탬프가 없으면 현재 callSeconds를 기반으로 부착
+    const hasTimestamp = /^\[\d{1,2}:\d{2}(?::\d{2})?\]/.test(trimmed);
+    const timestampStr = hasTimestamp ? '' : `[${formatTimer(callSeconds)}] `;
+    const fullRawLine = `${timestampStr}${trimmed}`.trim();
+
+    // 순수 텍스트(타임스탬프 분리된 본문)로 문맥 보정 및 규칙 평가
+    const cleanContent = fullRawLine.replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '');
+    const { correctedText, corrections } = applyContextualCorrection(cleanContent);
+    const fullCorrectedLine = hasTimestamp ? fullRawLine : `[${formatTimer(callSeconds)}] ${correctedText}`;
+
+    appendFinalParagraph(fullRawLine, fullCorrectedLine, corrections);
     evaluateUtteranceRules(correctedText);
   };
 
@@ -219,11 +236,7 @@ export default function App() {
     for (const rawLine of rawLines) {
       const trimmed = rawLine.trim();
       if (!trimmed) continue;
-      // Strip timestamps like [00:00:19]
-      const cleanLine = trimmed.replace(/^\[\d{1,2}:\d{2}(:\d{2})?\]\s*/, '');
-      if (cleanLine.length > 0) {
-        validLines.push(cleanLine);
-      }
+      validLines.push(trimmed);
     }
 
     if (validLines.length === 0) return;
@@ -236,6 +249,7 @@ export default function App() {
     showToast(`[${sourceName}] ${validLines.length}줄 분석: 증상/고객/조치 표출 완료`);
     setTimeout(() => clearToast(), 3500);
   };
+
 
   // Handle direct interactive editing in the transcript box
   const handleDirectTextChange = (text: string) => {
@@ -588,12 +602,6 @@ export default function App() {
     };
   }, [isCallActive, incrementCallTimer]);
 
-
-  const formatTimer = (sec: number) => {
-    const m = String(Math.floor(sec / 60)).padStart(2, '0');
-    const s = String(sec % 60).padStart(2, '0');
-    return `${m}:${s}`;
-  };
 
 
   // Auto-scroll transcript box when new speech arrives
