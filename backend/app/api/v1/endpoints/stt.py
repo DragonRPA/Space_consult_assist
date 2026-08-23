@@ -76,6 +76,14 @@ async def download_recording(filename: str):
     )
 
 
+@router.post("/reset")
+async def reset_stt_session():
+    """진행 중인 루프백 버퍼 및 세션 완전 초기화"""
+    loopback_svc = get_loopback_service()
+    loopback_svc.clear_buffer()
+    return {"status": "cleared"}
+
+
 @router.websocket("/ws")
 async def stt_loopback_websocket(websocket: WebSocket):
     """
@@ -83,9 +91,11 @@ async def stt_loopback_websocket(websocket: WebSocket):
 
     클라이언트 → 서버: JSON {"action": "start", "device": "CABLE Input (VB-Audio Virtual Cable)", "chunk_seconds": 2}
     클라이언트 → 서버: JSON {"action": "stop"}
+    클라이언트 → 서버: JSON {"action": "clear_buffer"}
     서버 → 클라이언트: JSON {"text": "...", "start": 0.0, "end": 2.1}  (실시간 세그먼트)
     서버 → 클라이언트: JSON {"status": "connected", "device": "..."}
     서버 → 클라이언트: JSON {"status": "stopped", "recording": "20260823_235900_call_recording.wav"}
+    서버 → 클라이언트: JSON {"status": "buffer_cleared"}
     서버 → 클라이언트: JSON {"error": "..."}
     """
     await websocket.accept()
@@ -111,12 +121,18 @@ async def stt_loopback_websocket(websocket: WebSocket):
 
             if action == "start":
                 if loopback_svc.is_running:
-                    loopback_svc.stop()
-                device_name = msg.get("device", None)
-                chunk_seconds = float(msg.get("chunk_seconds", 2.0))
-                chunk_seconds = max(0.3, min(chunk_seconds, 10.0))
-                logger.info(f"▶ [STT-WS] Loopback STT 시작 (device={device_name}, chunk={chunk_seconds}s)")
-                loopback_svc.start(on_segment, device_name=device_name, chunk_seconds=chunk_seconds)
+                    loopback_svc.clear_buffer()
+                else:
+                    device_name = msg.get("device", None)
+                    chunk_seconds = float(msg.get("chunk_seconds", 2.0))
+                    chunk_seconds = max(0.3, min(chunk_seconds, 10.0))
+                    logger.info(f"▶ [STT-WS] Loopback STT 시작 (device={device_name}, chunk={chunk_seconds}s)")
+                    loopback_svc.start(on_segment, device_name=device_name, chunk_seconds=chunk_seconds)
+
+            elif action == "clear_buffer" or action == "reset":
+                logger.info("🧹 [STT-WS] Loopback 버퍼 클리어 요청")
+                loopback_svc.clear_buffer()
+                await websocket.send_json({"status": "buffer_cleared"})
 
             elif action == "stop":
                 logger.info("⏹ [STT-WS] Loopback STT 중지 + 녹음 저장")

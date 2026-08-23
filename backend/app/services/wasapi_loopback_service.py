@@ -96,6 +96,7 @@ class LoopbackSTTService:
         self._thread: Optional[threading.Thread] = None
         self._device_name: Optional[str] = None
         self._chunk_seconds: float = 2.0
+        self._reset_requested: bool = False
         # ── 녹음 버퍼 ───────────────────────────────────────────────────────
         self._recording_chunks: list = []   # 48kHz mono float32 청크 리스트
         self._last_recording_path: Optional[str] = None
@@ -108,6 +109,12 @@ class LoopbackSTTService:
     def last_recording_path(self) -> Optional[str]:
         return self._last_recording_path
 
+    def clear_buffer(self):
+        """진행 중인 세션의 음성 버퍼를 즉시 리셋 (통화 전환, 파일 교체 시)"""
+        self._reset_requested = True
+        self._recording_chunks = []
+        logger.info("🧹 [LoopbackSTT] 버퍼 클리어 요청 접수")
+
     def start(
         self,
         segment_callback: Callable[[dict], None],
@@ -116,10 +123,12 @@ class LoopbackSTTService:
     ):
         """루프백 캡처 스레드 시작"""
         if self.is_running:
-            logger.warning("LoopbackSTTService already running")
+            logger.warning("LoopbackSTTService already running - resetting buffer")
+            self.clear_buffer()
             return
 
         self._stop_event.clear()
+        self._reset_requested = False
         self._device_name = device_name
         self._chunk_seconds = max(0.3, float(chunk_seconds))
         self._recording_chunks = []          # 녹음 버퍼 초기화
@@ -217,6 +226,19 @@ class LoopbackSTTService:
                 MAX_SPEECH_CHUNKS = 20    # 10초 이상 길어지면 강제 전사 (실시간성 보장)
 
                 while not self._stop_event.is_set():
+                    # 외부에서 즉각적인 버퍼 리셋 요청 시
+                    if self._reset_requested:
+                        self._reset_requested = False
+                        speech_buffer = []
+                        silence_strikes = 0
+                        # 0.5초 버퍼 플러시
+                        try:
+                            recorder.record(numframes=mini_chunk_frames)
+                        except Exception:
+                            pass
+                        logger.info("🧹 [LoopbackSTT] 루프 내부 버퍼 완전 초기화 완료")
+                        continue
+
                     chunk = recorder.record(numframes=mini_chunk_frames)
                     audio_mono = chunk[:, 0] if chunk.ndim > 1 else chunk
                     audio_mono = audio_mono.astype(np.float32)
@@ -232,6 +254,11 @@ class LoopbackSTTService:
                     else:
                         if len(speech_buffer) > 0:
                             silence_strikes += 1
+                            # 1.5초 이상 무음 지속 시, 잔여 버퍼(미세 잡음 등)는 전사하지 않고 폐기하여 다음 통화 오염 방지
+                            if silence_strikes > MAX_SILENCE_STRIKES + 1:
+                                speech_buffer = []
+                                silence_strikes = 0
+                                continue
 
                     trigger_stt = False
                     if len(speech_buffer) > 0 and silence_strikes >= MAX_SILENCE_STRIKES:
@@ -243,6 +270,10 @@ class LoopbackSTTService:
                         sentence_audio = np.concatenate(speech_buffer)
                         speech_buffer = []
                         silence_strikes = 0
+
+                        # 최소 발화 길이(0.8초) 미만은 잡음/추임새 잔여물이므로 스킵
+                        if len(sentence_audio) < int(CAPTURE_SAMPLE_RATE * 0.8):
+                            continue
 
                         audio_16k = resample_to_16k(sentence_audio, CAPTURE_SAMPLE_RATE)
                         
@@ -267,6 +298,7 @@ class LoopbackSTTService:
                                     "start": round(seg.start, 2),
                                     "end": round(seg.end, 2),
                                 })
+
 
         except Exception as e:
             logger.error(f"LoopbackSTT capture error: {e}", exc_info=True)

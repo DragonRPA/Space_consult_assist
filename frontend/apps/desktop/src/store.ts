@@ -260,11 +260,27 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
   resetCallTimer: () => set({ callSeconds: 0 }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   selectCustomer: (customer) => set({ selectedCustomer: customer }),
-  appendFinalParagraph: (rawText, correctedText, newCorrections) => set((state) => ({
-    rawParagraphs: [...state.rawParagraphs, rawText],
-    finalParagraphs: [...state.finalParagraphs, correctedText],
-    correctionHistory: [...state.correctionHistory, ...newCorrections]
-  })),
+  appendFinalParagraph: (rawText, correctedText, newCorrections) => set((state) => {
+    const trimmed = (correctedText || rawText || '').trim();
+    if (!trimmed) return state;
+
+    // ── 자막 중복 방어 (Deduplication Guard) ──────────────────────────────────
+    // 직전 문장과 100% 동일하거나, 직전 문장이 현재 문장을 완전히 포함하는 경우 중복 방지
+    const lastParagraph = state.finalParagraphs[state.finalParagraphs.length - 1];
+    if (lastParagraph) {
+      const cleanLast = lastParagraph.replace(/[.,?!~]/g, '').trim();
+      const cleanCurrent = trimmed.replace(/[.,?!~]/g, '').trim();
+      if (cleanLast === cleanCurrent || (cleanLast.length > 5 && cleanLast.endsWith(cleanCurrent))) {
+        return state;
+      }
+    }
+
+    return {
+      rawParagraphs: [...state.rawParagraphs, rawText],
+      finalParagraphs: [...state.finalParagraphs, trimmed],
+      correctionHistory: [...state.correctionHistory, ...newCorrections]
+    };
+  }),
   setInterimSttText: (text) => set({ interimSttText: text }),
   clearTranscript: () => set({ rawParagraphs: [], finalParagraphs: [], interimSttText: '', correctionHistory: [] }),
   setDiagnosisResult: (keywords, diagnosis, checklist) => set({

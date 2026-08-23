@@ -366,59 +366,26 @@ export default function App() {
     setActiveAudioFile(file);
     setIsAudioPlaying(true);
 
-    // ── 루프백 활성 중: 배치 전사 차단 ─────────────────────────────────────
-    // Python WASAPI 루프백 스레드가 2초 청크씩 실시간 처리하므로
-    // 파일 전체를 Whisper로 던지는 배치 전사를 절대 실행하지 않는다.
-    if (isLoopbackActive) {
-      showToast(`[루프백 STT] 오디오 재생 → VB-CABLE 실시간 캡처 중`);
+    // 백엔드 루프백 버퍼 클리어 요청
+    if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
+      try {
+        loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' }));
+      } catch (_) {}
+    }
+
+    // Faster-Whisper GPU 모드: 파일을 드롭하면 플레이어만 구동하고, 실시간 루프백을 통해 단일 전사 (이중 출력 방지)
+    if (sttEngine === 'whisper_large_v3') {
+      showToast(`[${file.name}] 재생 준비 완료 → 스피커 출력 실시간 STT`);
       setTimeout(() => clearToast(), 2500);
       return;
     }
 
-    if (sttEngine === 'whisper_large_v3') {
-      setIsWhisperProcessing(true);
-      showToast(`[Faster-Whisper GPU] '${file.name}' 배치 전사 중...`);
-      const formData = new FormData();
-      formData.append('file', file);
-
-      if (whisperAbortControllerRef.current) {
-        whisperAbortControllerRef.current.abort();
-      }
-      const abortController = new AbortController();
-      whisperAbortControllerRef.current = abortController;
-
-      try {
-        const response = await fetch('http://127.0.0.1:8000/api/v1/stt/transcribe', {
-          method: 'POST',
-          body: formData,
-          signal: abortController.signal
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.segments && data.segments.length > 0) {
-            data.segments.forEach((seg: any) => {
-              appendFinalParagraph(seg.text, seg.text, []);
-              evaluateUtteranceRules(seg.text);
-            });
-            showToast(`[Faster-Whisper GPU] ${data.segments.length}개 세그먼트 전사 완료`);
-            setTimeout(() => clearToast(), 3000);
-            setIsWhisperProcessing(false);
-            return;
-          }
-        }
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
-        console.warn('Faster-Whisper offline, fallback:', err);
-      } finally {
-        setIsWhisperProcessing(false);
-        whisperAbortControllerRef.current = null;
-      }
-    }
-
+    // Web Speech API 모드인 경우에만 브라우저 마이크 스트리밍 가동
     startSttStreaming();
-    showToast(`[${file.name}] 음성 파일 재생 및 STT 수신 시작`);
+    showToast(`[${file.name}] 음성 파일 재생 및 Web Speech STT 수신 시작`);
     setTimeout(() => clearToast(), 3500);
-  }, [sttEngine, isLoopbackActive, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, appendFinalParagraph, showToast, clearToast]);
+  }, [sttEngine, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, showToast, clearToast]);
+
 
 
 
@@ -511,12 +478,22 @@ export default function App() {
   const toggleAudioPlayback = () => {
     if (!activeAudioUrl || !globalAudioRef.current) return;
     if (!isAudioPlaying) {
+      // 재생 시작 시 백엔드 잔여 버퍼 즉시 플러시
+      if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
+        try { loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' })); } catch (_) {}
+      }
       setIsAudioPlaying(true);
       setRecording(true);
+      if (sttEngine === 'web_speech') {
+        startSttStreaming();
+      }
       globalAudioRef.current.play().catch(() => {});
     } else {
       setIsAudioPlaying(false);
       setRecording(false);
+      if (sttEngine === 'web_speech') {
+        stopSttStreaming();
+      }
       globalAudioRef.current.pause();
     }
   };
@@ -525,6 +502,9 @@ export default function App() {
     if (globalAudioRef.current) {
       globalAudioRef.current.pause();
       globalAudioRef.current.currentTime = 0;
+    }
+    if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
+      try { loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' })); } catch (_) {}
     }
     if (whisperAbortControllerRef.current) {
       whisperAbortControllerRef.current.abort();
@@ -546,6 +526,9 @@ export default function App() {
       globalAudioRef.current.removeAttribute('src');
       globalAudioRef.current.load();
     }
+    if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
+      try { loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' })); } catch (_) {}
+    }
     if (whisperAbortControllerRef.current) {
       whisperAbortControllerRef.current.abort();
       whisperAbortControllerRef.current = null;
@@ -558,6 +541,7 @@ export default function App() {
     showToast("음성 파일 및 STT 수신이 즉시 제거되었습니다.");
     setTimeout(() => clearToast(), 2000);
   };
+
 
   const formatAudioTime = (sec: number) => {
     if (isNaN(sec) || !isFinite(sec)) return "00:00";
