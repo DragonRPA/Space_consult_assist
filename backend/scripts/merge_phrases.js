@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * Space Advisor - 추출된 개별 구어체 JSON들을 마스터 DB 및 사전으로 1-클릭 통합
+ * Space Advisor - 순수 한글 구어체 JSON들을 마스터 DB 및 사전으로 1-클릭 통합
  * ============================================================================
  */
 
@@ -9,6 +9,15 @@ const path = require('path');
 
 const DEFAULT_JSON_DIR = "D:\\스페이스_테스트\\result_spoken_phrases";
 const DEFAULT_OUTPUT_DIR = "D:\\GoogleDrive\\RPA_dev\\01.AntiGravity\\Space_consult_assist\\backend\\scripts";
+
+const CATEGORY_TO_PART_CODE = {
+  "흡입계통": "SUCTION",
+  "급수/누수": "WATER_SOLENOID",
+  "배터리/전원": "POWER",
+  "브러시/구동": "DRIVE_BRUSH",
+  "외관파손": "CHASSIS",
+  "단순문의": "INQUIRY_ETC"
+};
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -53,12 +62,13 @@ function main() {
       const doc = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
       const phrases = doc.phrases || [];
       for (const p of phrases) {
-        const rawPhrase = (p.raw_spoken_phrase || '').trim();
-        const partCode = (p.part_code || 'INQUIRY_ETC').trim().toUpperCase();
-        const category = (p.category || '기타').trim();
+        // 한글 키 우선 지원
+        const rawPhrase = (p.발화어구 || p.raw_spoken_phrase || '').trim();
+        const category = (p.증상분류 || p.category || '단순문의').trim();
+        const partCode = CATEGORY_TO_PART_CODE[category] || (p.part_code || 'INQUIRY_ETC').trim().toUpperCase();
 
         if (rawPhrase.length >= 2) {
-          const key = `${partCode}:::${rawPhrase}`;
+          const key = `${category}:::${rawPhrase}`;
           if (!phraseMap.has(key)) {
             phraseMap.set(key, {
               part_code: partCode,
@@ -84,12 +94,12 @@ function main() {
     source_file_count: item.source_files.size
   }));
 
-  // Sort by frequency descending
+  // 빈도수 내림차순 정렬
   aggregatedList.sort((a, b) => b.frequency - a.frequency);
 
   console.log(`✅ 중복 제거 후 고유 구어체 표현: 총 ${aggregatedList.length.toLocaleString()}건 도출!`);
 
-  // 1. Save Master JSON
+  // 1. 마스터 JSON 사전 저장
   const masterJsonPath = path.join(opts.outputDir, 'master_spoken_synonyms.json');
   fs.writeFileSync(masterJsonPath, JSON.stringify({
     total_unique_phrases: aggregatedList.length,
@@ -99,7 +109,7 @@ function main() {
     all_phrases: aggregatedList
   }, null, 2), 'utf-8');
 
-  // 2. Save PostgreSQL SQL Seed
+  // 2. PostgreSQL DB 적재 SQL 생성
   const masterSqlPath = path.join(opts.outputDir, 'seed_symptom_synonyms_from_txt.sql');
   let sql = `-- =========================================================================\n`;
   sql += `-- GROUND TRUTH SPOKEN PHRASES MASTER SEED (FROM ${jsonFiles.length} TXT FILES)\n`;
@@ -115,7 +125,7 @@ function main() {
   sql += `    frequency_count INT DEFAULT 1,\n`;
   sql += `    is_active BOOLEAN DEFAULT TRUE,\n`;
   sql += `    created_at TIMESTAMPTZ DEFAULT NOW(),\n`;
-  sql += `    CONSTRAINT uq_part_phrase UNIQUE (part_code, phrase)\n`;
+  sql += `    CONSTRAINT uq_category_phrase UNIQUE (category_l1, phrase)\n`;
   sql += `);\n\n`;
   sql += `CREATE EXTENSION IF NOT EXISTS pg_trgm;\n`;
   sql += `CREATE INDEX IF NOT EXISTS idx_symptom_synonyms_phrase_trgm ON symptom_synonyms USING gin (phrase gin_trgm_ops);\n\n`;
@@ -128,7 +138,7 @@ function main() {
       return `('${item.part_code}', '${cleanCat}', '${cleanPhrase}', 'raw_txt_mined', ${item.frequency})`;
     });
     sql += rows.join(',\n') + '\n';
-    sql += `ON CONFLICT (part_code, phrase) DO UPDATE SET \n`;
+    sql += `ON CONFLICT (category_l1, phrase) DO UPDATE SET \n`;
     sql += `    frequency_count = EXCLUDED.frequency_count,\n`;
     sql += `    is_active = true;\n\n`;
   }
@@ -138,7 +148,7 @@ function main() {
 
   console.log('\n📊 [Top 15 실전 고객 발화 구어체 랭킹]:');
   aggregatedList.slice(0, 15).forEach((item, idx) => {
-    console.log(`  ${String(idx + 1).padStart(2, ' ')}. [${item.part_code.padEnd(14, ' ')}] "${item.phrase}" (${item.frequency}회 발생 / ${item.source_file_count}개 파일)`);
+    console.log(`  ${String(idx + 1).padStart(2, ' ')}. [${item.category.padEnd(8, ' ')}] "${item.phrase}" (${item.frequency}회 발생 / ${item.source_file_count}개 파일)`);
   });
 
   console.log('\n======================================================================');
