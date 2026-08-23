@@ -482,14 +482,14 @@ export default function App() {
       } else if (interim.trim()) {
         setInterimSttText(interim);
 
-        // Fast silence detection (500ms): Stops recognition to force buffer flush and clean restart
+        // Fast silence detection (200ms / 0.2s): Stops recognition to force buffer flush and clean restart
         speechPauseTimerRef.current = window.setTimeout(() => {
           if (isRecordingRef.current && recognitionRef.current) {
             try {
               recognitionRef.current.stop();
             } catch (_) {}
           }
-        }, 500);
+        }, 200);
       }
 
       // Real-time Multi-Entity Detection (Customer, Site, Symptom, Action)
@@ -545,7 +545,7 @@ export default function App() {
       }
     };
 
-    // Keep-Alive Auto-Recovery
+    // Keep-Alive Auto-Recovery (Ultra-Fast 30ms Instant Restart)
     recognition.onend = () => {
       if (isRecordingRef.current) {
         setTimeout(() => {
@@ -557,10 +557,10 @@ export default function App() {
                 if (isRecordingRef.current) {
                   try { recognition.start(); } catch (_) {}
                 }
-              }, 400);
+              }, 200);
             }
           }
-        }, 150);
+        }, 30);
       }
     };
 
