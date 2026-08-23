@@ -32,7 +32,7 @@ CAPTURE_SAMPLE_RATE   = 48000   # WASAPI 기본 샘플레이트 (Hz)
 WHISPER_SAMPLE_RATE   = 16000   # Faster-Whisper 요구 샘플레이트 (Hz)
 CHUNK_SECONDS         = 2       # 청크 단위 (초)
 CHUNK_FRAMES          = CAPTURE_SAMPLE_RATE * CHUNK_SECONDS
-SILENCE_THRESHOLD_RMS = 0.004   # 에너지 기반 VAD: RMS 임계치 (무음 제거)
+SILENCE_THRESHOLD_RMS = 0.008   # 에너지 기반 VAD: RMS 임계치 (무음 제거)
 
 
 def resample_to_16k(audio: np.ndarray, orig_sr: int) -> np.ndarray:
@@ -177,7 +177,16 @@ class LoopbackSTTService:
                         audio_16k,
                         language="ko",
                         beam_size=3,
+                        # ── 환각(Hallucination) 억제 파라미터 ───────────────────
+                        # no_speech_threshold: 이 값 이상의 무음 확률이면 세그먼트 전체 버림
+                        no_speech_threshold=0.6,
+                        # log_prob_threshold: 평균 로그확률이 이 값 미만이면 버림 (낮을수록 엄격)
+                        log_prob_threshold=-1.0,
+                        # compression_ratio_threshold: 반복 텍스트(환각) 감지 후 버림
+                        compression_ratio_threshold=2.4,
+                        # vad_parameters: Silero VAD 내부 임계값 상향 (더 엄격한 음성 감지)
                         vad_filter=True,
+                        vad_parameters={"threshold": 0.5, "min_silence_duration_ms": 300},
                         condition_on_previous_text=False,
                     )
 
