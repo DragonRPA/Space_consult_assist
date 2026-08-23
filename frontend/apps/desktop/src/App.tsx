@@ -11,6 +11,7 @@ import {
   CheckSquare, 
   Square, 
   Sparkles,
+  Layers,
   Palette,
   X
 } from 'lucide-react';
@@ -26,8 +27,10 @@ declare global {
 
 export default function App() {
   const {
-    designMode,
-    setDesignMode,
+    themeStyle,
+    colorScheme,
+    setThemeStyle,
+    setColorScheme,
     isRecording,
     callSeconds,
     counselorName,
@@ -235,27 +238,39 @@ export default function App() {
   const totalCount = actionChecklist.length;
 
   return (
-    <div data-theme={designMode} style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: 'var(--canvas)', color: 'var(--ink)' }}>
+    <div 
+      data-theme={themeStyle} 
+      data-color={colorScheme} 
+      style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        height: '100vh', 
+        width: '100vw', 
+        backgroundColor: 'var(--canvas)', 
+        color: 'var(--ink)' 
+      }}
+    >
       
       {/* ========================================================= */}
-      {/* 1. TOP GLOBAL NAVIGATION & DESIGN MODE SELECTOR           */}
+      {/* 1. TOP GLOBAL NAVIGATION & 3x3 MATRIX CONTROLLER           */}
       {/* ========================================================= */}
       <header style={{ 
-        height: '52px', 
-        borderBottom: '1px solid var(--hairline)', 
+        height: '56px', 
+        borderBottom: 'var(--border-width) solid var(--hairline)', 
         backgroundColor: 'var(--surface-1)', 
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'space-between', 
         padding: '0 16px',
         flexShrink: 0,
-        boxShadow: 'var(--card-shadow)'
+        boxShadow: 'var(--panel-shadow)',
+        zIndex: 10
       }}>
         {/* Brand & Counselor */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)', boxShadow: '0 0 8px var(--accent-primary)' }} />
-            <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.3px', color: 'var(--ink)' }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)', boxShadow: '0 0 8px var(--glow-color)' }} />
+            <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: 'var(--letter-spacing)', color: 'var(--ink)' }}>
               Space Advisor <span style={{ fontWeight: 400, color: 'var(--ink-muted)', fontSize: '12px' }}>PRO 관제</span>
             </span>
           </div>
@@ -267,77 +282,145 @@ export default function App() {
           </span>
         </div>
 
-        {/* 3-Way Design Mode Switcher (awesome-design-md live switcher) */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '4px', 
-          padding: '3px', 
-          backgroundColor: 'var(--surface-2)', 
-          border: '1px solid var(--hairline)', 
-          borderRadius: '8px' 
-        }}>
-          <Palette size={13} style={{ color: 'var(--ink-muted)', margin: '0 4px' }} />
+        {/* 3x3 DUAL CONTROLLER: Theme Style & Color Palette */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           
-          <button
-            onClick={() => setDesignMode('mode-1')}
-            style={{
-              padding: '4px 10px',
-              fontSize: '11px',
-              fontWeight: designMode === 'mode-1' ? 700 : 500,
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: designMode === 'mode-1' ? 'var(--accent-primary)' : 'transparent',
-              color: designMode === 'mode-1' ? '#fff' : 'var(--ink-muted)',
-              cursor: 'pointer'
-            }}
-          >
-            디자인 1: Linear 다크
-          </button>
+          {/* 1) Design Tone (Theme Style) */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '2px', 
+            padding: '3px 6px', 
+            backgroundColor: 'var(--surface-2)', 
+            border: 'var(--border-width) solid var(--hairline)', 
+            borderRadius: 'var(--radius-md)' 
+          }}>
+            <Layers size={13} style={{ color: 'var(--ink-muted)', marginRight: '4px' }} />
+            <span style={{ fontSize: '11px', color: 'var(--ink-muted)', marginRight: '4px', fontWeight: 600 }}>디자인 톤:</span>
+            
+            <button
+              onClick={() => setThemeStyle('precision')}
+              style={{
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontWeight: themeStyle === 'precision' ? 700 : 500,
+                borderRadius: 'var(--radius-xs)',
+                border: 'none',
+                backgroundColor: themeStyle === 'precision' ? 'var(--accent-primary)' : 'transparent',
+                color: themeStyle === 'precision' ? '#fff' : 'var(--ink-muted)',
+                cursor: 'pointer'
+              }}
+            >
+              1. Linear 정밀
+            </button>
 
-          <button
-            onClick={() => setDesignMode('mode-2')}
-            style={{
-              padding: '4px 10px',
-              fontSize: '11px',
-              fontWeight: designMode === 'mode-2' ? 700 : 500,
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: designMode === 'mode-2' ? 'var(--accent-primary)' : 'transparent',
-              color: designMode === 'mode-2' ? '#fff' : 'var(--ink-muted)',
-              cursor: 'pointer'
-            }}
-          >
-            디자인 2: Intercom 크림
-          </button>
+            <button
+              onClick={() => setThemeStyle('soft')}
+              style={{
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontWeight: themeStyle === 'soft' ? 700 : 500,
+                borderRadius: 'var(--radius-xs)',
+                border: 'none',
+                backgroundColor: themeStyle === 'soft' ? 'var(--accent-primary)' : 'transparent',
+                color: themeStyle === 'soft' ? '#fff' : 'var(--ink-muted)',
+                cursor: 'pointer'
+              }}
+            >
+              2. Soft 입체
+            </button>
 
-          <button
-            onClick={() => setDesignMode('mode-3')}
-            style={{
-              padding: '4px 10px',
-              fontSize: '11px',
-              fontWeight: designMode === 'mode-3' ? 700 : 500,
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: designMode === 'mode-3' ? 'var(--accent-primary)' : 'transparent',
-              color: designMode === 'mode-3' ? '#fff' : 'var(--ink-muted)',
-              cursor: 'pointer'
-            }}
-          >
-            디자인 3: Supabase 에메랄드
-          </button>
+            <button
+              onClick={() => setThemeStyle('cyber')}
+              style={{
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontWeight: themeStyle === 'cyber' ? 700 : 500,
+                borderRadius: 'var(--radius-xs)',
+                border: 'none',
+                backgroundColor: themeStyle === 'cyber' ? 'var(--accent-primary)' : 'transparent',
+                color: themeStyle === 'cyber' ? '#fff' : 'var(--ink-muted)',
+                cursor: 'pointer'
+              }}
+            >
+              3. Cyber HUD
+            </button>
+          </div>
+
+          {/* 2) Color Palette */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '2px', 
+            padding: '3px 6px', 
+            backgroundColor: 'var(--surface-2)', 
+            border: 'var(--border-width) solid var(--hairline)', 
+            borderRadius: 'var(--radius-md)' 
+          }}>
+            <Palette size={13} style={{ color: 'var(--ink-muted)', marginRight: '4px' }} />
+            <span style={{ fontSize: '11px', color: 'var(--ink-muted)', marginRight: '4px', fontWeight: 600 }}>컬러:</span>
+
+            <button
+              onClick={() => setColorScheme('slate')}
+              style={{
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontWeight: colorScheme === 'slate' ? 700 : 500,
+                borderRadius: 'var(--radius-xs)',
+                border: 'none',
+                backgroundColor: colorScheme === 'slate' ? 'var(--accent-primary)' : 'transparent',
+                color: colorScheme === 'slate' ? '#fff' : 'var(--ink-muted)',
+                cursor: 'pointer'
+              }}
+            >
+              블루
+            </button>
+
+            <button
+              onClick={() => setColorScheme('cream')}
+              style={{
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontWeight: colorScheme === 'cream' ? 700 : 500,
+                borderRadius: 'var(--radius-xs)',
+                border: 'none',
+                backgroundColor: colorScheme === 'cream' ? 'var(--accent-primary)' : 'transparent',
+                color: colorScheme === 'cream' ? '#fff' : 'var(--ink-muted)',
+                cursor: 'pointer'
+              }}
+            >
+              크림
+            </button>
+
+            <button
+              onClick={() => setColorScheme('emerald')}
+              style={{
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontWeight: colorScheme === 'emerald' ? 700 : 500,
+                borderRadius: 'var(--radius-xs)',
+                border: 'none',
+                backgroundColor: colorScheme === 'emerald' ? 'var(--accent-primary)' : 'transparent',
+                color: colorScheme === 'emerald' ? '#fff' : 'var(--ink-muted)',
+                cursor: 'pointer'
+              }}
+            >
+              에메랄드
+            </button>
+          </div>
+
         </div>
 
         {/* Live Call Stopwatch & Audio Indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
             gap: '6px', 
             padding: '4px 10px', 
-            borderRadius: '16px', 
+            borderRadius: 'var(--radius-md)', 
             backgroundColor: 'rgba(239, 68, 68, 0.12)', 
-            border: '1px solid rgba(239, 68, 68, 0.25)',
+            border: 'var(--border-width) solid rgba(239, 68, 68, 0.25)',
             color: 'var(--accent-danger)',
             fontSize: '12px',
             fontWeight: 600
@@ -353,8 +436,8 @@ export default function App() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px 12px',
-              borderRadius: '6px',
+              padding: '5px 12px',
+              borderRadius: 'var(--radius-md)',
               backgroundColor: isRecording ? 'var(--accent-danger)' : 'var(--accent-primary)',
               color: '#fff',
               border: 'none',
@@ -380,15 +463,15 @@ export default function App() {
         <section style={{ 
           width: '28%', 
           backgroundColor: 'var(--surface-1)', 
-          border: '1px solid var(--hairline)', 
-          borderRadius: '8px', 
-          boxShadow: 'var(--card-shadow)',
+          border: 'var(--border-width) solid var(--hairline)', 
+          borderRadius: 'var(--radius-lg)', 
+          boxShadow: 'var(--panel-shadow)',
           display: 'flex', 
           flexDirection: 'column', 
           overflow: 'hidden' 
         }}>
           {/* Panel Header & Customer Search */}
-          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)' }}>
+          <div style={{ padding: 'var(--density-padding)', borderBottom: 'var(--border-width) solid var(--hairline)' }}>
             <label style={{ fontSize: '11px', color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', display: 'block' }}>
               고객사 실시간 식별 및 검색
             </label>
@@ -404,8 +487,8 @@ export default function App() {
                   width: '100%',
                   padding: '8px 8px 8px 32px',
                   backgroundColor: 'var(--surface-2)',
-                  border: '1px solid var(--hairline)',
-                  borderRadius: '6px',
+                  border: 'var(--border-width) solid var(--hairline)',
+                  borderRadius: 'var(--radius-md)',
                   color: 'var(--ink)',
                   fontSize: '13px',
                   outline: 'none'
@@ -418,8 +501,8 @@ export default function App() {
                   left: 0,
                   right: 0,
                   backgroundColor: 'var(--surface-2)',
-                  border: '1px solid var(--hairline)',
-                  borderRadius: '6px',
+                  border: 'var(--border-width) solid var(--hairline)',
+                  borderRadius: 'var(--radius-md)',
                   boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
                   zIndex: 50,
                   maxHeight: '180px',
@@ -434,7 +517,7 @@ export default function App() {
                       }}
                       style={{
                         padding: '8px 12px',
-                        borderBottom: '1px solid var(--hairline)',
+                        borderBottom: 'var(--border-width) solid var(--hairline)',
                         cursor: 'pointer',
                         fontSize: '12px'
                       }}
@@ -451,13 +534,13 @@ export default function App() {
           </div>
 
           {/* Panel Body: Scrollable Customer & Asset Specs */}
-          <div style={{ flex: 1, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ flex: 1, padding: 'var(--density-padding)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             
             {/* Customer Info Card */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--hairline)', boxShadow: 'var(--card-shadow)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--ink)' }}>{selectedCustomer.name}</span>
-                <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--badge-bg)', color: 'var(--badge-text)', fontWeight: 600 }}>
+                <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: 'var(--radius-xs)', backgroundColor: 'var(--badge-bg)', color: 'var(--badge-text)', fontWeight: 600 }}>
                   {selectedCustomer.salesType}
                 </span>
               </div>
@@ -468,7 +551,7 @@ export default function App() {
             </div>
 
             {/* Asset Info Card */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--hairline)', boxShadow: 'var(--card-shadow)' }}>
               <div style={{ fontSize: '11px', color: 'var(--ink-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '6px' }}>
                 보유 장비 및 보증 상태
               </div>
@@ -482,7 +565,7 @@ export default function App() {
             </div>
 
             {/* 30-Day History & Warning Timeline */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', flex: 1 }}>
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--hairline)', boxShadow: 'var(--card-shadow)', flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                 <Clock size={13} style={{ color: 'var(--ink-muted)' }} />
                 <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink-muted)', textTransform: 'uppercase' }}>
@@ -496,9 +579,9 @@ export default function App() {
                     key={idx}
                     style={{
                       padding: '8px',
-                      borderRadius: '4px',
+                      borderRadius: 'var(--radius-xs)',
                       backgroundColor: item.isWarning ? 'rgba(245, 158, 11, 0.12)' : 'var(--surface-1)',
-                      border: item.isWarning ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid var(--hairline)',
+                      border: item.isWarning ? '1px solid rgba(245, 158, 11, 0.35)' : 'var(--border-width) solid var(--hairline)',
                       fontSize: '12px'
                     }}
                   >
@@ -522,15 +605,15 @@ export default function App() {
         <section style={{ 
           width: '38%', 
           backgroundColor: 'var(--surface-1)', 
-          border: '1px solid var(--hairline)', 
-          borderRadius: '8px', 
-          boxShadow: 'var(--card-shadow)',
+          border: 'var(--border-width) solid var(--hairline)', 
+          borderRadius: 'var(--radius-lg)', 
+          boxShadow: 'var(--panel-shadow)',
           display: 'flex', 
           flexDirection: 'column', 
           overflow: 'hidden' 
         }}>
           {/* Panel Header & ARS Notice */}
-          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)' }}>
+          <div style={{ padding: 'var(--density-padding)', borderBottom: 'var(--border-width) solid var(--hairline)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Sparkles size={14} style={{ color: 'var(--accent-primary)' }} />
@@ -543,8 +626,8 @@ export default function App() {
 
             <div style={{ 
               backgroundColor: 'var(--ars-bg)', 
-              border: '1px solid var(--ars-border)', 
-              borderRadius: '4px', 
+              border: 'var(--border-width) solid var(--ars-border)', 
+              borderRadius: 'var(--radius-xs)', 
               padding: '6px 10px', 
               fontSize: '11px', 
               color: 'var(--ars-text)',
@@ -555,15 +638,16 @@ export default function App() {
           </div>
 
           {/* STT Live Transcript Box */}
-          <div style={{ flex: '1.2', padding: '12px', display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--hairline)' }}>
+          <div style={{ flex: '1.2', padding: 'var(--density-padding)', display: 'flex', flexDirection: 'column', borderBottom: 'var(--border-width) solid var(--hairline)' }}>
             <label style={{ fontSize: '11px', color: 'var(--ink-muted)', marginBottom: '4px' }}>
               실시간 전사 자막 (1000ms 디바운스 자동 추론)
             </label>
             <div style={{ 
               flex: 1, 
               backgroundColor: 'var(--surface-2)', 
-              border: '1px solid var(--hairline)', 
-              borderRadius: '6px', 
+              border: 'var(--border-width) solid var(--hairline)', 
+              borderRadius: 'var(--radius-md)', 
+              boxShadow: 'var(--card-shadow)',
               padding: '12px', 
               overflowY: 'auto',
               fontSize: '13px',
@@ -582,7 +666,7 @@ export default function App() {
           </div>
 
           {/* Detected Keywords & Diagnosis Card */}
-          <div style={{ flex: '1.5', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
+          <div style={{ flex: '1.5', padding: 'var(--density-padding)', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
             <div>
               <label style={{ fontSize: '11px', color: 'var(--ink-muted)', display: 'block', marginBottom: '6px' }}>
                 자동 감지 증상 키워드
@@ -593,9 +677,9 @@ export default function App() {
                     key={idx}
                     style={{
                       padding: '4px 10px',
-                      borderRadius: '16px',
+                      borderRadius: 'var(--radius-sm)',
                       backgroundColor: 'var(--badge-bg)',
-                      border: '1px solid var(--hairline)',
+                      border: 'var(--border-width) solid var(--hairline)',
                       color: 'var(--badge-text)',
                       fontSize: '12px',
                       fontWeight: 600
@@ -609,10 +693,10 @@ export default function App() {
 
             {/* Diagnosis Result Card */}
             {matchedDiagnosis && (
-              <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
+              <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--hairline)', boxShadow: 'var(--card-shadow)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-primary)' }}>{matchedDiagnosis.category}</span>
-                  <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-success)', fontWeight: 600 }}>
+                  <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: 'var(--radius-xs)', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-success)', fontWeight: 600 }}>
                     신뢰도 {matchedDiagnosis.confidence}%
                   </span>
                 </div>
@@ -641,8 +725,8 @@ export default function App() {
                     flex: 1,
                     padding: '6px 10px',
                     backgroundColor: 'var(--surface-2)',
-                    border: '1px solid var(--hairline)',
-                    borderRadius: '4px',
+                    border: 'var(--border-width) solid var(--hairline)',
+                    borderRadius: 'var(--radius-sm)',
                     color: 'var(--ink)',
                     fontSize: '12px'
                   }}
@@ -657,8 +741,8 @@ export default function App() {
                   style={{
                     padding: '6px 12px',
                     backgroundColor: 'var(--surface-3)',
-                    border: '1px solid var(--hairline)',
-                    borderRadius: '4px',
+                    border: 'var(--border-width) solid var(--hairline)',
+                    borderRadius: 'var(--radius-sm)',
                     color: 'var(--ink)',
                     fontSize: '12px',
                     fontWeight: 600,
@@ -678,15 +762,15 @@ export default function App() {
         <section style={{ 
           width: '34%', 
           backgroundColor: 'var(--surface-1)', 
-          border: '1px solid var(--hairline)', 
-          borderRadius: '8px', 
-          boxShadow: 'var(--card-shadow)',
+          border: 'var(--border-width) solid var(--hairline)', 
+          borderRadius: 'var(--radius-lg)', 
+          boxShadow: 'var(--panel-shadow)',
           display: 'flex', 
           flexDirection: 'column', 
           overflow: 'hidden' 
         }}>
           {/* Panel Header & Progress */}
-          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: 'var(--density-padding)', borderBottom: 'var(--border-width) solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
               표준 조치 체크리스트 (SOP)
             </span>
@@ -696,7 +780,7 @@ export default function App() {
           </div>
 
           {/* Checklist Items Container */}
-          <div style={{ flex: 1, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ flex: 1, padding: 'var(--density-padding)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {actionChecklist.map((item) => (
               <div
                 key={item.id}
@@ -706,9 +790,9 @@ export default function App() {
                   alignItems: 'flex-start',
                   gap: '10px',
                   padding: '10px',
-                  borderRadius: '6px',
+                  borderRadius: 'var(--radius-md)',
                   backgroundColor: item.checked ? 'rgba(16, 185, 129, 0.08)' : 'var(--surface-2)',
-                  border: item.checked ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--hairline)',
+                  border: item.checked ? '1px solid rgba(16, 185, 129, 0.35)' : 'var(--border-width) solid var(--hairline)',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease'
                 }}
@@ -724,18 +808,18 @@ export default function App() {
           </div>
 
           {/* Bottom Action Command Center */}
-          <div style={{ padding: '12px', borderTop: '1px solid var(--hairline)', backgroundColor: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ padding: '12px', borderTop: 'var(--border-width) solid var(--hairline)', backgroundColor: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             
             {/* Action 1: 1-Click Resolve Complete */}
             <button
               onClick={handleResolveComplete}
               style={{
                 width: '100%',
-                padding: '10px',
+                padding: '11px',
                 backgroundColor: 'var(--accent-success)',
                 color: '#fff',
                 border: 'none',
-                borderRadius: '6px',
+                borderRadius: 'var(--radius-md)',
                 fontSize: '13px',
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -755,11 +839,11 @@ export default function App() {
                 onClick={() => setDispatchDrawerOpen(true)}
                 style={{
                   flex: 1.2,
-                  padding: '10px',
+                  padding: '11px',
                   backgroundColor: 'var(--accent-primary)',
                   color: '#fff',
                   border: 'none',
-                  borderRadius: '6px',
+                  borderRadius: 'var(--radius-md)',
                   fontSize: '13px',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -777,11 +861,11 @@ export default function App() {
                 onClick={() => setSalesModalOpen(true)}
                 style={{
                   flex: 0.8,
-                  padding: '10px',
+                  padding: '11px',
                   backgroundColor: 'var(--surface-3)',
                   color: 'var(--ink)',
-                  border: '1px solid var(--hairline)',
-                  borderRadius: '6px',
+                  border: 'var(--border-width) solid var(--hairline)',
+                  borderRadius: 'var(--radius-md)',
                   fontSize: '12px',
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -810,7 +894,7 @@ export default function App() {
           bottom: 0,
           width: '420px',
           backgroundColor: 'var(--surface-1)',
-          borderLeft: '1px solid var(--hairline)',
+          borderLeft: 'var(--border-width) solid var(--hairline)',
           boxShadow: '-8px 0 32px rgba(0,0,0,0.5)',
           zIndex: 100,
           display: 'flex',
@@ -818,7 +902,7 @@ export default function App() {
           animation: 'slideIn 0.2s ease-out'
         }}>
           {/* Drawer Header */}
-          <div style={{ padding: '16px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '16px', borderBottom: 'var(--border-width) solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Wrench size={18} style={{ color: 'var(--accent-primary)' }} />
               출장 배차 접수 (100% 자동완성)
@@ -832,7 +916,7 @@ export default function App() {
           <div style={{ flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             
             {/* Auto-filled Summary */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--hairline)', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <div>🏢 고객사: <strong style={{ color: 'var(--ink)' }}>{selectedCustomer.name}</strong></div>
               <div>📍 방문지: {selectedCustomer.address} {selectedCustomer.addressDetail}</div>
               <div>📞 연락처: {selectedCustomer.manager} ({selectedCustomer.phone})</div>
@@ -845,7 +929,7 @@ export default function App() {
               <select 
                 value={assignedEngineer} 
                 onChange={(e) => setAssignedEngineer(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '13px' }}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: 'var(--border-width) solid var(--hairline)', borderRadius: 'var(--radius-sm)', color: 'var(--ink)', fontSize: '13px' }}
               >
                 <option value="김철수 정비기사 (화성/경기남부)">김철수 정비기사 (화성/경기남부 관할)</option>
                 <option value="박영호 정비기사 (인천/서울서부)">박영호 정비기사 (인천/서울서부 관할)</option>
@@ -860,7 +944,7 @@ export default function App() {
                 type="text" 
                 value={dispatchDate} 
                 onChange={(e) => setDispatchDate(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '13px' }}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: 'var(--border-width) solid var(--hairline)', borderRadius: 'var(--radius-sm)', color: 'var(--ink)', fontSize: '13px' }}
               />
             </div>
 
@@ -871,14 +955,14 @@ export default function App() {
                 rows={4}
                 value={dispatchNote} 
                 onChange={(e) => setDispatchNote(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '12px', lineHeight: 1.4 }}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: 'var(--border-width) solid var(--hairline)', borderRadius: 'var(--radius-sm)', color: 'var(--ink)', fontSize: '12px', lineHeight: 1.4 }}
               />
             </div>
 
           </div>
 
           {/* Drawer Footer CTA */}
-          <div style={{ padding: '16px', borderTop: '1px solid var(--hairline)', backgroundColor: 'var(--surface-2)' }}>
+          <div style={{ padding: '16px', borderTop: 'var(--border-width) solid var(--hairline)', backgroundColor: 'var(--surface-2)' }}>
             <button
               onClick={handleConfirmDispatch}
               style={{
@@ -887,7 +971,7 @@ export default function App() {
                 backgroundColor: 'var(--accent-primary)',
                 color: '#fff',
                 border: 'none',
-                borderRadius: '6px',
+                borderRadius: 'var(--radius-md)',
                 fontSize: '14px',
                 fontWeight: 700,
                 cursor: 'pointer'
@@ -915,8 +999,8 @@ export default function App() {
           <div style={{
             width: '440px',
             backgroundColor: 'var(--surface-1)',
-            border: '1px solid var(--hairline)',
-            borderRadius: '8px',
+            border: 'var(--border-width) solid var(--hairline)',
+            borderRadius: 'var(--radius-lg)',
             padding: '20px',
             boxShadow: '0 16px 32px rgba(0,0,0,0.8)'
           }}>
@@ -933,7 +1017,7 @@ export default function App() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
               <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>이관 유형</label>
-              <select style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)' }}>
+              <select style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: 'var(--border-width) solid var(--hairline)', borderRadius: 'var(--radius-sm)', color: 'var(--ink)' }}>
                 <option>신규 렌탈 견적서 요청</option>
                 <option>장비 추가 도입 및 계약 변경</option>
                 <option>단순 소모품 구매 견적</option>
@@ -944,11 +1028,11 @@ export default function App() {
               onClick={handleConfirmSalesTransfer}
               style={{
                 width: '100%',
-                padding: '10px',
+                padding: '11px',
                 backgroundColor: 'var(--accent-warning)',
                 color: '#000',
                 border: 'none',
-                borderRadius: '6px',
+                borderRadius: 'var(--radius-md)',
                 fontWeight: 700,
                 fontSize: '13px',
                 cursor: 'pointer'
@@ -973,7 +1057,7 @@ export default function App() {
           border: '1px solid var(--accent-success)',
           color: 'var(--ink)',
           padding: '10px 20px',
-          borderRadius: '24px',
+          borderRadius: 'var(--radius-lg)',
           fontSize: '13px',
           fontWeight: 600,
           boxShadow: '0 8px 24px rgba(0,0,0,0.5)',

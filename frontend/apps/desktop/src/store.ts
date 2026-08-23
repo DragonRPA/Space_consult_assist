@@ -29,12 +29,15 @@ export interface MatchedDiagnosis {
   source: string;
 }
 
-export type DesignMode = 'mode-1' | 'mode-2' | 'mode-3';
+export type ThemeStyle = 'precision' | 'soft' | 'cyber';
+export type ColorScheme = 'slate' | 'cream' | 'emerald';
 
 interface CounselWorkstationState {
-  // Design Theme Mode
-  designMode: DesignMode;
-  setDesignMode: (mode: DesignMode) => void;
+  // Design Tone (Theme) & Color Matrix (3 x 3)
+  themeStyle: ThemeStyle;
+  colorScheme: ColorScheme;
+  setThemeStyle: (style: ThemeStyle) => void;
+  setColorScheme: (color: ColorScheme) => void;
 
   // Global / Call State
   isRecording: boolean;
@@ -131,8 +134,10 @@ const DEFAULT_CUSTOMERS: CustomerInfo[] = [
 ];
 
 export const useCounselStore = create<CounselWorkstationState>((set) => ({
-  designMode: 'mode-1',
-  setDesignMode: (mode) => set({ designMode: mode }),
+  themeStyle: 'precision',
+  colorScheme: 'slate',
+  setThemeStyle: (style) => set({ themeStyle: style }),
+  setColorScheme: (color) => set({ colorScheme: color }),
 
   isRecording: false,
   callSeconds: 204, // 03:24

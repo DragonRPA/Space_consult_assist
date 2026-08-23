@@ -1,10 +1,12 @@
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
 
 /* ========================================================= */
-/* DESIGN MODE 1: Linear Slate Precision (Technical Dark)   */
+/* 1. COLOR SCHEME MATRIX (3 DISTINCT COLOR PALETTES)        */
 /* ========================================================= */
-[data-theme="mode-1"] {
+
+/* Color 1: Slate Blue (Linear Cool Navy) */
+[data-color="slate"] {
   --canvas: #0b0f17;
   --surface-1: #131b2e;
   --surface-2: #1e293b;
@@ -20,18 +22,16 @@
   --accent-success: #10b981;
   --accent-warning: #f59e0b;
   --accent-danger: #ef4444;
-  --card-shadow: none;
   --badge-bg: rgba(37, 99, 235, 0.15);
   --badge-text: #bfdbfe;
   --ars-bg: rgba(59, 130, 246, 0.08);
   --ars-border: rgba(59, 130, 246, 0.2);
   --ars-text: #93c5fd;
+  --glow-color: rgba(37, 99, 235, 0.25);
 }
 
-/* ========================================================= */
-/* DESIGN MODE 2: Intercom Warm Editorial Cream (Clean Light)*/
-/* ========================================================= */
-[data-theme="mode-2"] {
+/* Color 2: Warm Cream (Intercom Editorial Cream & Fin Orange) */
+[data-color="cream"] {
   --canvas: #f5f1ec;
   --surface-1: #ffffff;
   --surface-2: #ebe7e1;
@@ -42,23 +42,21 @@
   --ink: #111111;
   --ink-muted: #626260;
   --ink-subtle: #8a8f98;
-  --accent-primary: #ff5600; /* Intercom Fin AI Orange */
+  --accent-primary: #ff5600;
   --accent-primary-hover: #e04c00;
   --accent-success: #059669;
   --accent-warning: #d97706;
   --accent-danger: #dc2626;
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
   --badge-bg: rgba(255, 86, 0, 0.1);
   --badge-text: #c2410c;
   --ars-bg: rgba(255, 86, 0, 0.06);
   --ars-border: rgba(255, 86, 0, 0.2);
   --ars-text: #9a3412;
+  --glow-color: rgba(255, 86, 0, 0.25);
 }
 
-/* ========================================================= */
-/* DESIGN MODE 3: Supabase Cyber Emerald Neon (High-Tech)    */
-/* ========================================================= */
-[data-theme="mode-3"] {
+/* Color 3: Cyber Emerald (Supabase Void Black & Neon Green) */
+[data-color="emerald"] {
   --canvas: #06080c;
   --surface-1: #0c1310;
   --surface-2: #12201b;
@@ -69,28 +67,84 @@
   --ink: #ecfdf5;
   --ink-muted: #6ee7b7;
   --ink-subtle: #34d399;
-  --accent-primary: #10b981; /* Supabase Neon Emerald */
+  --accent-primary: #10b981;
   --accent-primary-hover: #059669;
   --accent-success: #10b981;
   --accent-warning: #fbbf24;
   --accent-danger: #f87171;
-  --card-shadow: 0 0 16px rgba(16, 185, 129, 0.06);
   --badge-bg: rgba(16, 185, 129, 0.15);
   --badge-text: #6ee7b7;
   --ars-bg: rgba(16, 185, 129, 0.08);
   --ars-border: rgba(16, 185, 129, 0.25);
   --ars-text: #a7f3d0;
+  --glow-color: rgba(16, 185, 129, 0.35);
 }
 
+/* ========================================================= */
+/* 2. THEME STYLE MATRIX (3 DISTINCT STRUCTURAL TONES)       */
+/* ========================================================= */
+
+/* Theme A: Precision (Linear Engineering Minimalist) */
+[data-theme="precision"] {
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --border-width: 1px;
+  --panel-shadow: none;
+  --card-shadow: none;
+  --font-family: Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --headline-weight: 700;
+  --letter-spacing: -0.3px;
+  --density-padding: 10px;
+}
+
+/* Theme B: Soft Elevation (Stripe/Intercom Modern Curved Glass) */
+[data-theme="soft"] {
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --border-width: 1px;
+  --panel-shadow: 0 10px 30px -5px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.08);
+  --card-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  --font-family: Pretendard, -apple-system, sans-serif;
+  --headline-weight: 600;
+  --letter-spacing: -0.1px;
+  --density-padding: 14px;
+}
+
+/* Theme C: Cyber Terminal HUD (Raycast/Sentry High-Tech Neon HUD) */
+[data-theme="cyber"] {
+  --radius-xs: 0px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 4px;
+  --border-width: 2px;
+  --panel-shadow: 0 0 18px var(--glow-color);
+  --card-shadow: inset 0 0 12px rgba(0, 0, 0, 0.4);
+  --font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  --headline-weight: 700;
+  --letter-spacing: 0.5px;
+  --density-padding: 10px;
+}
+
+/* ========================================================= */
+/* GLOBAL RESET & SMOOTH TRANSITION                          */
+/* ========================================================= */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+  transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              color 0.15s ease,
+              border-radius 0.2s ease,
+              box-shadow 0.2s ease;
 }
 
 body {
-  font-family: Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-family, Pretendard, sans-serif);
   background-color: var(--canvas);
   color: var(--ink);
   overflow: hidden;
@@ -113,7 +167,7 @@ input, select, textarea, button {
 
 ::-webkit-scrollbar-thumb {
   background: var(--hairline);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -121,7 +175,7 @@ input, select, textarea, button {
 }
 
 .font-mono {
-  font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace !important;
 }
 
 .nowrap {
