@@ -112,6 +112,8 @@ export default function App() {
   const isRecordingRef = useRef(isRecording);
   isRecordingRef.current = isRecording;
 
+  const speechPauseTimerRef = useRef<number | null>(null);
+
   // Standalone rule evaluator (Evaluates on live typing or speech without duplicate append)
   const evaluateUtteranceRules = (text: string) => {
     // 1. Symptom Keyword & Part Matching
@@ -467,6 +469,11 @@ export default function App() {
         }
       }
 
+      if (speechPauseTimerRef.current) {
+        window.clearTimeout(speechPauseTimerRef.current);
+        speechPauseTimerRef.current = null;
+      }
+
       // Contextual line breaks per sentence pause
       if (final.trim()) {
         const rawSentence = final.trim();
@@ -478,15 +485,33 @@ export default function App() {
           processedSentence = result.correctedText;
           newCorrections = result.corrections;
           if (newCorrections.length > 0) {
-            showToast(`✨ 맥락 교정: "${newCorrections[0].original}" ➔ "${newCorrections[0].corrected}"`);
+            showToast(`[맥락 교정] "${newCorrections[0].original}" ➔ "${newCorrections[0].corrected}"`);
             setTimeout(() => clearToast(), 3000);
           }
         }
 
         appendFinalParagraph(rawSentence, processedSentence, newCorrections);
         setInterimSttText('');
-      } else if (interim) {
+      } else if (interim.trim()) {
         setInterimSttText(interim);
+
+        // Fast silence detection (600ms): commits line swiftly without waiting for slow browser finalization
+        speechPauseTimerRef.current = window.setTimeout(() => {
+          const pendingText = interim.trim();
+          if (pendingText) {
+            let processedSentence = pendingText;
+            let newCorrections: any[] = [];
+
+            if (isContextCorrectionEnabled) {
+              const result = applyContextualCorrection(pendingText);
+              processedSentence = result.correctedText;
+              newCorrections = result.corrections;
+            }
+
+            appendFinalParagraph(pendingText, processedSentence, newCorrections);
+            setInterimSttText('');
+          }
+        }, 600);
       }
 
       // Real-time Multi-Entity Detection (Customer, Site, Symptom, Action)
@@ -1391,39 +1416,27 @@ export default function App() {
                   />
                 </div>
               ) : activeParagraphs.length > 0 ? (
-                <div>
-                  {activeParagraphs.map((paragraph, pIdx) => (
-                    <div 
-                      key={pIdx} 
-                      style={{ 
-                        marginBottom: '10px', 
-                        paddingBottom: '6px', 
-                        borderBottom: '1px dashed rgba(255,255,255,0.06)' 
-                      }}
-                    >
-                      <span style={{ fontSize: '10px', color: 'var(--ink-subtle)', marginRight: '6px', fontFamily: 'monospace' }}>
-                        #{pIdx + 1}
-                      </span>
-                      <span>
-                        {renderMultiColorHighlightedText(
-                          paragraph,
-                          {
-                            onSymptomClick: handleKeywordSelect,
-                            onCustomerClick: handleCustomerSelect,
-                            onSiteClick: handleCustomerSelect,
-                            onActionClick: handleActionSelect
-                          },
-                          activeKeywordEntity?.id,
-                          selectedCustomer?.id,
-                          customerList
-                        )}
-                      </span>
+                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '13px' }}>
+                  {activeParagraphs.map((line, pIdx) => (
+                    <div key={pIdx} style={{ minHeight: '1.4em' }}>
+                      {renderMultiColorHighlightedText(
+                        line,
+                        {
+                          onSymptomClick: handleKeywordSelect,
+                          onCustomerClick: handleCustomerSelect,
+                          onSiteClick: handleCustomerSelect,
+                          onActionClick: handleActionSelect
+                        },
+                        activeKeywordEntity?.id,
+                        selectedCustomer?.id,
+                        customerList
+                      )}
                     </div>
                   ))}
 
                   {/* Real-time Interim Streaming Words on current line */}
                   {interimSttText && (
-                    <div style={{ marginTop: '4px' }}>
+                    <div style={{ minHeight: '1.4em' }}>
                       <span style={{ color: '#93c5fd', backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '2px 6px', borderRadius: '3px', fontWeight: 600 }}>
                         {interimSttText}
                       </span>
@@ -1434,7 +1447,7 @@ export default function App() {
                   )}
                 </div>
               ) : interimSttText ? (
-                <div>
+                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '13px' }}>
                   <span style={{ color: '#93c5fd', backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '2px 6px', borderRadius: '3px', fontWeight: 600 }}>
                     {interimSttText}
                   </span>
