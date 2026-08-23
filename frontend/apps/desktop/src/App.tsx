@@ -56,6 +56,7 @@ export default function App() {
     clearAudioFile,
     setIsAudioPlaying,
     setAudioTime,
+    resetSessionForNewAudio,
     isContextCorrectionEnabled,
     correctionHistory,
     toggleContextCorrection,
@@ -151,10 +152,12 @@ export default function App() {
       if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
         const file = e.dataTransfer.files[0];
         if (file.name.match(/\.(m4a|mp3|wav|ogg|aac|flac)$/i)) {
+          // Reset transcript and session state for the fresh audio file!
+          resetSessionForNewAudio();
           setActiveAudioFile(file);
           setIsAudioPlaying(true);
           startSttStreaming();
-          showToast(`🎵 [${file.name}] 스피커 재생 & 실시간 STT 수신 시작!`);
+          showToast(`🧹 자막창 초기화 ➔ [${file.name}] 새 음성 STT 시작!`);
           setTimeout(() => clearToast(), 3500);
         }
       }
@@ -167,7 +170,7 @@ export default function App() {
       window.removeEventListener('dragover', handleGlobalDragOver);
       window.removeEventListener('drop', handleGlobalDrop);
     };
-  }, [setActiveAudioFile, setIsAudioPlaying, startSttStreaming, showToast, clearToast]);
+  }, [resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, showToast, clearToast]);
 
   // Background Audio Controller Sync
   useEffect(() => {
@@ -187,10 +190,12 @@ export default function App() {
   const handleManualFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
+      // Reset transcript and session state for the fresh audio file!
+      resetSessionForNewAudio();
       setActiveAudioFile(file);
       setIsAudioPlaying(true);
       startSttStreaming();
-      showToast(`🎵 [${file.name}] 스피커 재생 & 실시간 STT 수신 시작!`);
+      showToast(`🧹 자막창 초기화 ➔ [${file.name}] 새 음성 STT 시작!`);
       setTimeout(() => clearToast(), 3500);
     }
   };

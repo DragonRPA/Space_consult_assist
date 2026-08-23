@@ -51,6 +51,7 @@ interface CounselWorkstationState {
   setIsAudioPlayerOpen: (open: boolean) => void;
   setIsAudioPlaying: (playing: boolean) => void;
   setAudioTime: (current: number, duration: number) => void;
+  resetSessionForNewAudio: () => void;
 
   // Contextual STT Semantic Correction Engine
   isContextCorrectionEnabled: boolean;
@@ -85,10 +86,12 @@ interface CounselWorkstationState {
   // Actions
   setRecording: (status: boolean) => void;
   incrementCallTimer: () => void;
+  resetCallTimer: () => void;
   setSearchQuery: (query: string) => void;
   selectCustomer: (customer: CustomerInfo) => void;
   appendFinalParagraph: (rawText: string, correctedText: string, corrections: CorrectionEvent[]) => void;
   setInterimSttText: (text: string) => void;
+  clearTranscript: () => void;
   setDiagnosisResult: (keywords: string[], diagnosis: MatchedDiagnosis, checklist: string[]) => void;
   toggleChecklist: (id: number) => void;
   setManualOverrideKeyword: (kw: string) => void;
@@ -172,7 +175,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
       activeAudioFile: file, 
       activeAudioUrl: newUrl,
       isAudioPlaying: true,
-      isAudioPlayerOpen: false // Auto close modal on drop per user instruction!
+      isAudioPlayerOpen: false
     });
   },
   clearAudioFile: () => {
@@ -183,6 +186,20 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
   setIsAudioPlayerOpen: (open: boolean) => set({ isAudioPlayerOpen: open }),
   setIsAudioPlaying: (playing: boolean) => set({ isAudioPlaying: playing }),
   setAudioTime: (current: number, duration: number) => set({ audioCurrentTime: current, audioDuration: duration }),
+
+  // Full Session Reset on New Audio File Drop/Select
+  resetSessionForNewAudio: () => set({
+    rawParagraphs: [],
+    finalParagraphs: [],
+    interimSttText: '',
+    correctionHistory: [],
+    callSeconds: 0,
+    activeKeywordEntity: null,
+    detectedKeywords: [],
+    matchedDiagnosis: null,
+    actionChecklist: [],
+    manualOverrideKeyword: ''
+  }),
 
   isContextCorrectionEnabled: true,
   correctionHistory: [],
@@ -224,6 +241,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
 
   setRecording: (status) => set({ isRecording: status }),
   incrementCallTimer: () => set((state) => ({ callSeconds: state.callSeconds + 1 })),
+  resetCallTimer: () => set({ callSeconds: 0 }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   selectCustomer: (customer) => set({ selectedCustomer: customer }),
   appendFinalParagraph: (rawText, correctedText, newCorrections) => set((state) => ({
@@ -232,6 +250,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
     correctionHistory: [...state.correctionHistory, ...newCorrections]
   })),
   setInterimSttText: (text) => set({ interimSttText: text }),
+  clearTranscript: () => set({ rawParagraphs: [], finalParagraphs: [], interimSttText: '', correctionHistory: [] }),
   setDiagnosisResult: (keywords, diagnosis, checklist) => set({
     detectedKeywords: keywords,
     matchedDiagnosis: diagnosis,
