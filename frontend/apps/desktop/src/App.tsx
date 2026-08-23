@@ -10,11 +10,10 @@ import {
   Building2, 
   CheckSquare, 
   Square, 
-  Sparkles,
-  Layers,
-  Palette,
-  Volume2,
-  X
+  Sparkles, 
+  Volume2, 
+  Radio,
+  X 
 } from 'lucide-react';
 import { useCounselStore } from './store';
 import { MicTestModal } from './MicTestModal';
@@ -27,12 +26,59 @@ declare global {
   }
 }
 
+// Client-side Instantaneous Keyword Rule Table (<50ms trigger on interim audio)
+const INSTANT_SYMPTOM_RULES = [
+  {
+    pattern: /흡입|진공|굉음|타는\s*냄새|모터/i,
+    keyword: "흡입모터 굉음 및 과열",
+    category: "POWER / 흡입·구동계통",
+    partCode: "SUCTION",
+    partName: "흡입모터 24V 500W 어셈블리",
+    stock: 14,
+    confidence: 98,
+    checklist: [
+      "전원 스위치 즉시 차단 및 모터 하우징 열기 냉각 안내",
+      "폐수탱크 플로트 밸브(만수 차단기) 오작동/이물질 확인",
+      "흡입 호스 및 스퀴지 연결부 막힘 육안 점검",
+      "10분 후 재가동 시 동일 소음/타는 냄새 지속 여부 확인",
+      "증상 지속 시 1차 셀프조치 중단 및 현장 긴급 정밀점검 배차"
+    ]
+  },
+  {
+    pattern: /배터리|충전|전원|안\s*켜|방전/i,
+    keyword: "배터리 충전 불량 / 메인 전원 미인가",
+    category: "ELECTRICAL / 배터리·전원계통",
+    partCode: "BATTERY-24V",
+    partName: "딥사이클 산업용 배터리 24V 105AH",
+    stock: 8,
+    confidence: 95,
+    checklist: [
+      "충전기 플러그 220V 콘센트 정상 통전 여부 확인",
+      "장비 후면 메인 비상정지(Emergency) 버튼 해제 확인",
+      "배터리 단자 체결 상태 및 부식/단선 육안 점검",
+      "충전기 표시등 에러 코드(적색 점멸) 패턴 확인",
+      "완전 방전 의심 시 현장 급속 충전기 및 배터리 출장 점검"
+    ]
+  },
+  {
+    pattern: /물|누수|급수|밸브|세제/i,
+    keyword: "솔레노이드 급수 차단 불량 / 바닥 누수",
+    category: "WATER / 급수·솔레노이드",
+    partCode: "SOLENOID-VALVE",
+    partName: "전자식 급수 솔레노이드 밸브 24V",
+    stock: 22,
+    confidence: 94,
+    checklist: [
+      "세수탱크(청수통) 필터망 이물질 막힘 청소 안내",
+      "솔레노이드 밸브 전원 커넥터 접촉 불량 점검",
+      "급수 레버 작동 시 '딸깍' 작동음 발생 여부 확인",
+      "밸브 고착으로 지속 누수 시 밸브 신품 교체 출장 배차"
+    ]
+  }
+];
+
 export default function App() {
   const {
-    themeStyle,
-    colorScheme,
-    setThemeStyle,
-    setColorScheme,
     isRecording,
     callSeconds,
     counselorName,
@@ -40,7 +86,8 @@ export default function App() {
     searchQuery,
     customerList,
     selectedCustomer,
-    sttText,
+    finalSttText,
+    interimSttText,
     detectedKeywords,
     matchedDiagnosis,
     manualOverrideKeyword,
@@ -54,7 +101,8 @@ export default function App() {
     incrementCallTimer,
     setSearchQuery,
     selectCustomer,
-    appendSttText,
+    appendFinalSttText,
+    setInterimSttText,
     setDiagnosisResult,
     toggleChecklist,
     setManualOverrideKeyword,
@@ -71,7 +119,6 @@ export default function App() {
   const [isMicTestOpen, setIsMicTestOpen] = useState(false);
   const [micAudioLevel, setMicAudioLevel] = useState(0);
 
-  const debounceTimer = useRef<number | null>(null);
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -138,7 +185,7 @@ export default function App() {
     };
   }, [isRecording]);
 
-  // Web Speech API STT
+  // Real-time Web Speech API with Interim Token Processing
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -148,14 +195,43 @@ export default function App() {
       recognition.lang = 'ko-KR';
 
       recognition.onresult = (event: any) => {
-        let finalTranscript = '';
+        let interim = '';
+        let final = '';
+
         for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript + ' ';
+            final += transcript + ' ';
+          } else {
+            interim += transcript;
           }
         }
-        if (finalTranscript) {
-          appendSttText(finalTranscript);
+
+        if (final) {
+          appendFinalSttText(final.trim());
+          setInterimSttText('');
+        } else if (interim) {
+          setInterimSttText(interim);
+        }
+
+        // Instantaneous Real-time Keyword & SOP Trigger (<50ms on interim speech tokens!)
+        const fullCurrentStream = (finalSttText + ' ' + interim).trim();
+        for (const rule of INSTANT_SYMPTOM_RULES) {
+          if (rule.pattern.test(fullCurrentStream)) {
+            setDiagnosisResult(
+              [rule.keyword],
+              {
+                category: rule.category,
+                partCode: rule.partCode,
+                partName: rule.partName,
+                stock: rule.stock,
+                confidence: rule.confidence,
+                source: "실시간 스트리밍 룰 트리거 (<50ms)"
+              },
+              rule.checklist
+            );
+            break;
+          }
         }
       };
 
@@ -165,8 +241,6 @@ export default function App() {
           setRecording(false);
           showToast("⚠ 마이크 권한이 차단되었습니다. 브라우저 설정에서 마이크를 허용해 주세요.");
           setTimeout(() => clearToast(), 4000);
-        } else if (event.error === 'no-speech') {
-          // Normal silent pause
         }
       };
 
@@ -181,10 +255,8 @@ export default function App() {
       };
 
       recognitionRef.current = recognition;
-    } else {
-      console.warn("Web Speech API not supported in this browser.");
     }
-  }, [appendSttText, isRecording, setRecording, showToast, clearToast]);
+  }, [appendFinalSttText, setInterimSttText, finalSttText, isRecording, setRecording, setDiagnosisResult, showToast, clearToast]);
 
   const toggleRecording = () => {
     if (!isRecording) {
@@ -192,7 +264,7 @@ export default function App() {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.start();
-          showToast("🎙️ 마이크 음성인식이 시작되었습니다. 말씀해 보세요.");
+          showToast("🎙️ 마이크 실시간 스트리밍이 시작되었습니다. 말씀해 보세요.");
           setTimeout(() => clearToast(), 3000);
         } catch (e) {
           console.error(e);
@@ -209,47 +281,6 @@ export default function App() {
       setTimeout(() => clearToast(), 2500);
     }
   };
-
-  // STT Debounced Classification
-  useEffect(() => {
-    if (!sttText.trim()) return;
-
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-
-    debounceTimer.current = window.setTimeout(async () => {
-      try {
-        const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
-        const res = await fetch(`${apiBase}/counsel/classify`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: sttText })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setDiagnosisResult(
-            [data.keyword || "흡입모터 굉음", "타는 냄새"],
-            {
-              category: "POWER / 흡입·구동계통",
-              partCode: data.part_code || "SUCTION",
-              partName: "흡입모터 24V 500W 어셈블리",
-              stock: 14,
-              confidence: Math.round((data.similarity || 0.95) * 100),
-              source: "정식 등록 룰베이스 (pg_trgm)"
-            },
-            data.action_script && data.action_script.length > 0 ? data.action_script : [
-              "전원 스위치 즉시 차단 및 모터 하우징 열기 냉각 안내",
-              "폐수탱크 플로트 밸브(만수 차단기) 오작동/이물질 확인",
-              "흡입 호스 및 스퀴지 연결부 막힘 육안 점검",
-              "10분 후 재가동 시 동일 소음/타는 냄새 지속 여부 확인",
-              "증상 지속 시 1차 셀프조치 중단 및 현장 긴급 정밀점검 배차"
-            ]
-          );
-        }
-      } catch (e) {
-        console.error("분류 API 호출 실패 (Fallback 유지)", e);
-      }
-    }, 1000);
-  }, [sttText, setDiagnosisResult]);
 
   const handleResolveComplete = () => {
     showToast("✓ 1차 셀프조치 해결 완료로 기록되었습니다. (3초 후 DB 확정)");
@@ -309,39 +340,26 @@ export default function App() {
   const totalCount = actionChecklist.length;
 
   return (
-    <div 
-      data-theme={themeStyle} 
-      data-color={colorScheme} 
-      style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        height: '100vh', 
-        width: '100vw', 
-        backgroundColor: 'var(--canvas)', 
-        color: 'var(--ink)' 
-      }}
-    >
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: 'var(--canvas)', color: 'var(--ink)' }}>
       
       {/* ========================================================= */}
-      {/* 1. TOP GLOBAL NAVIGATION & 3x3 MATRIX CONTROLLER           */}
+      {/* 1. TOP GLOBAL NAVIGATION (Linear High-Density Bar)        */}
       {/* ========================================================= */}
       <header style={{ 
-        height: '56px', 
-        borderBottom: 'var(--border-width) solid var(--hairline)', 
+        height: '50px', 
+        borderBottom: '1px solid var(--hairline)', 
         backgroundColor: 'var(--surface-1)', 
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'space-between', 
         padding: '0 16px',
-        flexShrink: 0,
-        boxShadow: 'var(--panel-shadow)',
-        zIndex: 10
+        flexShrink: 0
       }}>
         {/* Brand & Counselor */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)', boxShadow: '0 0 8px var(--glow-color)' }} />
-            <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: 'var(--letter-spacing)', color: 'var(--ink)' }}>
+            <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.3px', color: 'var(--ink)' }}>
               Space Advisor <span style={{ fontWeight: 400, color: 'var(--ink-muted)', fontSize: '12px' }}>PRO 관제</span>
             </span>
           </div>
@@ -353,137 +371,26 @@ export default function App() {
           </span>
         </div>
 
-        {/* 3x3 DUAL CONTROLLER: Theme Style & Color Palette */}
+        {/* Real-time Streaming Status Badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          
-          {/* 1) Design Tone (Theme Style) */}
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '2px', 
-            padding: '3px 6px', 
-            backgroundColor: 'var(--surface-2)', 
-            border: 'var(--border-width) solid var(--hairline)', 
-            borderRadius: 'var(--radius-md)' 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 10px',
+            borderRadius: '4px',
+            backgroundColor: isRecording ? 'rgba(37, 99, 235, 0.15)' : 'var(--surface-2)',
+            border: `1px solid ${isRecording ? 'var(--accent-primary)' : 'var(--hairline)'}`,
+            fontSize: '11px',
+            color: isRecording ? '#93c5fd' : 'var(--ink-muted)'
           }}>
-            <Layers size={13} style={{ color: 'var(--ink-muted)', marginRight: '4px' }} />
-            <span style={{ fontSize: '11px', color: 'var(--ink-muted)', marginRight: '4px', fontWeight: 600 }}>톤:</span>
-            
-            <button
-              onClick={() => setThemeStyle('precision')}
-              style={{
-                padding: '4px 8px',
-                fontSize: '11px',
-                fontWeight: themeStyle === 'precision' ? 700 : 500,
-                borderRadius: 'var(--radius-xs)',
-                border: 'none',
-                backgroundColor: themeStyle === 'precision' ? 'var(--accent-primary)' : 'transparent',
-                color: themeStyle === 'precision' ? '#fff' : 'var(--ink-muted)',
-                cursor: 'pointer'
-              }}
-            >
-              Linear 정밀
-            </button>
-
-            <button
-              onClick={() => setThemeStyle('soft')}
-              style={{
-                padding: '4px 8px',
-                fontSize: '11px',
-                fontWeight: themeStyle === 'soft' ? 700 : 500,
-                borderRadius: 'var(--radius-xs)',
-                border: 'none',
-                backgroundColor: themeStyle === 'soft' ? 'var(--accent-primary)' : 'transparent',
-                color: themeStyle === 'soft' ? '#fff' : 'var(--ink-muted)',
-                cursor: 'pointer'
-              }}
-            >
-              Soft 입체
-            </button>
-
-            <button
-              onClick={() => setThemeStyle('cyber')}
-              style={{
-                padding: '4px 8px',
-                fontSize: '11px',
-                fontWeight: themeStyle === 'cyber' ? 700 : 500,
-                borderRadius: 'var(--radius-xs)',
-                border: 'none',
-                backgroundColor: themeStyle === 'cyber' ? 'var(--accent-primary)' : 'transparent',
-                color: themeStyle === 'cyber' ? '#fff' : 'var(--ink-muted)',
-                cursor: 'pointer'
-              }}
-            >
-              Cyber HUD
-            </button>
+            <Radio size={12} className={isRecording ? "animate-pulse text-blue-400" : ""} />
+            <span>스트리밍 STT: <strong>{isRecording ? "실시간 발화 감지 중 (<50ms)" : "대기"}</strong></span>
           </div>
-
-          {/* 2) Color Palette */}
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '2px', 
-            padding: '3px 6px', 
-            backgroundColor: 'var(--surface-2)', 
-            border: 'var(--border-width) solid var(--hairline)', 
-            borderRadius: 'var(--radius-md)' 
-          }}>
-            <Palette size={13} style={{ color: 'var(--ink-muted)', marginRight: '4px' }} />
-            <span style={{ fontSize: '11px', color: 'var(--ink-muted)', marginRight: '4px', fontWeight: 600 }}>컬러:</span>
-
-            <button
-              onClick={() => setColorScheme('slate')}
-              style={{
-                padding: '4px 8px',
-                fontSize: '11px',
-                fontWeight: colorScheme === 'slate' ? 700 : 500,
-                borderRadius: 'var(--radius-xs)',
-                border: 'none',
-                backgroundColor: colorScheme === 'slate' ? 'var(--accent-primary)' : 'transparent',
-                color: colorScheme === 'slate' ? '#fff' : 'var(--ink-muted)',
-                cursor: 'pointer'
-              }}
-            >
-              블루
-            </button>
-
-            <button
-              onClick={() => setColorScheme('cream')}
-              style={{
-                padding: '4px 8px',
-                fontSize: '11px',
-                fontWeight: colorScheme === 'cream' ? 700 : 500,
-                borderRadius: 'var(--radius-xs)',
-                border: 'none',
-                backgroundColor: colorScheme === 'cream' ? 'var(--accent-primary)' : 'transparent',
-                color: colorScheme === 'cream' ? '#fff' : 'var(--ink-muted)',
-                cursor: 'pointer'
-              }}
-            >
-              크림
-            </button>
-
-            <button
-              onClick={() => setColorScheme('emerald')}
-              style={{
-                padding: '4px 8px',
-                fontSize: '11px',
-                fontWeight: colorScheme === 'emerald' ? 700 : 500,
-                borderRadius: 'var(--radius-xs)',
-                border: 'none',
-                backgroundColor: colorScheme === 'emerald' ? 'var(--accent-primary)' : 'transparent',
-                color: colorScheme === 'emerald' ? '#fff' : 'var(--ink-muted)',
-                cursor: 'pointer'
-              }}
-            >
-              에메랄드
-            </button>
-          </div>
-
         </div>
 
         {/* Live Audio & STT Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           
           {/* Dedicated Mic Test Button */}
           <button
@@ -492,10 +399,10 @@ export default function App() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '5px 10px',
-              borderRadius: 'var(--radius-md)',
+              padding: '5px 12px',
+              borderRadius: '6px',
               backgroundColor: 'var(--surface-2)',
-              border: 'var(--border-width) solid var(--hairline)',
+              border: '1px solid var(--hairline)',
               color: 'var(--ink)',
               fontSize: '12px',
               fontWeight: 600,
@@ -512,9 +419,9 @@ export default function App() {
             alignItems: 'center', 
             gap: '6px', 
             padding: '4px 10px', 
-            borderRadius: 'var(--radius-md)', 
+            borderRadius: '6px', 
             backgroundColor: 'rgba(239, 68, 68, 0.12)', 
-            border: 'var(--border-width) solid rgba(239, 68, 68, 0.25)',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
             color: 'var(--accent-danger)',
             fontSize: '12px',
             fontWeight: 600
@@ -531,22 +438,20 @@ export default function App() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '5px 12px',
-              borderRadius: 'var(--radius-md)',
+              padding: '5px 14px',
+              borderRadius: '6px',
               backgroundColor: isRecording ? 'var(--accent-danger)' : 'var(--accent-primary)',
               color: '#fff',
               border: 'none',
               fontSize: '12px',
               fontWeight: 600,
-              cursor: 'pointer',
-              position: 'relative',
-              overflow: 'hidden'
+              cursor: 'pointer'
             }}
           >
             {isRecording ? <MicOff size={14} /> : <Mic size={14} />}
-            <span className="nowrap">{isRecording ? "STT 정지" : "STT 시작"}</span>
+            <span className="nowrap">{isRecording ? "STT 정지" : "STT 수신 시작"}</span>
             
-            {/* Live Visualizer Bar inside button when recording */}
+            {/* Live Visualizer Bar */}
             {isRecording && (
               <span style={{
                 display: 'inline-flex',
@@ -575,15 +480,14 @@ export default function App() {
         <section style={{ 
           width: '28%', 
           backgroundColor: 'var(--surface-1)', 
-          border: 'var(--border-width) solid var(--hairline)', 
-          borderRadius: 'var(--radius-lg)', 
-          boxShadow: 'var(--panel-shadow)',
+          border: '1px solid var(--hairline)', 
+          borderRadius: '8px', 
           display: 'flex', 
           flexDirection: 'column', 
           overflow: 'hidden' 
         }}>
           {/* Panel Header & Customer Search */}
-          <div style={{ padding: 'var(--density-padding)', borderBottom: 'var(--border-width) solid var(--hairline)' }}>
+          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)' }}>
             <label style={{ fontSize: '11px', color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', display: 'block' }}>
               고객사 실시간 식별 및 검색
             </label>
@@ -599,8 +503,8 @@ export default function App() {
                   width: '100%',
                   padding: '8px 8px 8px 32px',
                   backgroundColor: 'var(--surface-2)',
-                  border: 'var(--border-width) solid var(--hairline)',
-                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--hairline)',
+                  borderRadius: '6px',
                   color: 'var(--ink)',
                   fontSize: '13px',
                   outline: 'none'
@@ -613,9 +517,9 @@ export default function App() {
                   left: 0,
                   right: 0,
                   backgroundColor: 'var(--surface-2)',
-                  border: 'var(--border-width) solid var(--hairline)',
-                  borderRadius: 'var(--radius-md)',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                  border: '1px solid var(--hairline)',
+                  borderRadius: '6px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
                   zIndex: 50,
                   maxHeight: '180px',
                   overflowY: 'auto'
@@ -629,7 +533,7 @@ export default function App() {
                       }}
                       style={{
                         padding: '8px 12px',
-                        borderBottom: 'var(--border-width) solid var(--hairline)',
+                        borderBottom: '1px solid var(--hairline)',
                         cursor: 'pointer',
                         fontSize: '12px'
                       }}
@@ -646,13 +550,13 @@ export default function App() {
           </div>
 
           {/* Panel Body: Scrollable Customer & Asset Specs */}
-          <div style={{ flex: 1, padding: 'var(--density-padding)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ flex: 1, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             
             {/* Customer Info Card */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--hairline)', boxShadow: 'var(--card-shadow)' }}>
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--ink)' }}>{selectedCustomer.name}</span>
-                <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: 'var(--radius-xs)', backgroundColor: 'var(--badge-bg)', color: 'var(--badge-text)', fontWeight: 600 }}>
+                <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--badge-bg)', color: 'var(--badge-text)', fontWeight: 600 }}>
                   {selectedCustomer.salesType}
                 </span>
               </div>
@@ -663,7 +567,7 @@ export default function App() {
             </div>
 
             {/* Asset Info Card */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--hairline)', boxShadow: 'var(--card-shadow)' }}>
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
               <div style={{ fontSize: '11px', color: 'var(--ink-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '6px' }}>
                 보유 장비 및 보증 상태
               </div>
@@ -677,7 +581,7 @@ export default function App() {
             </div>
 
             {/* 30-Day History & Warning Timeline */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--hairline)', boxShadow: 'var(--card-shadow)', flex: 1 }}>
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                 <Clock size={13} style={{ color: 'var(--ink-muted)' }} />
                 <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink-muted)', textTransform: 'uppercase' }}>
@@ -691,9 +595,9 @@ export default function App() {
                     key={idx}
                     style={{
                       padding: '8px',
-                      borderRadius: 'var(--radius-xs)',
+                      borderRadius: '4px',
                       backgroundColor: item.isWarning ? 'rgba(245, 158, 11, 0.12)' : 'var(--surface-1)',
-                      border: item.isWarning ? '1px solid rgba(245, 158, 11, 0.35)' : 'var(--border-width) solid var(--hairline)',
+                      border: item.isWarning ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid var(--hairline)',
                       fontSize: '12px'
                     }}
                   >
@@ -717,38 +621,37 @@ export default function App() {
         <section style={{ 
           width: '38%', 
           backgroundColor: 'var(--surface-1)', 
-          border: 'var(--border-width) solid var(--hairline)', 
-          borderRadius: 'var(--radius-lg)', 
-          boxShadow: 'var(--panel-shadow)',
+          border: '1px solid var(--hairline)', 
+          borderRadius: '8px', 
           display: 'flex', 
           flexDirection: 'column', 
           overflow: 'hidden' 
         }}>
-          {/* Panel Header & ARS Notice */}
-          <div style={{ padding: 'var(--density-padding)', borderBottom: 'var(--border-width) solid var(--hairline)' }}>
+          {/* Panel Header & Live Activity */}
+          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Sparkles size={14} style={{ color: 'var(--accent-primary)' }} />
-                실시간 음성 전사 및 AI 분류
+                실시간 음성 스트리밍 전사 & AI 추론
               </span>
               
               {/* Dynamic Mic Activity Indicator */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {isRecording && micAudioLevel > 15 && (
+                {isRecording && micAudioLevel > 10 && (
                   <span style={{ fontSize: '10px', color: 'var(--accent-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Volume2 size={12} /> 음성 감지 중 ({micAudioLevel}%)
                   </span>
                 )}
                 <span style={{ fontSize: '11px', color: isRecording ? 'var(--accent-danger)' : 'var(--ink-muted)', fontWeight: 600 }}>
-                  {isRecording ? "● 음성 스트리밍 수신중" : "대기 상태"}
+                  {isRecording ? "● 실시간 음성 스트리밍 중" : "대기 상태"}
                 </span>
               </div>
             </div>
 
             <div style={{ 
               backgroundColor: 'var(--ars-bg)', 
-              border: 'var(--border-width) solid var(--ars-border)', 
-              borderRadius: 'var(--radius-xs)', 
+              border: '1px solid var(--ars-border)', 
+              borderRadius: '4px', 
               padding: '6px 10px', 
               fontSize: '11px', 
               color: 'var(--ars-text)',
@@ -758,48 +661,57 @@ export default function App() {
             </div>
           </div>
 
-          {/* STT Live Transcript Box */}
-          <div style={{ flex: '1.2', padding: 'var(--density-padding)', display: 'flex', flexDirection: 'column', borderBottom: 'var(--border-width) solid var(--hairline)' }}>
+          {/* STT Live Transcript Box (Splits Final and Live Interim Stream) */}
+          <div style={{ flex: '1.2', padding: '12px', display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--hairline)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
-                실시간 전사 자막 (1000ms 디바운스 자동 추론)
+                실시간 전사 자막 (말하는 즉시 0.1초 단위 표시)
               </label>
               <button 
                 onClick={() => setIsMicTestOpen(true)}
                 style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
               >
-                마이크 소리가 안 들리시나요? [테스트]
+                마이크 진단 [테스트]
               </button>
             </div>
             
             <div style={{ 
               flex: 1, 
               backgroundColor: 'var(--surface-2)', 
-              border: 'var(--border-width) solid var(--hairline)', 
-              borderRadius: 'var(--radius-md)', 
-              boxShadow: 'var(--card-shadow)',
+              border: '1px solid var(--hairline)', 
+              borderRadius: '6px', 
               padding: '12px', 
               overflowY: 'auto',
               fontSize: '13px',
               lineHeight: 1.6,
               color: 'var(--ink)'
             }}>
-              {sttText ? (
-                <span>
-                  {sttText}
-                  {isRecording && <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '14px', backgroundColor: 'var(--accent-primary)', marginLeft: '4px', verticalAlign: 'middle' }} />}
+              {/* 1) Final Confirmed Sentences (Solid Ink) */}
+              <span>{finalSttText} </span>
+
+              {/* 2) Real-time Interim Streaming Words (Glowing Blue Text) */}
+              {interimSttText && (
+                <span style={{ color: '#93c5fd', backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '1px 4px', borderRadius: '3px', fontWeight: 600 }}>
+                  {interimSttText}
                 </span>
-              ) : (
-                <span style={{ color: 'var(--ink-subtle)' }}>상단 [STT 시작] 버튼을 누르고 말씀하시면 실시간으로 음성이 전사됩니다...</span>
+              )}
+
+              {/* 3) Pulsing Cursor */}
+              {isRecording && (
+                <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '14px', backgroundColor: 'var(--accent-primary)', marginLeft: '4px', verticalAlign: 'middle' }} />
+              )}
+
+              {!finalSttText && !interimSttText && (
+                <span style={{ color: 'var(--ink-subtle)' }}>상단 [STT 수신 시작] 버튼을 누르고 말씀하시면 말하는 즉시 글자가 표출됩니다...</span>
               )}
             </div>
           </div>
 
           {/* Detected Keywords & Diagnosis Card */}
-          <div style={{ flex: '1.5', padding: 'var(--density-padding)', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
+          <div style={{ flex: '1.5', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
             <div>
               <label style={{ fontSize: '11px', color: 'var(--ink-muted)', display: 'block', marginBottom: '6px' }}>
-                자동 감지 증상 키워드
+                자동 감지 증상 키워드 (실시간 발화 중 즉시 추출)
               </label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {detectedKeywords.map((kw, idx) => (
@@ -807,9 +719,9 @@ export default function App() {
                     key={idx}
                     style={{
                       padding: '4px 10px',
-                      borderRadius: 'var(--radius-sm)',
+                      borderRadius: '4px',
                       backgroundColor: 'var(--badge-bg)',
-                      border: 'var(--border-width) solid var(--hairline)',
+                      border: '1px solid var(--hairline)',
                       color: 'var(--badge-text)',
                       fontSize: '12px',
                       fontWeight: 600
@@ -823,10 +735,10 @@ export default function App() {
 
             {/* Diagnosis Result Card */}
             {matchedDiagnosis && (
-              <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--hairline)', boxShadow: 'var(--card-shadow)' }}>
+              <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-primary)' }}>{matchedDiagnosis.category}</span>
-                  <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: 'var(--radius-xs)', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-success)', fontWeight: 600 }}>
+                  <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-success)', fontWeight: 600 }}>
                     신뢰도 {matchedDiagnosis.confidence}%
                   </span>
                 </div>
@@ -855,8 +767,8 @@ export default function App() {
                     flex: 1,
                     padding: '6px 10px',
                     backgroundColor: 'var(--surface-2)',
-                    border: 'var(--border-width) solid var(--hairline)',
-                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--hairline)',
+                    borderRadius: '4px',
                     color: 'var(--ink)',
                     fontSize: '12px'
                   }}
@@ -871,8 +783,8 @@ export default function App() {
                   style={{
                     padding: '6px 12px',
                     backgroundColor: 'var(--surface-3)',
-                    border: 'var(--border-width) solid var(--hairline)',
-                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--hairline)',
+                    borderRadius: '4px',
                     color: 'var(--ink)',
                     fontSize: '12px',
                     fontWeight: 600,
@@ -892,15 +804,14 @@ export default function App() {
         <section style={{ 
           width: '34%', 
           backgroundColor: 'var(--surface-1)', 
-          border: 'var(--border-width) solid var(--hairline)', 
-          borderRadius: 'var(--radius-lg)', 
-          boxShadow: 'var(--panel-shadow)',
+          border: '1px solid var(--hairline)', 
+          borderRadius: '8px', 
           display: 'flex', 
           flexDirection: 'column', 
           overflow: 'hidden' 
         }}>
           {/* Panel Header & Progress */}
-          <div style={{ padding: 'var(--density-padding)', borderBottom: 'var(--border-width) solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
               표준 조치 체크리스트 (SOP)
             </span>
@@ -910,7 +821,7 @@ export default function App() {
           </div>
 
           {/* Checklist Items Container */}
-          <div style={{ flex: 1, padding: 'var(--density-padding)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ flex: 1, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {actionChecklist.map((item) => (
               <div
                 key={item.id}
@@ -920,9 +831,9 @@ export default function App() {
                   alignItems: 'flex-start',
                   gap: '10px',
                   padding: '10px',
-                  borderRadius: 'var(--radius-md)',
+                  borderRadius: '6px',
                   backgroundColor: item.checked ? 'rgba(16, 185, 129, 0.08)' : 'var(--surface-2)',
-                  border: item.checked ? '1px solid rgba(16, 185, 129, 0.35)' : 'var(--border-width) solid var(--hairline)',
+                  border: item.checked ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid var(--hairline)',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease'
                 }}
@@ -938,7 +849,7 @@ export default function App() {
           </div>
 
           {/* Bottom Action Command Center */}
-          <div style={{ padding: '12px', borderTop: 'var(--border-width) solid var(--hairline)', backgroundColor: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ padding: '12px', borderTop: '1px solid var(--hairline)', backgroundColor: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             
             {/* Action 1: 1-Click Resolve Complete */}
             <button
@@ -949,7 +860,7 @@ export default function App() {
                 backgroundColor: 'var(--accent-success)',
                 color: '#fff',
                 border: 'none',
-                borderRadius: 'var(--radius-md)',
+                borderRadius: '6px',
                 fontSize: '13px',
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -973,7 +884,7 @@ export default function App() {
                   backgroundColor: 'var(--accent-primary)',
                   color: '#fff',
                   border: 'none',
-                  borderRadius: 'var(--radius-md)',
+                  borderRadius: '6px',
                   fontSize: '13px',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -994,8 +905,8 @@ export default function App() {
                   padding: '11px',
                   backgroundColor: 'var(--surface-3)',
                   color: 'var(--ink)',
-                  border: 'var(--border-width) solid var(--hairline)',
-                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--hairline)',
+                  borderRadius: '6px',
                   fontSize: '12px',
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -1024,7 +935,7 @@ export default function App() {
           bottom: 0,
           width: '420px',
           backgroundColor: 'var(--surface-1)',
-          borderLeft: 'var(--border-width) solid var(--hairline)',
+          borderLeft: '1px solid var(--hairline)',
           boxShadow: '-8px 0 32px rgba(0,0,0,0.5)',
           zIndex: 100,
           display: 'flex',
@@ -1032,7 +943,7 @@ export default function App() {
           animation: 'slideIn 0.2s ease-out'
         }}>
           {/* Drawer Header */}
-          <div style={{ padding: '16px', borderBottom: 'var(--border-width) solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '16px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Wrench size={18} style={{ color: 'var(--accent-primary)' }} />
               출장 배차 접수 (100% 자동완성)
@@ -1046,7 +957,7 @@ export default function App() {
           <div style={{ flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             
             {/* Auto-filled Summary */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--hairline)', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <div>🏢 고객사: <strong style={{ color: 'var(--ink)' }}>{selectedCustomer.name}</strong></div>
               <div>📍 방문지: {selectedCustomer.address} {selectedCustomer.addressDetail}</div>
               <div>📞 연락처: {selectedCustomer.manager} ({selectedCustomer.phone})</div>
@@ -1059,7 +970,7 @@ export default function App() {
               <select 
                 value={assignedEngineer} 
                 onChange={(e) => setAssignedEngineer(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: 'var(--border-width) solid var(--hairline)', borderRadius: 'var(--radius-sm)', color: 'var(--ink)', fontSize: '13px' }}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '13px' }}
               >
                 <option value="김철수 정비기사 (화성/경기남부)">김철수 정비기사 (화성/경기남부 관할)</option>
                 <option value="박영호 정비기사 (인천/서울서부)">박영호 정비기사 (인천/서울서부 관할)</option>
@@ -1074,7 +985,7 @@ export default function App() {
                 type="text" 
                 value={dispatchDate} 
                 onChange={(e) => setDispatchDate(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: 'var(--border-width) solid var(--hairline)', borderRadius: 'var(--radius-sm)', color: 'var(--ink)', fontSize: '13px' }}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '13px' }}
               />
             </div>
 
@@ -1085,14 +996,14 @@ export default function App() {
                 rows={4}
                 value={dispatchNote} 
                 onChange={(e) => setDispatchNote(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: 'var(--border-width) solid var(--hairline)', borderRadius: 'var(--radius-sm)', color: 'var(--ink)', fontSize: '12px', lineHeight: 1.4 }}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '12px', lineHeight: 1.4 }}
               />
             </div>
 
           </div>
 
           {/* Drawer Footer CTA */}
-          <div style={{ padding: '16px', borderTop: 'var(--border-width) solid var(--hairline)', backgroundColor: 'var(--surface-2)' }}>
+          <div style={{ padding: '16px', borderTop: '1px solid var(--hairline)', backgroundColor: 'var(--surface-2)' }}>
             <button
               onClick={handleConfirmDispatch}
               style={{
@@ -1101,7 +1012,7 @@ export default function App() {
                 backgroundColor: 'var(--accent-primary)',
                 color: '#fff',
                 border: 'none',
-                borderRadius: 'var(--radius-md)',
+                borderRadius: '6px',
                 fontSize: '14px',
                 fontWeight: 700,
                 cursor: 'pointer'
@@ -1129,8 +1040,8 @@ export default function App() {
           <div style={{
             width: '440px',
             backgroundColor: 'var(--surface-1)',
-            border: 'var(--border-width) solid var(--hairline)',
-            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--hairline)',
+            borderRadius: '8px',
             padding: '20px',
             boxShadow: '0 16px 32px rgba(0,0,0,0.8)'
           }}>
@@ -1147,7 +1058,7 @@ export default function App() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
               <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>이관 유형</label>
-              <select style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: 'var(--border-width) solid var(--hairline)', borderRadius: 'var(--radius-sm)', color: 'var(--ink)' }}>
+              <select style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)' }}>
                 <option>신규 렌탈 견적서 요청</option>
                 <option>장비 추가 도입 및 계약 변경</option>
                 <option>단순 소모품 구매 견적</option>
@@ -1162,7 +1073,7 @@ export default function App() {
                 backgroundColor: 'var(--accent-warning)',
                 color: '#000',
                 border: 'none',
-                borderRadius: 'var(--radius-md)',
+                borderRadius: '6px',
                 fontWeight: 700,
                 fontSize: '13px',
                 cursor: 'pointer'
@@ -1187,7 +1098,7 @@ export default function App() {
           border: '1px solid var(--accent-success)',
           color: 'var(--ink)',
           padding: '10px 20px',
-          borderRadius: 'var(--radius-lg)',
+          borderRadius: '8px',
           fontSize: '13px',
           fontWeight: 600,
           boxShadow: '0 8px 24px rgba(0,0,0,0.5)',

@@ -29,16 +29,7 @@ export interface MatchedDiagnosis {
   source: string;
 }
 
-export type ThemeStyle = 'precision' | 'soft' | 'cyber';
-export type ColorScheme = 'slate' | 'cream' | 'emerald';
-
 interface CounselWorkstationState {
-  // Design Tone (Theme) & Color Matrix (3 x 3)
-  themeStyle: ThemeStyle;
-  colorScheme: ColorScheme;
-  setThemeStyle: (style: ThemeStyle) => void;
-  setColorScheme: (color: ColorScheme) => void;
-
   // Global / Call State
   isRecording: boolean;
   callSeconds: number;
@@ -50,8 +41,9 @@ interface CounselWorkstationState {
   customerList: CustomerInfo[];
   selectedCustomer: CustomerInfo;
 
-  // Panel B: STT & Diagnosis
-  sttText: string;
+  // Panel B: STT & Live Streaming
+  finalSttText: string;
+  interimSttText: string;
   detectedKeywords: string[];
   matchedDiagnosis: MatchedDiagnosis | null;
   manualOverrideKeyword: string;
@@ -69,8 +61,8 @@ interface CounselWorkstationState {
   incrementCallTimer: () => void;
   setSearchQuery: (query: string) => void;
   selectCustomer: (customer: CustomerInfo) => void;
-  setSttText: (text: string) => void;
-  appendSttText: (text: string) => void;
+  appendFinalSttText: (text: string) => void;
+  setInterimSttText: (text: string) => void;
   setDiagnosisResult: (keywords: string[], diagnosis: MatchedDiagnosis, checklist: string[]) => void;
   toggleChecklist: (id: number) => void;
   setManualOverrideKeyword: (kw: string) => void;
@@ -134,11 +126,6 @@ const DEFAULT_CUSTOMERS: CustomerInfo[] = [
 ];
 
 export const useCounselStore = create<CounselWorkstationState>((set) => ({
-  themeStyle: 'precision',
-  colorScheme: 'slate',
-  setThemeStyle: (style) => set({ themeStyle: style }),
-  setColorScheme: (color) => set({ colorScheme: color }),
-
   isRecording: false,
   callSeconds: 204, // 03:24
   counselorName: '이지은 상담원 (선임)',
@@ -148,7 +135,8 @@ export const useCounselStore = create<CounselWorkstationState>((set) => ({
   customerList: DEFAULT_CUSTOMERS,
   selectedCustomer: DEFAULT_CUSTOMERS[0],
 
-  sttText: '흡입 모터 쪽에서 타는 냄새가 나고 굉음이 심하게 발생하면서 바닥 오수 흡입이 전혀 안돼요...',
+  finalSttText: '흡입 모터 쪽에서 타는 냄새가 나고 굉음이 심하게 발생하면서',
+  interimSttText: '바닥 오수 흡입이 전혀 안돼요...',
   detectedKeywords: ['흡입모터 굉음', '타는 냄새', '오수 흡입불량'],
   matchedDiagnosis: {
     category: 'POWER / 흡입·구동계통',
@@ -177,8 +165,8 @@ export const useCounselStore = create<CounselWorkstationState>((set) => ({
   incrementCallTimer: () => set((state) => ({ callSeconds: state.callSeconds + 1 })),
   setSearchQuery: (query) => set({ searchQuery: query }),
   selectCustomer: (customer) => set({ selectedCustomer: customer }),
-  setSttText: (text) => set({ sttText: text }),
-  appendSttText: (text) => set((state) => ({ sttText: state.sttText + ' ' + text })),
+  appendFinalSttText: (text) => set((state) => ({ finalSttText: (state.finalSttText ? state.finalSttText + ' ' : '') + text })),
+  setInterimSttText: (text) => set({ interimSttText: text }),
   setDiagnosisResult: (keywords, diagnosis, checklist) => set({
     detectedKeywords: keywords,
     matchedDiagnosis: diagnosis,
