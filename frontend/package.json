@@ -12,6 +12,7 @@
     "apps/*"
   ],
   "dependencies": {
+    "lucide-react": "^1.33.0",
     "zustand": "^5.0.15"
   }
 }
