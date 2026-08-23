@@ -7,6 +7,7 @@ from sqlalchemy import text
 from pydantic import BaseModel
 import httpx
 import os
+import uuid
 
 from app.core.database import get_db
 
@@ -47,14 +48,18 @@ async def fallback_llm_classification(user_text: str, db: AsyncSession) -> dict:
                 parsed = json.loads(data)
                 
                 # LLM 성공 로그 기록
+                import hashlib
+                p_hash = hashlib.sha256(user_text.encode('utf-8')).hexdigest()
                 log_q = text("""
-                    INSERT INTO llm_logs (prompt, response, model_used, inference_time_ms)
-                    VALUES (:prompt, :response, 'llama3', :time_ms)
+                    INSERT INTO llm_logs (id, prompt_text, prompt_hash, response_text, model_name, latency_ms, is_error, cache_hit, client_type)
+                    VALUES (:id, :prompt, :phash, :response, 'llama3', :latency, false, false, 'desktop')
                 """)
                 await db.execute(log_q, {
+                    "id": str(uuid.uuid4()),
                     "prompt": user_text, 
+                    "phash": p_hash,
                     "response": json.dumps(parsed, ensure_ascii=False),
-                    "time_ms": res.elapsed.total_seconds() * 1000 if hasattr(res, 'elapsed') else 0
+                    "latency": int(res.elapsed.total_seconds() * 1000) if hasattr(res, 'elapsed') else 0
                 })
                 await db.commit()
 
@@ -65,11 +70,13 @@ async def fallback_llm_classification(user_text: str, db: AsyncSession) -> dict:
     except Exception as e:
         logger.error(f"LLM Fallback failed: {e}")
         # LLM 실패 로그 기록
+        import hashlib
+        p_hash = hashlib.sha256(user_text.encode('utf-8')).hexdigest()
         log_q = text("""
-            INSERT INTO llm_logs (prompt, response, model_used, inference_time_ms, error_message)
-            VALUES (:prompt, NULL, 'llama3', 0, :err)
+            INSERT INTO llm_logs (id, prompt_text, prompt_hash, response_text, model_name, latency_ms, is_error, error_message, cache_hit, client_type)
+            VALUES (:id, :prompt, :phash, NULL, 'llama3', 0, true, :err, false, 'desktop')
         """)
-        await db.execute(log_q, {"prompt": user_text, "err": str(e)})
+        await db.execute(log_q, {"id": str(uuid.uuid4()), "prompt": user_text, "phash": p_hash, "err": str(e)})
         await db.commit()
     
     return {"keyword": "분류 불가", "part_code": "INQUIRY_ETC"}
