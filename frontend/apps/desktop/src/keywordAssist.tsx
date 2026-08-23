@@ -1,4 +1,7 @@
 import React from 'react';
+import type { CustomerInfo } from './store';
+
+export type EntityType = 'symptom' | 'customer' | 'site';
 
 export interface KeywordEntity {
   id: string;
@@ -13,6 +16,23 @@ export interface KeywordEntity {
   selfActionGuide: string;
 }
 
+export interface EntityRule {
+  id: string;
+  type: EntityType;
+  label: string;
+  pattern: RegExp;
+  icon: string;
+  colorScheme: {
+    bg: string;
+    border: string;
+    text: string;
+    glow: string;
+  };
+  customerId?: string;
+  keywordId?: string;
+}
+
+// 1. Symptom & Part Keyword Master
 export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
   {
     id: 'kw-suction',
@@ -86,48 +106,233 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
   }
 ];
 
-export function renderHighlightedText(
-  text: string, 
-  onKeywordClick: (entity: KeywordEntity) => void,
-  activeEntityId?: string
+// 2. Comprehensive Multi-Category Named Entity Registry
+export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
+  // A. CUSTOMER & PERSON (고객사명 / 담당자명 - Purple / Violet)
+  {
+    id: 'ent-cust-gangnam',
+    type: 'customer',
+    label: '고객사',
+    pattern: /스페이스\s*클린|스페이스|최관리\s*(팀장)?/i,
+    icon: '🏢',
+    customerId: 'a1111111-1111-1111-1111-111111111111',
+    colorScheme: {
+      bg: 'rgba(168, 85, 247, 0.18)',
+      border: '#a855f7',
+      text: '#e9d5ff',
+      glow: '0 0 8px rgba(168, 85, 247, 0.5)'
+    }
+  },
+  {
+    id: 'ent-cust-pyeongtaek',
+    type: 'customer',
+    label: '고객사',
+    pattern: /미래\s*물류(\s*센터)?|정센터장|미래물류/i,
+    icon: '🏢',
+    customerId: 'a2222222-2222-2222-2222-222222222222',
+    colorScheme: {
+      bg: 'rgba(168, 85, 247, 0.18)',
+      border: '#a855f7',
+      text: '#e9d5ff',
+      glow: '0 0 8px rgba(168, 85, 247, 0.5)'
+    }
+  },
+  {
+    id: 'ent-cust-hwaseong',
+    type: 'customer',
+    label: '고객사',
+    pattern: /케이\s*로지스|오센터장|케이로지스/i,
+    icon: '🏢',
+    customerId: 'a1010101-1010-1010-1010-101010101010',
+    colorScheme: {
+      bg: 'rgba(168, 85, 247, 0.18)',
+      border: '#a855f7',
+      text: '#e9d5ff',
+      glow: '0 0 8px rgba(168, 85, 247, 0.5)'
+    }
+  },
+
+  // B. SITE & LOCATION (현장명 / 지점명 / 건물구역 - Amber / Orange)
+  {
+    id: 'ent-site-gangnam',
+    type: 'site',
+    label: '현장/위치',
+    pattern: /강남점|강남|방재실|테헤란로|지하\s*1층/i,
+    icon: '📍',
+    customerId: 'a1111111-1111-1111-1111-111111111111',
+    colorScheme: {
+      bg: 'rgba(245, 158, 11, 0.18)',
+      border: '#f59e0b',
+      text: '#fde68a',
+      glow: '0 0 8px rgba(245, 158, 11, 0.5)'
+    }
+  },
+  {
+    id: 'ent-site-pyeongtaek',
+    type: 'site',
+    label: '현장/위치',
+    pattern: /평택점|평택|물류\s*데크|산단로|1층/i,
+    icon: '📍',
+    customerId: 'a2222222-2222-2222-2222-222222222222',
+    colorScheme: {
+      bg: 'rgba(245, 158, 11, 0.18)',
+      border: '#f59e0b',
+      text: '#fde68a',
+      glow: '0 0 8px rgba(245, 158, 11, 0.5)'
+    }
+  },
+  {
+    id: 'ent-site-hwaseong',
+    type: 'site',
+    label: '현장/위치',
+    pattern: /화성\s*센터|화성|하역장|남양읍|남양로|A동/i,
+    icon: '📍',
+    customerId: 'a1010101-1010-1010-1010-101010101010',
+    colorScheme: {
+      bg: 'rgba(245, 158, 11, 0.18)',
+      border: '#f59e0b',
+      text: '#fde68a',
+      glow: '0 0 8px rgba(245, 158, 11, 0.5)'
+    }
+  },
+
+  // C. SYMPTOM & PART (증상 / 부품 - Cyan / Blue)
+  {
+    id: 'ent-sym-suction',
+    type: 'symptom',
+    label: '증상/부품',
+    pattern: /흡입\s*모터|진공압|굉음|타는\s*냄새|모터\s*소리|흡입력/i,
+    icon: '🔍',
+    keywordId: 'kw-suction',
+    colorScheme: {
+      bg: 'rgba(37, 99, 235, 0.18)',
+      border: '#60a5fa',
+      text: '#93c5fd',
+      glow: '0 0 8px rgba(37, 99, 235, 0.5)'
+    }
+  },
+  {
+    id: 'ent-sym-squeegee',
+    type: 'symptom',
+    label: '증상/부품',
+    pattern: /스퀴지|바닥\s*물기|잔수|고무\s*블레이드|물\s*자국/i,
+    icon: '🔍',
+    keywordId: 'kw-squeegee',
+    colorScheme: {
+      bg: 'rgba(37, 99, 235, 0.18)',
+      border: '#60a5fa',
+      text: '#93c5fd',
+      glow: '0 0 8px rgba(37, 99, 235, 0.5)'
+    }
+  },
+  {
+    id: 'ent-sym-battery',
+    type: 'symptom',
+    label: '증상/부품',
+    pattern: /배터리|충전|전원\s*불량|안\s*켜|방전|충전기/i,
+    icon: '🔍',
+    keywordId: 'kw-battery',
+    colorScheme: {
+      bg: 'rgba(37, 99, 235, 0.18)',
+      border: '#60a5fa',
+      text: '#93c5fd',
+      glow: '0 0 8px rgba(37, 99, 235, 0.5)'
+    }
+  },
+  {
+    id: 'ent-sym-solenoid',
+    type: 'symptom',
+    label: '증상/부품',
+    pattern: /솔레노이드|물\s*안\s*나옴|누수|급수\s*밸브|세제\s*분사/i,
+    icon: '🔍',
+    keywordId: 'kw-solenoid',
+    colorScheme: {
+      bg: 'rgba(37, 99, 235, 0.18)',
+      border: '#60a5fa',
+      text: '#93c5fd',
+      glow: '0 0 8px rgba(37, 99, 235, 0.5)'
+    }
+  }
+];
+
+export interface EntityClickHandlers {
+  onSymptomClick: (entity: KeywordEntity) => void;
+  onCustomerClick?: (customer: CustomerInfo) => void;
+  onSiteClick?: (customer: CustomerInfo) => void;
+}
+
+export function renderMultiColorHighlightedText(
+  text: string,
+  handlers: EntityClickHandlers,
+  activeKeywordId?: string,
+  activeCustomerId?: string,
+  customerList?: CustomerInfo[]
 ): React.ReactNode[] {
   if (!text) return [];
 
-  // Combined Regex for all domain keywords
-  const combinedRegex = /(흡입\s*모터|진공압|굉음|타는\s*냄새|스퀴지|바닥\s*물기|잔수|고무\s*블레이드|배터리|충전|방전|솔레노이드|누수|급수\s*밸브)/gi;
+  // Master Unified Regex capturing Customers, Sites, and Symptoms
+  const masterRegex = /(스페이스\s*클린|스페이스|최관리\s*(팀장)?|미래\s*물류(\s*센터)?|정센터장|미래물류|케이\s*로지스|오센터장|강남점|방재실|테헤란로|지하\s*1층|평택점|물류\s*데크|산단로|화성\s*센터|하역장|남양읍|남양로|흡입\s*모터|진공압|굉음|타는\s*냄새|모터\s*소리|스퀴지|바닥\s*물기|잔수|고무\s*블레이드|배터리|충전|방전|솔레노이드|누수|급수\s*밸브)/gi;
 
-  const parts = text.split(combinedRegex);
-  
+  const parts = text.split(masterRegex);
+
   return parts.map((part, idx) => {
-    const matchedEntity = DOMAIN_KEYWORD_REGISTRY.find(e => e.synonyms.test(part));
-    
-    if (matchedEntity) {
-      const isActive = activeEntityId === matchedEntity.id;
+    if (!part) return null;
+
+    const matchedRule = NAMED_ENTITY_REGISTRY.find(r => r.pattern.test(part));
+
+    if (matchedRule) {
+      let isSelected = false;
+      if (matchedRule.type === 'symptom' && matchedRule.keywordId === activeKeywordId) {
+        isSelected = true;
+      } else if ((matchedRule.type === 'customer' || matchedRule.type === 'site') && matchedRule.customerId === activeCustomerId) {
+        isSelected = true;
+      }
+
+      const handleClick = () => {
+        if (matchedRule.type === 'symptom' && matchedRule.keywordId) {
+          const kw = DOMAIN_KEYWORD_REGISTRY.find(k => k.id === matchedRule.keywordId);
+          if (kw) handlers.onSymptomClick(kw);
+        } else if ((matchedRule.type === 'customer' || matchedRule.type === 'site') && matchedRule.customerId && customerList) {
+          const cust = customerList.find(c => c.id === matchedRule.customerId);
+          if (cust && handlers.onCustomerClick) {
+            handlers.onCustomerClick(cust);
+          }
+        }
+      };
+
+      const titleText = matchedRule.type === 'customer' 
+        ? `[고객사: ${part}] 클릭 시 고객 카드 자동 식별` 
+        : matchedRule.type === 'site' 
+        ? `[현장/위치: ${part}] 클릭 시 해당 지점 고객 카드 연동` 
+        : `[증상: ${part}] 클릭 시 어시스트 조치 가이드 연동`;
+
       return (
         <span
           key={idx}
-          onClick={() => onKeywordClick(matchedEntity)}
-          title={`클릭 시 [${matchedEntity.keyword}] 어시스트 즉시 조회`}
+          onClick={handleClick}
+          title={titleText}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '2px',
-            backgroundColor: isActive ? 'rgba(37, 99, 235, 0.35)' : 'rgba(37, 99, 235, 0.18)',
-            borderBottom: `2px solid ${isActive ? 'var(--accent-primary)' : '#60a5fa'}`,
-            color: isActive ? '#fff' : '#93c5fd',
+            backgroundColor: isSelected ? matchedRule.colorScheme.bg.replace('0.18', '0.38') : matchedRule.colorScheme.bg,
+            borderBottom: `2px solid ${matchedRule.colorScheme.border}`,
+            color: matchedRule.colorScheme.text,
             fontWeight: 700,
             padding: '1px 5px',
             margin: '0 2px',
             borderRadius: '4px',
             cursor: 'pointer',
-            boxShadow: isActive ? '0 0 8px rgba(37, 99, 235, 0.6)' : 'none',
+            boxShadow: isSelected ? matchedRule.colorScheme.glow : 'none',
             transition: 'all 0.15s ease'
           }}
         >
-          🔍 {part}
+          <span>{matchedRule.icon}</span>
+          <span>{part}</span>
         </span>
       );
     }
+
     return <span key={idx}>{part}</span>;
   });
 }

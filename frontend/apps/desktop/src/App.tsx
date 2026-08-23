@@ -23,8 +23,13 @@ import { useCounselStore } from './store';
 import { MicTestModal } from './MicTestModal';
 import { AudioTestPlayer } from './AudioTestPlayer';
 import { applyContextualCorrection } from './contextCorrector';
-import { DOMAIN_KEYWORD_REGISTRY, renderHighlightedText } from './keywordAssist';
+import { 
+  DOMAIN_KEYWORD_REGISTRY, 
+  NAMED_ENTITY_REGISTRY, 
+  renderMultiColorHighlightedText 
+} from './keywordAssist';
 import type { KeywordEntity } from './keywordAssist';
+import type { CustomerInfo } from './store';
 import './index.css';
 
 declare global {
@@ -164,7 +169,7 @@ export default function App() {
     };
   }, [isRecording]);
 
-  // Robust Persistent Web Speech API with Focus-Loss Auto-Recovery
+  // Robust Persistent Web Speech API with Multi-Entity Auto-Trigger
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
@@ -209,15 +214,31 @@ export default function App() {
         setInterimSttText(interim);
       }
 
-      // Real-time Keyword Auto-Trigger (<50ms)
+      // Real-time Multi-Entity Detection (Customer, Site, Symptom)
       const currentStream = interim.trim() || final.trim();
       if (currentStream) {
+        // 1. Symptom Trigger
         for (const entity of DOMAIN_KEYWORD_REGISTRY) {
           if (entity.synonyms.test(currentStream)) {
             if (!activeKeywordEntity || activeKeywordEntity.id !== entity.id) {
               setActiveKeywordEntity(entity);
               setJustTriggeredKeyword(entity.keyword);
               setTimeout(() => setJustTriggeredKeyword(null), 2500);
+            }
+            break;
+          }
+        }
+
+        // 2. Customer / Site Trigger
+        for (const entRule of NAMED_ENTITY_REGISTRY) {
+          if ((entRule.type === 'customer' || entRule.type === 'site') && entRule.pattern.test(currentStream)) {
+            if (entRule.customerId && selectedCustomer.id !== entRule.customerId) {
+              const matchedCust = customerList.find(c => c.id === entRule.customerId);
+              if (matchedCust) {
+                selectCustomer(matchedCust);
+                showToast(`${entRule.icon} [${matchedCust.name}] 음성 식별 자동 매핑됨`);
+                setTimeout(() => clearToast(), 3000);
+              }
             }
             break;
           }
@@ -273,7 +294,7 @@ export default function App() {
         recognition.stop();
       } catch (_) {}
     };
-  }, [appendFinalParagraph, setInterimSttText, isContextCorrectionEnabled, setRecording, activeKeywordEntity, setActiveKeywordEntity, showToast, clearToast]);
+  }, [appendFinalParagraph, setInterimSttText, isContextCorrectionEnabled, setRecording, activeKeywordEntity, setActiveKeywordEntity, selectedCustomer, customerList, selectCustomer, showToast, clearToast]);
 
   const toggleRecording = () => {
     if (!isRecording) {
@@ -302,6 +323,12 @@ export default function App() {
   const handleKeywordSelect = (entity: KeywordEntity) => {
     setActiveKeywordEntity(entity);
     showToast(`🔍 키워드 [${entity.keyword}] 어시스트 즉시 조회 연동됨`);
+    setTimeout(() => clearToast(), 2500);
+  };
+
+  const handleCustomerSelect = (customer: CustomerInfo) => {
+    selectCustomer(customer);
+    showToast(`🏢 고객사 [${customer.name}] 선택됨`);
     setTimeout(() => clearToast(), 2500);
   };
 
@@ -698,7 +725,7 @@ export default function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Sparkles size={14} style={{ color: 'var(--accent-primary)' }} />
-                실시간 전사 자막 및 키워드 자동 감지
+                실시간 전사 자막 및 개체(Entity) 자동 감지
               </span>
               
               {/* Dynamic Mic Activity Indicator */}
@@ -714,25 +741,49 @@ export default function App() {
               </div>
             </div>
 
+            {/* Entity Color Scheme Legend Bar */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px', 
+              fontSize: '11px', 
+              backgroundColor: 'var(--surface-2)', 
+              padding: '5px 8px', 
+              borderRadius: '4px', 
+              border: '1px solid var(--hairline)',
+              marginBottom: '6px'
+            }}>
+              <span style={{ color: 'var(--ink-muted)', fontWeight: 600 }}>식별 범례:</span>
+              <span style={{ color: '#e9d5ff', backgroundColor: 'rgba(168, 85, 247, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+                🏢 고객사/담당자 (보라)
+              </span>
+              <span style={{ color: '#fde68a', backgroundColor: 'rgba(245, 158, 11, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+                📍 현장/위치 (황색)
+              </span>
+              <span style={{ color: '#93c5fd', backgroundColor: 'rgba(37, 99, 235, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+                🔍 고장증상 (푸른색)
+              </span>
+            </div>
+
             <div style={{ 
               backgroundColor: 'var(--ars-bg)', 
               border: '1px solid var(--ars-border)', 
               borderRadius: '4px', 
-              padding: '6px 10px', 
-              fontSize: '11px', 
+              padding: '4px 8px', 
+              fontSize: '10px', 
               color: 'var(--ars-text)',
-              lineHeight: 1.3 
+              lineHeight: 1.2 
             }}>
               ⚖️ [ARS 고지 필수] "본 통화는 품질 향상 및 AI 상담 지원을 위해 녹음/분석됩니다."
             </div>
           </div>
 
-          {/* STT Live Transcript Box with Natural Speech Line Breaks */}
+          {/* STT Live Transcript Box with Multi-Color Entity Highlights */}
           <div style={{ flex: '1.2', padding: '12px', display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--hairline)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
-                  전사 자막 (대화 끊김 시 맥락상 자동 줄바꿈)
+                  전사 자막 (단어 클릭 시 해당 고객/증상으로 즉시 이동)
                 </label>
                 {correctionHistory.length > 0 && isContextCorrectionEnabled && (
                   <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 600 }}>
@@ -770,7 +821,7 @@ export default function App() {
                 color: 'var(--ink)'
               }}
             >
-              {/* Contextual Line Break Rendering per Speech Pause */}
+              {/* Multi-Color Highlighted Paragraphs */}
               {activeParagraphs.length > 0 ? (
                 <div>
                   {activeParagraphs.map((paragraph, pIdx) => (
@@ -786,10 +837,16 @@ export default function App() {
                         #{pIdx + 1}
                       </span>
                       <span>
-                        {renderHighlightedText(
+                        {renderMultiColorHighlightedText(
                           paragraph,
-                          handleKeywordSelect,
-                          activeKeywordEntity?.id
+                          {
+                            onSymptomClick: handleKeywordSelect,
+                            onCustomerClick: handleCustomerSelect,
+                            onSiteClick: handleCustomerSelect
+                          },
+                          activeKeywordEntity?.id,
+                          selectedCustomer?.id,
+                          customerList
                         )}
                       </span>
                     </div>
