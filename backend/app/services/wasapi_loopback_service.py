@@ -32,7 +32,8 @@ CAPTURE_SAMPLE_RATE   = 48000   # WASAPI 기본 샘플레이트 (Hz)
 WHISPER_SAMPLE_RATE   = 16000   # Faster-Whisper 요구 샘플레이트 (Hz)
 CHUNK_SECONDS         = 2       # 청크 단위 (초)
 CHUNK_FRAMES          = CAPTURE_SAMPLE_RATE * CHUNK_SECONDS
-SILENCE_THRESHOLD_RMS = 0.008   # 에너지 기반 VAD: RMS 임계치 (무음 제거)
+SILENCE_THRESHOLD_RMS = 0.003   # 에너지 기반 VAD: RMS 임계치 (무음 제거 및 민감도 향상)
+
 
 
 def resample_to_16k(audio: np.ndarray, orig_sr: int) -> np.ndarray:
@@ -235,7 +236,7 @@ class LoopbackSTTService:
                 recorder.record(numframes=_flush_frames)
                 logger.info("WASAPI 초기 버퍼 플러시 완료 (1초 폐기)")
 
-                # ── 동적 문장 버퍼링 (Pseudo-streaming) ──────────────────────
+                # ── 동적 문장 버퍼링 (Ultra Low-Latency Pseudo-streaming) ──
                 mini_chunk_seconds = 0.5
                 mini_chunk_frames = int(CAPTURE_SAMPLE_RATE * mini_chunk_seconds)
                 
@@ -243,8 +244,8 @@ class LoopbackSTTService:
                 silence_strikes = 0
                 is_streaming = False
                 stream_start_time = None
-                MAX_SILENCE_STRIKES = 2   # 1.0초 무음 시 문장 끝으로 간주
-                MAX_SPEECH_CHUNKS = 20    # 10초 이상 길어지면 강제 전사 (실시간성 보장)
+                MAX_SILENCE_STRIKES = 1   # 0.5초(1회) 무음 감지 시 즉시 전사 (초고속 반응)
+                MAX_SPEECH_CHUNKS = 4     # 연속 발화 시에도 2.0초(4청크)마다 즉시 실시간 전사 (10초 지연 제거)
 
                 while not self._stop_event.is_set():
                     # 외부에서 즉각적인 버퍼 리셋 요청 시
@@ -284,7 +285,7 @@ class LoopbackSTTService:
                         if len(speech_buffer) > 0:
                             silence_strikes += 1
                             # 1.5초 이상 무음 지속 시, 잔여 버퍼(미세 잡음 등)는 전사하지 않고 폐기하여 다음 통화 오염 방지
-                            if silence_strikes > MAX_SILENCE_STRIKES + 1:
+                            if silence_strikes > MAX_SILENCE_STRIKES + 2:
                                 speech_buffer = []
                                 silence_strikes = 0
                                 continue
@@ -307,11 +308,12 @@ class LoopbackSTTService:
                         speech_buffer = []
                         silence_strikes = 0
 
-                        # 최소 발화 길이(0.8초) 미만은 잡음/추임새 잔여물이므로 스킵
-                        if len(sentence_audio) < int(CAPTURE_SAMPLE_RATE * 0.8):
+                        # 최소 발화 길이(0.4초) 미만은 잡음/추임새 잔여물이므로 스킵
+                        if len(sentence_audio) < int(CAPTURE_SAMPLE_RATE * 0.4):
                             continue
 
                         audio_16k = resample_to_16k(sentence_audio, CAPTURE_SAMPLE_RATE)
+
                         
                         segments, _info = model.transcribe(
                             audio_16k,
