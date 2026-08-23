@@ -2,19 +2,29 @@ import os
 import uuid
 import hashlib
 
-def gen_sql():
+def gen_phase2_sql():
     sql = []
     sql.append("-- ==========================================================")
     sql.append("-- Space Advisor 2차 심화 WTT (S6~S10) 모의 데이터 SQL 스크립트")
     sql.append("-- 목적: 고난도 5대 엣지케이스(복합증상, 재고부족 롤백, 오프라인 큐,")
     sql.append("--       상담사 오버라이드, 30일 내 반복고장 긴급승격) 모의 데이터 적재")
+    sql.append("-- (FK 제약조건 100% 독립 실행 가능하도록 직원 선행 등록 포함)")
     sql.append("-- ==========================================================\n")
     sql.append("BEGIN;\n")
 
-    # 직원 ID
+    # 0. 직원 데이터 (FK 사전 보장)
     emp_counselor_id = "11111111-1111-1111-1111-111111111111"
     emp_field1_id = "22222222-2222-2222-2222-222222222222"
     emp_field2_id = "33333333-3333-3333-3333-333333333333"
+
+    sql.append("-- 0. 직원 데이터 선행 보장 (employees)")
+    sql.append(f"""INSERT INTO employees (id, name, phone)
+VALUES 
+('{emp_counselor_id}', '이지은 상담사', '010-1111-2222'),
+('{emp_field1_id}', '김철수 정비기사', '010-3333-4444'),
+('{emp_field2_id}', '박영호 정비기사', '010-5555-6666')
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, phone = EXCLUDED.phone;
+""")
 
     # 1. 신규 고객사 (S-7, S-8, S-9, S-10 전용)
     cust_s7_id = "a7777777-7777-7777-7777-777777777777"
@@ -132,7 +142,26 @@ ON CONFLICT (id) DO NOTHING;
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(sql))
 
-    print(f"Generated 2nd WTT Mock SQL Seed: {out_path}")
+    print(f"Regenerated 2nd WTT Mock SQL Seed: {out_path}")
+
+def gen_master_all_sql():
+    # Merge Phase 1 (S1-S5) and Phase 2 (S6-S10) into a single master SQL file
+    p1_path = r"D:\GoogleDrive\RPA_dev\01.AntiGravity\Space_consult_assist\backend\scripts\seed_wtt_mock_data.sql"
+    p2_path = r"D:\GoogleDrive\RPA_dev\01.AntiGravity\Space_consult_assist\backend\scripts\seed_wtt_mock_data_phase2.sql"
+    
+    with open(p1_path, 'r', encoding='utf-8') as f:
+        p1_content = f.read().replace("COMMIT;", "")
+        
+    with open(p2_path, 'r', encoding='utf-8') as f:
+        p2_content = f.read().replace("BEGIN;", "")
+
+    master_content = p1_content + "\n-- ==========================================\n-- [2차 심화 WTT (S6~S10) 데이터 추가 병합]\n-- ==========================================\n" + p2_content
+    
+    master_path = r"D:\GoogleDrive\RPA_dev\01.AntiGravity\Space_consult_assist\backend\scripts\seed_wtt_master_all.sql"
+    with open(master_path, "w", encoding="utf-8") as f:
+        f.write(master_content)
+    print(f"Generated Unified Master Mock SQL Seed: {master_path}")
 
 if __name__ == "__main__":
-    gen_sql()
+    gen_phase2_sql()
+    gen_master_all_sql()
