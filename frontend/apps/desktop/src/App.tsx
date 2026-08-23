@@ -87,6 +87,23 @@ export default function App() {
   const [micAudioLevel, setMicAudioLevel] = useState(0);
   const [justTriggeredKeyword, setJustTriggeredKeyword] = useState<string | null>(null);
 
+  // Drag and Drop Audio File onto Window
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (file.name.match(/\.(m4a|mp3|wav|ogg|aac|flac)$/i)) {
+        setIsAudioPlayerOpen(true);
+        showToast(`📁 [${file.name}] 음성 파일이 드롭되어 플레이어에 로드되었습니다.`);
+        setTimeout(() => clearToast(), 3000);
+      }
+    }
+  };
+
   const isRecordingRef = useRef(isRecording);
   isRecordingRef.current = isRecording;
 
@@ -411,7 +428,11 @@ export default function App() {
   const totalCount = actionChecklist.length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: 'var(--canvas)', color: 'var(--ink)' }}>
+    <div 
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: 'var(--canvas)', color: 'var(--ink)' }}
+    >
       
       {/* ========================================================= */}
       {/* 1. TOP GLOBAL NAVIGATION (Linear High-Density Bar)        */}
