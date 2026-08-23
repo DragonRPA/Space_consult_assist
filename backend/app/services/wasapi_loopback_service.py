@@ -204,6 +204,13 @@ class LoopbackSTTService:
                 channels=1,
                 blocksize=4096
             ) as recorder:
+                # ── WASAPI 버퍼 플러시 ────────────────────────────────────────
+                # 레코더를 새로 열 때 이전 세션의 꼬리 오디오가 버퍼에 남아있을 수 있음.
+                # 최초 1초 분량을 무조건 버려서 이전 통화의 마지막 단어 누출을 차단.
+                _flush_frames = int(CAPTURE_SAMPLE_RATE * 1.0)
+                recorder.record(numframes=_flush_frames)
+                logger.info("WASAPI 초기 버퍼 플러시 완료 (1초 폐기)")
+
                 while not self._stop_event.is_set():
                     chunk = recorder.record(numframes=chunk_frames)
                     audio_mono = chunk[:, 0] if chunk.ndim > 1 else chunk
@@ -222,6 +229,10 @@ class LoopbackSTTService:
                         audio_16k,
                         language="ko",
                         beam_size=3,
+                        # ── 컨텍스트 완전 초기화 ─────────────────────────────────
+                        # initial_prompt="": 이전 transcribe() 호출의 암묵적 컨텍스트를
+                        # 명시적으로 초기화. "직전 마지막 단어 누출" 현상 차단.
+                        initial_prompt="",
                         # ── 환각(Hallucination) 억제 파라미터 ───────────────────
                         # no_speech_threshold: 이 값 이상의 무음 확률이면 세그먼트 전체 버림
                         no_speech_threshold=0.6,
