@@ -20,6 +20,8 @@ import {
   Pause, 
   Upload, 
   FileAudio, 
+  FileText,
+  ClipboardList,
   X 
 } from 'lucide-react';
 import { useCounselStore } from './store';
@@ -96,101 +98,21 @@ export default function App() {
 
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [isMicTestOpen, setIsMicTestOpen] = useState(false);
+  const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
+  const [pastedInputText, setPastedInputText] = useState('');
   const [micAudioLevel, setMicAudioLevel] = useState(0);
   const [justTriggeredKeyword, setJustTriggeredKeyword] = useState<string | null>(null);
   const [isDragOverDropzone, setIsDragOverDropzone] = useState(false);
 
   const globalAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const txtFileInputRef = useRef<HTMLInputElement | null>(null);
   const isRecordingRef = useRef(isRecording);
   isRecordingRef.current = isRecording;
 
-  const recognitionRef = useRef<any>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const animFrameRef = useRef<number | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const transcriptBoxRef = useRef<HTMLDivElement | null>(null);
-
-  // Synchronous STT Startup Function (Instant Mic Engagement)
-  const startSttStreaming = useCallback(() => {
-    setRecording(true);
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.start();
-      } catch (e: any) {
-        if (e.name !== 'InvalidStateError') {
-          console.warn("STT Start Notice:", e);
-        }
-      }
-    }
-  }, [setRecording]);
-
-  const stopSttStreaming = useCallback(() => {
-    setRecording(false);
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (_) {}
-    }
-  }, [setRecording]);
-
-  // GLOBAL WINDOW DRAG & DROP INTERCEPTOR (Prevents browser from opening new window/tab!)
-  useEffect(() => {
-    const handleGlobalDragOver = (e: DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.dataTransfer) {
-        e.dataTransfer.dropEffect = 'copy';
-      }
-    };
-
-    const handleGlobalDrop = (e: DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragOverDropzone(false);
-
-      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-        const file = e.dataTransfer.files[0];
-        if (file.name.match(/\.(m4a|mp3|wav|ogg|aac|flac)$/i)) {
-          // Reset transcript and session state for the fresh audio file!
-          playedCueIndicesRef.current.clear();
-          resetSessionForNewAudio();
-          setActiveAudioFile(file);
-          setIsAudioPlaying(true);
-          showToast(`🎧 [${file.name}] 디지털 오디오 스트림 수신 시작 (무소음 STT 동기화)`);
-          setTimeout(() => clearToast(), 3500);
-        }
-      }
-    };
-
-    window.addEventListener('dragover', handleGlobalDragOver);
-    window.addEventListener('drop', handleGlobalDrop);
-
-    return () => {
-      window.removeEventListener('dragover', handleGlobalDragOver);
-      window.removeEventListener('drop', handleGlobalDrop);
-    };
-  }, [resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, showToast, clearToast]);
-
-  // Background Audio Controller Sync
-  useEffect(() => {
-    if (!globalAudioRef.current || !activeAudioUrl) return;
-
-    if (isAudioPlaying) {
-      globalAudioRef.current.play().then(() => {
-        startSttStreaming();
-      }).catch((err) => {
-        console.warn("Audio play blocked or waiting for user gesture:", err);
-      });
-    } else {
-      globalAudioRef.current.pause();
-    }
-  }, [isAudioPlaying, activeAudioUrl, startSttStreaming]);
-
   const playedCueIndicesRef = useRef<Set<number>>(new Set());
 
-  // Function to process incoming speech (Shared between Live Mic and Digital Audio Stream)
+  // Function to process incoming speech (Shared across Live Mic, Digital Audio Sync, and Text Paste)
   const processIncomingSpeechUtterance = (rawText: string) => {
     const { correctedText, corrections } = applyContextualCorrection(rawText);
     appendFinalParagraph(rawText, correctedText, corrections);
@@ -236,6 +158,144 @@ export default function App() {
       }
     }
   };
+
+  // Direct Text Conversation Parser (Instant Diagnosis & SOP Checklist trigger)
+  const handlePasteText = (content: string, sourceName = '대화록 텍스트') => {
+    if (!content || !content.trim()) return;
+    resetSessionForNewAudio();
+    clearAudioFile();
+    playedCueIndicesRef.current.clear();
+
+    const rawLines = content.split('\n');
+    const validLines: string[] = [];
+
+    for (const rawLine of rawLines) {
+      const trimmed = rawLine.trim();
+      if (!trimmed) continue;
+      // Strip timestamps like [00:00:19]
+      const cleanLine = trimmed.replace(/^\[\d{1,2}:\d{2}(:\d{2})?\]\s*/, '');
+      if (cleanLine.length > 0) {
+        validLines.push(cleanLine);
+      }
+    }
+
+    if (validLines.length === 0) return;
+
+    // Process all conversation turns in order
+    validLines.forEach(line => {
+      processIncomingSpeechUtterance(line);
+    });
+
+    showToast(`📋 [${sourceName}] ${validLines.length}줄 분석 ➔ 증상·고객·조치 즉시 표출 완료!`);
+    setTimeout(() => clearToast(), 3500);
+  };
+
+  const recognitionRef = useRef<any>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const transcriptBoxRef = useRef<HTMLDivElement | null>(null);
+
+  // Synchronous STT Startup Function (Instant Mic Engagement)
+  const startSttStreaming = useCallback(() => {
+    setRecording(true);
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.start();
+      } catch (e: any) {
+        if (e.name !== 'InvalidStateError') {
+          console.warn("STT Start Notice:", e);
+        }
+      }
+    }
+  }, [setRecording]);
+
+  const stopSttStreaming = useCallback(() => {
+    setRecording(false);
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (_) {}
+    }
+  }, [setRecording]);
+
+  // GLOBAL WINDOW DRAG & DROP & PASTE INTERCEPTOR
+  useEffect(() => {
+    const handleGlobalDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    };
+
+    const handleGlobalDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOverDropzone(false);
+
+      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        
+        // 1. If TXT conversation file is dropped -> Parse and process text directly!
+        if (file.name.match(/\.(txt|log)$/i)) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const content = event.target?.result as string;
+            if (content) {
+              handlePasteText(content, file.name);
+            }
+          };
+          reader.readAsText(file, 'utf-8');
+          return;
+        }
+
+        // 2. If Audio file is dropped -> Digital stream sync audio player!
+        if (file.name.match(/\.(m4a|mp3|wav|ogg|aac|flac)$/i)) {
+          playedCueIndicesRef.current.clear();
+          resetSessionForNewAudio();
+          setActiveAudioFile(file);
+          setIsAudioPlaying(true);
+          showToast(`🎧 [${file.name}] 디지털 오디오 스트림 수신 시작 (무소음 STT 동기화)`);
+          setTimeout(() => clearToast(), 3500);
+        }
+      }
+    };
+
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
+      const pastedText = e.clipboardData?.getData('text');
+      if (pastedText && pastedText.trim().length > 0) {
+        handlePasteText(pastedText, '클립보드 붙여넣기');
+      }
+    };
+
+    window.addEventListener('dragover', handleGlobalDragOver);
+    window.addEventListener('drop', handleGlobalDrop);
+    window.addEventListener('paste', handleGlobalPaste);
+
+    return () => {
+      window.removeEventListener('dragover', handleGlobalDragOver);
+      window.removeEventListener('drop', handleGlobalDrop);
+      window.removeEventListener('paste', handleGlobalPaste);
+    };
+  }, [resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, showToast, clearToast]);
+
+  // Background Audio Controller Sync
+  useEffect(() => {
+    if (!globalAudioRef.current || !activeAudioUrl) return;
+
+    if (isAudioPlaying) {
+      globalAudioRef.current.play().catch((err) => {
+        console.warn("Audio play blocked or waiting for user gesture:", err);
+      });
+    } else {
+      globalAudioRef.current.pause();
+    }
+  }, [isAudioPlaying, activeAudioUrl]);
 
   const handleAudioTimeUpdate = (currentTimeSec: number) => {
     if (!activeAudioFile) return;
@@ -622,12 +682,31 @@ export default function App() {
         }}
       />
 
-      {/* Hidden File Input for Direct File Choice */}
+      {/* Hidden File Input for Direct Audio Choice */}
       <input
         ref={fileInputRef}
         type="file"
         accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.flac"
         onChange={handleManualFileSelect}
+        style={{ display: 'none' }}
+      />
+
+      {/* Hidden File Input for Direct TXT File Choice */}
+      <input
+        ref={txtFileInputRef}
+        type="file"
+        accept=".txt,.log,text/plain"
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const text = ev.target?.result as string;
+              if (text) handlePasteText(text, file.name);
+            };
+            reader.readAsText(file, 'utf-8');
+          }
+        }}
         style={{ display: 'none' }}
       />
       
@@ -1094,25 +1173,73 @@ export default function App() {
                   </button>
                 </>
               ) : (
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '4px', 
-                    padding: '3px 8px', 
-                    backgroundColor: 'var(--surface-2)', 
-                    border: '1px solid var(--hairline)', 
-                    borderRadius: '4px', 
-                    color: '#93c5fd', 
-                    fontSize: '11px', 
-                    cursor: 'pointer', 
-                    fontWeight: 600 
-                  }}
-                >
-                  <Upload size={12} />
-                  <span>.m4a 파일 열기</span>
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button 
+                    onClick={() => txtFileInputRef.current?.click()}
+                    title="대화록 텍스트(.txt) 파일 열기"
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '4px', 
+                      padding: '4px 8px', 
+                      backgroundColor: 'var(--surface-2)', 
+                      border: '1px solid var(--hairline)', 
+                      borderRadius: '4px', 
+                      color: '#93c5fd', 
+                      fontSize: '11px', 
+                      cursor: 'pointer', 
+                      fontWeight: 600 
+                    }}
+                  >
+                    <FileText size={12} />
+                    <span>.txt 열기</span>
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                      setPastedInputText('');
+                      setIsPasteModalOpen(true);
+                    }}
+                    title="대화록 텍스트 직접 붙여넣기 (Ctrl+V)"
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '4px', 
+                      padding: '4px 8px', 
+                      backgroundColor: 'rgba(37, 99, 235, 0.15)', 
+                      border: '1px solid var(--accent-primary)', 
+                      borderRadius: '4px', 
+                      color: '#93c5fd', 
+                      fontSize: '11px', 
+                      cursor: 'pointer', 
+                      fontWeight: 600 
+                    }}
+                  >
+                    <ClipboardList size={12} />
+                    <span>텍스트 붙여넣기</span>
+                  </button>
+
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    title="음성(.m4a) 파일 열기"
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '4px', 
+                      padding: '4px 8px', 
+                      backgroundColor: 'var(--surface-2)', 
+                      border: '1px solid var(--hairline)', 
+                      borderRadius: '4px', 
+                      color: 'var(--ink)', 
+                      fontSize: '11px', 
+                      cursor: 'pointer', 
+                      fontWeight: 600 
+                    }}
+                  >
+                    <Upload size={12} />
+                    <span>.m4a 열기</span>
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -1169,7 +1296,7 @@ export default function App() {
                   borderRadius: '6px'
                 }}>
                   <Upload size={32} className="animate-bounce" style={{ marginBottom: '8px', color: '#93c5fd' }} />
-                  <span>🎯 여기에 .m4a 음성 파일을 놓으면 즉시 스피커 재생 및 STT가 시작됩니다!</span>
+                  <span>🎯 여기에 .txt 대화록이나 .m4a 음성 파일을 놓으면 즉시 분석/동기화됩니다!</span>
                 </div>
               )}
 
@@ -1701,6 +1828,112 @@ export default function App() {
       {/* 6. MIC TEST MODAL                                         */}
       {/* ========================================================= */}
       <MicTestModal isOpen={isMicTestOpen} onClose={() => setIsMicTestOpen(false)} />
+
+      {/* ========================================================= */}
+      {/* 7. DIRECT TEXT CONVERSATION PASTE MODAL                   */}
+      {/* ========================================================= */}
+      {isPasteModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.75)',
+          backdropFilter: 'blur(3px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 150
+        }}>
+          <div style={{
+            width: '600px',
+            maxHeight: '85vh',
+            backgroundColor: 'var(--surface-1)',
+            border: '1px solid var(--hairline)',
+            borderRadius: '8px',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.8)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ClipboardList size={18} color="var(--accent-primary)" />
+                <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)' }}>대화록 텍스트 붙여넣기 및 즉시 분석</span>
+              </div>
+              <button 
+                onClick={() => setIsPasteModalOpen(false)} 
+                style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ fontSize: '13px', color: 'var(--ink-muted)', marginBottom: '12px', lineHeight: 1.5 }}>
+              실제 통화 녹취록 텍스트(타임스탬프 <code>[00:00:19]</code> 포함 가능)를 아래에 붙여넣으세요. 
+              입력 즉시 고객사 식별, 구어체 고장 증상 4색 하이라이트, 조치 SOP 체크리스트가 <strong>0.01초 만에 일괄 표출</strong>됩니다.
+            </div>
+
+            <textarea
+              autoFocus
+              value={pastedInputText}
+              onChange={(e) => setPastedInputText(e.target.value)}
+              placeholder={`[00:00:00] 네 안녕하세요 스페이스라고 합니다\n[00:00:19] 뒤에 고무패드 고정시키는게 깨졌어요\n[00:00:25] 예예 고무패드 고정시키는거 밑에 판 이야기하시는거죠?`}
+              style={{
+                width: '100%',
+                height: '220px',
+                backgroundColor: 'var(--surface-2)',
+                border: '1px solid var(--hairline)',
+                borderRadius: '6px',
+                padding: '12px',
+                color: 'var(--ink)',
+                fontSize: '13px',
+                fontFamily: 'monospace',
+                lineHeight: 1.6,
+                resize: 'vertical',
+                marginBottom: '16px'
+              }}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                onClick={() => setIsPasteModalOpen(false)}
+                style={{
+                  padding: '9px 16px',
+                  backgroundColor: 'var(--surface-3)',
+                  border: '1px solid var(--hairline)',
+                  borderRadius: '6px',
+                  color: 'var(--ink)',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                취소
+              </button>
+
+              <button
+                disabled={!pastedInputText.trim()}
+                onClick={() => {
+                  handlePasteText(pastedInputText, '직접 입력 텍스트');
+                  setIsPasteModalOpen(false);
+                }}
+                style={{
+                  padding: '9px 20px',
+                  backgroundColor: pastedInputText.trim() ? 'var(--accent-primary)' : 'var(--surface-3)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: pastedInputText.trim() ? 'pointer' : 'not-allowed',
+                  boxShadow: pastedInputText.trim() ? '0 0 12px rgba(37, 99, 235, 0.4)' : 'none'
+                }}
+              >
+                ⚡ 즉시 분석 실행
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
