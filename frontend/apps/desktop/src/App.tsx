@@ -722,13 +722,14 @@ export default function App() {
       {/* ========================================================= */}
       {/* 2. THREE-PANE TRIAGE WORKSTATION LAYOUT (Intercom/Linear) */}
       {/* ========================================================= */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', padding: '8px', gap: '8px' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', padding: '8px', gap: '8px' }}>
         
         {/* ------------------------------------------------------- */}
         {/* PANEL A: 고객 & 장비 & 이력 패널 (28% 폭)               */}
         {/* ------------------------------------------------------- */}
         <section style={{ 
           width: '28%', 
+          minHeight: 0,
           backgroundColor: 'var(--surface-1)', 
           border: '1px solid var(--hairline)', 
           borderRadius: '8px', 
@@ -737,7 +738,7 @@ export default function App() {
           overflow: 'hidden' 
         }}>
           {/* Panel Header & Customer Search */}
-          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)' }}>
+          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
             <label style={{ fontSize: '11px', color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', display: 'block' }}>
               고객사 실시간 식별 및 검색
             </label>
@@ -800,10 +801,10 @@ export default function App() {
           </div>
 
           {/* Panel Body: Scrollable Customer & Asset Specs */}
-          <div style={{ flex: 1, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ flex: 1, minHeight: 0, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             
             {/* Customer Info Card */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', flexShrink: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--ink)' }}>{selectedCustomer.name}</span>
                 <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--badge-bg)', color: 'var(--badge-text)', fontWeight: 600 }}>
@@ -817,7 +818,7 @@ export default function App() {
             </div>
 
             {/* Asset Info Card */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', flexShrink: 0 }}>
               <div style={{ fontSize: '11px', color: 'var(--ink-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '6px' }}>
                 보유 장비 및 보증 상태
               </div>
@@ -831,7 +832,7 @@ export default function App() {
             </div>
 
             {/* 30-Day History & Warning Timeline */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', flex: 1 }}>
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', flex: 1, minHeight: '120px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                 <Clock size={13} style={{ color: 'var(--ink-muted)' }} />
                 <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink-muted)', textTransform: 'uppercase' }}>
@@ -870,6 +871,7 @@ export default function App() {
         {/* ------------------------------------------------------- */}
         <section style={{ 
           width: '38%', 
+          minHeight: 0,
           backgroundColor: 'var(--surface-1)', 
           border: '1px solid var(--hairline)', 
           borderRadius: '8px', 
@@ -878,7 +880,7 @@ export default function App() {
           overflow: 'hidden' 
         }}>
           {/* Panel Header & Live Activity */}
-          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)' }}>
+          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Sparkles size={14} style={{ color: 'var(--accent-primary)' }} />
@@ -947,6 +949,7 @@ export default function App() {
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center',
+            flexShrink: 0,
             transition: 'background-color 0.2s ease'
           }}>
             {/* Left: Transcript title or Active Audio Info */}
@@ -1054,9 +1057,18 @@ export default function App() {
             </div>
           </div>
 
-          {/* STT Live Transcript Box: ACTS AS THE DROPZONE! */}
+          {/* STT Live Transcript Box: ACTS AS THE DROPZONE (FIXED HEIGHT RATIO WITH SCROLLBAR) */}
           <div 
-            style={{ flex: '1.2', padding: '10px', display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--hairline)' }}
+            style={{ 
+              flex: '1 1 50%', 
+              minHeight: '160px', 
+              maxHeight: '50%',
+              padding: '10px', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              borderBottom: '1px solid var(--hairline)',
+              overflow: 'hidden' 
+            }}
           >
             <div 
               ref={transcriptBoxRef}
@@ -1064,11 +1076,14 @@ export default function App() {
               onDragLeave={() => setIsDragOverDropzone(false)}
               style={{ 
                 flex: 1, 
+                minHeight: 0,
                 backgroundColor: isDragOverDropzone ? 'rgba(37, 99, 235, 0.18)' : 'var(--surface-2)', 
                 border: isDragOverDropzone ? '2px dashed var(--accent-primary)' : '1px solid var(--hairline)', 
                 borderRadius: '6px', 
                 padding: '12px', 
                 overflowY: 'auto',
+                overflowX: 'hidden',
+                wordBreak: 'break-word',
                 fontSize: '13px',
                 lineHeight: 1.6,
                 color: 'var(--ink)',
@@ -1159,8 +1174,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* Detected Keywords Bar */}
-          <div style={{ flex: '1.5', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
+          {/* Detected Keywords & Diagnosis Panel (FIXED HEIGHT RATIO WITH SCROLLBAR) */}
+          <div style={{ flex: '1 1 50%', minHeight: '160px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <label style={{ fontSize: '11px', color: 'var(--ink-muted)', display: 'block' }}>
@@ -1210,7 +1225,8 @@ export default function App() {
                 borderRadius: '6px', 
                 border: '1px solid var(--hairline)',
                 boxShadow: justTriggeredKeyword ? '0 0 16px rgba(37, 99, 235, 0.4)' : 'none',
-                transition: 'box-shadow 0.3s ease'
+                transition: 'box-shadow 0.3s ease',
+                flexShrink: 0
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-primary)' }}>{matchedDiagnosis.category}</span>
@@ -1227,13 +1243,13 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div style={{ backgroundColor: 'var(--surface-2)', padding: '16px', borderRadius: '6px', border: '1px dashed var(--hairline)', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '12px' }}>
+              <div style={{ backgroundColor: 'var(--surface-2)', padding: '16px', borderRadius: '6px', border: '1px dashed var(--hairline)', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '12px', flexShrink: 0 }}>
                 🔍 상담 대화 중 증상 키워드가 감지되면 해당 부품 및 가이드가 자동 표출됩니다.
               </div>
             )}
 
             {/* Manual Override Input */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
               <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
                 상담사 수동 진단 교정 (AI 추천 불일치 시 직접 입력)
               </label>
@@ -1283,6 +1299,7 @@ export default function App() {
         {/* ------------------------------------------------------- */}
         <section style={{ 
           width: '34%', 
+          minHeight: 0,
           backgroundColor: 'var(--surface-1)', 
           border: '1px solid var(--hairline)', 
           borderRadius: '8px', 
@@ -1291,7 +1308,7 @@ export default function App() {
           overflow: 'hidden' 
         }}>
           {/* Panel Header & Progress */}
-          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
               표준 조치 체크리스트 (SOP)
             </span>
@@ -1310,7 +1327,8 @@ export default function App() {
               borderRadius: '6px',
               fontSize: '12px',
               lineHeight: 1.4,
-              color: '#bfdbfe'
+              color: '#bfdbfe',
+              flexShrink: 0
             }}>
               <div style={{ fontWeight: 700, color: '#93c5fd', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <HelpCircle size={13} />
@@ -1321,7 +1339,7 @@ export default function App() {
           )}
 
           {/* Checklist Items Container */}
-          <div style={{ flex: 1, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ flex: 1, minHeight: 0, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {actionChecklist.length > 0 ? (
               actionChecklist.map((item) => (
                 <div
@@ -1337,7 +1355,8 @@ export default function App() {
                     border: item.checked ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid var(--hairline)',
                     boxShadow: item.checked ? '0 0 10px rgba(16, 185, 129, 0.2)' : 'none',
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease'
+                    transition: 'all 0.15s ease',
+                    flexShrink: 0
                   }}
                 >
                   <button style={{ background: 'none', border: 'none', color: item.checked ? 'var(--accent-success)' : 'var(--ink-subtle)', cursor: 'pointer', marginTop: '1px' }}>
@@ -1356,7 +1375,7 @@ export default function App() {
           </div>
 
           {/* Bottom Action Command Center */}
-          <div style={{ padding: '12px', borderTop: '1px solid var(--hairline)', backgroundColor: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ padding: '12px', borderTop: '1px solid var(--hairline)', backgroundColor: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
             
             {/* Action 1: 1-Click Resolve Complete */}
             <button
