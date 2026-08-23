@@ -51,12 +51,22 @@ def resample_to_16k(audio: np.ndarray, orig_sr: int) -> np.ndarray:
 
 
 def list_loopback_devices() -> list[dict]:
-    """사용 가능한 루프백 캡처 가능 장치 목록 반환"""
+    """사용 가능한 캡처 가능 장치 목록 반환 (CABLE Output 및 스피커 루프백)"""
     try:
         import soundcard as sc
         devices = []
-        for s in sc.all_speakers():
-            devices.append({"id": str(s.name), "name": s.name})
+        # 1. CABLE Output 가상 녹음 장치
+        for m in sc.all_microphones(include_loopback=False):
+            if "cable output" in m.name.lower():
+                devices.append({"id": str(m.name), "name": f"VB-CABLE ({m.name})"})
+        # 2. 물리 스피커 루프백
+        for m in sc.all_microphones(include_loopback=True):
+            if m.isloopback:
+                devices.append({"id": str(m.name), "name": f"루프백 ({m.name})"})
+        # 3. 기타 마이크
+        for m in sc.all_microphones(include_loopback=False):
+            if "cable output" not in m.name.lower():
+                devices.append({"id": str(m.name), "name": f"마이크 ({m.name})"})
         return devices
     except Exception as e:
         logger.error(f"Device list error: {e}")
@@ -64,17 +74,25 @@ def list_loopback_devices() -> list[dict]:
 
 
 def find_vb_cable_device():
-    """VB-CABLE 가상 오디오 장치를 자동 탐색. 없으면 기본 스피커 반환."""
+    """CABLE Output 가상 오디오 장치 자동 탐색. 없으면 스피커 루프백 반환."""
     try:
         import soundcard as sc
-        vb_keywords = ['cable', 'vb-audio', 'virtual', 'vb cable']
-        for speaker in sc.all_speakers():
-            if any(kw in speaker.name.lower() for kw in vb_keywords):
-                logger.info(f"VB-CABLE 장치 발견: {speaker.name}")
-                return speaker
-        default = sc.default_speaker()
-        logger.warning(f"VB-CABLE 미발견 → 기본 스피커 사용: {default.name}")
-        return default
+        # 1순위: CABLE Output (VB-Audio Virtual Cable 표준 녹음단)
+        for m in sc.all_microphones(include_loopback=False):
+            if "cable output" in m.name.lower():
+                logger.info(f"✅ CABLE Output 가상 녹음 장치 연결: {m.name}")
+                return m
+
+        # 2순위: 물리 스피커 WASAPI 루프백 (Realtek 등)
+        for m in sc.all_microphones(include_loopback=True):
+            if m.isloopback and "realtek" in m.name.lower():
+                logger.info(f"✅ Realtek 스피커 루프백 연결: {m.name}")
+                return m
+
+        # 3순위: 기본 마이크
+        default_m = sc.default_microphone()
+        logger.warning(f"기본 마이크 사용: {default_m.name if default_m else 'None'}")
+        return default_m
     except Exception as e:
         logger.error(f"Device discovery error: {e}")
         return None
@@ -191,22 +209,23 @@ class LoopbackSTTService:
 
             # 장치 탐색
             if self._device_name:
-                target = next(
-                    (s for s in sc.all_speakers() if s.name == self._device_name),
-                    sc.default_speaker()
+                target_mic = next(
+                    (m for m in sc.all_microphones(include_loopback=True) if m.name == self._device_name or self._device_name in m.name),
+                    None
                 )
+                if not target_mic:
+                    target_mic = find_vb_cable_device()
             else:
-                target = find_vb_cable_device()
+                target_mic = find_vb_cable_device()
 
-            if target is None:
+            if target_mic is None:
                 segment_callback({"error": "오디오 캡처 장치를 찾을 수 없습니다"})
                 return
 
-            segment_callback({"status": "connected", "device": target.name, "chunk_seconds": self._chunk_seconds})
-            logger.info(f"WASAPI Loopback 캡처 장치: {target.name} / 청크: {self._chunk_seconds}s")
+            segment_callback({"status": "connected", "device": target_mic.name, "chunk_seconds": self._chunk_seconds})
+            logger.info(f"🎤 [STT-Loopback] 캡처 장치 활성화: {target_mic.name} (is_loopback={target_mic.isloopback})")
 
-            mic = sc.get_microphone(id=str(target.name), include_loopback=True)
-            with mic.recorder(
+            with target_mic.recorder(
                 samplerate=CAPTURE_SAMPLE_RATE,
                 channels=1,
                 blocksize=4096
@@ -215,6 +234,7 @@ class LoopbackSTTService:
                 _flush_frames = int(CAPTURE_SAMPLE_RATE * 1.0)
                 recorder.record(numframes=_flush_frames)
                 logger.info("WASAPI 초기 버퍼 플러시 완료 (1초 폐기)")
+
 
                 # ── 동적 문장 버퍼링 (Pseudo-streaming) ──────────────────────
                 mini_chunk_seconds = 0.5
