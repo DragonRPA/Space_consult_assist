@@ -1,15 +1,15 @@
-﻿# Space Advisor ??Release Notes
+# Space Advisor — Release Notes
 
 ---
 
-## v1.0.0 (Phase 0 ?꾨즺 ?덉젙)
+## v1.0.0 (Phase 0 완료 예정)
 
-> 湲곕컲 ?ㅺ퀎 ?꾨즺
+> 기반 설계 완료
 
-- Supabase ?꾨줈?앺듃 ?앹꽦 諛?珥덇린 ?ㅽ궎留?留덉씠洹몃젅?댁뀡
-- part_codes 18媛?留덉뒪???곗씠???쎌엯
-- action_script 90媛??쒕옒?꾪듃 ?묒꽦
-- docker-compose (FastAPI + Nginx + Ollama) 珥덉븞
-- monorepo 援ъ“ ?ㅼ젙 (frontend/packages/desktop, mobile, common)
+- Supabase 프로젝트 생성 및 초기 스키마 마이그레이션
+- part_codes 18개 마스터 데이터 삽입
+- action_script 90개 드래프트 작성
+- docker-compose (FastAPI + Nginx + Ollama) 초안
+- monorepo 구조 설정 (frontend/packages/desktop, mobile, common)
 
 ---

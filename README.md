@@ -1,44 +1,48 @@
-﻿# Space Advisor ???곷떞 蹂댁“ ?쒖뒪??
-> ??숇젴 ?곷떞?ш? 怨좉컼 ?꾪솕 ?묐? 以?AI媛 ?ㅼ떆媛꾩쑝濡???꾩“移??ㅽ겕由쏀듃瑜??쒖떆?섍퀬, 異쒖옣 ?쇱젙???먮룞 ?묒닔?섎뒗 ?뱀꽌鍮꾩뒪.
+# Space Advisor — 상담 보조 시스템
 
-## 湲곗닠 ?ㅽ깮
+> 저숙련 상담사가 고객 전화 응대 중 AI가 실시간으로 셀프조치 스크립트를 제시하고, 출장 일정을 자동 접수하는 웹서비스.
 
-| ?곸뿭 | 湲곗닠 |
+## 기술 스택
+
+| 영역 | 기술 |
 |---|---|
-| 諛깆뿏??| FastAPI + SQLAlchemy 2.0 + Alembic |
+| 백엔드 | FastAPI + SQLAlchemy 2.0 + Alembic |
 | DB | Supabase (PostgreSQL 16, ap-northeast-2) |
-| LLM | Ollama (濡쒖뺄, 臾대즺) |
-| ?꾨줎?몄뿏??| React + Vite monorepo (desktop + mobile) |
+| LLM | Ollama (로컬, 무료) |
+| 프론트엔드 | React + Vite monorepo (desktop + mobile) |
 | STT | Web Speech API (P2) + WASAPI Loopback + faster-whisper (P4+) |
-| 紐⑤컮??| PWA (Service Worker + Background Sync) |
-| ?뚮┝ | 移댁뭅???뚮┝??(?뚮━怨? CEO 寃곗옱 ???쒖꽦?? |
+| 모바일 | PWA (Service Worker + Background Sync) |
+| 알림 | 카카오 알림톡 (알리고, CEO 결재 후 활성화) |
 | CI/CD | GitHub Actions |
 
-## ?대뜑 援ъ“
+## 폴더 구조
 
 ```
 Space_consult_assist/
-?쒋?? backend/               # FastAPI 諛깆뿏????  ?쒋?? app/
-??  ??  ?쒋?? api/v1/        # REST API ?붾뱶?ъ씤????  ??  ?쒋?? services/      # 鍮꾩쫰?덉뒪 濡쒖쭅 (遺꾨쪟?붿쭊, STT, ?뚮┝)
-??  ??  ?쒋?? models/        # SQLAlchemy 紐⑤뜽
-??  ??  ?붴?? core/          # ?ㅼ젙, ?몄쬆, DB ?곌껐
-??  ?붴?? alembic/           # DB 留덉씠洹몃젅?댁뀡
-?쒋?? frontend/
-??  ?붴?? packages/
-??      ?쒋?? common/        # 怨듭쑀 而댄룷?뚰듃 (shadcn/ui)
-??      ?쒋?? desktop/       # ?곷떞???곗뒪?ы넲 ?붾㈃ (/counsel)
-??      ?붴?? mobile/        # ?꾩옣?뺣퉬??紐⑤컮??(/mobile, PWA)
-?쒋?? docs/                  # ?ㅺ퀎 臾몄꽌
-?쒋?? scripts/               # ?곗씠???꾪룷?? ?좏떥 ?ㅽ겕由쏀듃
-?쒋?? docker-compose.yml     # FastAPI + Nginx + Ollama
-?붴?? .env.example           # ?섍꼍蹂???쒗뵆由?```
+├── backend/               # FastAPI 백엔드
+│   ├── app/
+│   │   ├── api/v1/        # REST API 엔드포인트
+│   │   ├── services/      # 비즈니스 로직 (분류엔진, STT, 알림)
+│   │   ├── models/        # SQLAlchemy 모델
+│   │   └── core/          # 설정, 인증, DB 연결
+│   └── alembic/           # DB 마이그레이션
+├── frontend/
+│   └── packages/
+│       ├── common/        # 공유 컴포넌트 (shadcn/ui)
+│       ├── desktop/       # 상담사 데스크톱 화면 (/counsel)
+│       └── mobile/        # 현장정비사 모바일 (/mobile, PWA)
+├── docs/                  # 설계 문서
+├── scripts/               # 데이터 임포트, 유틸 스크립트
+├── docker-compose.yml     # FastAPI + Nginx + Ollama
+└── .env.example           # 환경변수 템플릿
+```
 
-## 媛쒕컻 ?④퀎
+## 개발 단계
 
-- **Phase 0**: 湲곕컲 ?ㅺ퀎 (DB DDL, docker-compose, monorepo ?ㅼ젙)
-- **Phase 1**: 諛깆뿏??API + ?곗씠???뚯씠?꾨씪??(遺꾨쪟?붿쭊, fact.csv ?꾪룷??
-- **Phase 2**: ?곷떞 ?붾㈃ MVP (P2a: ?듭떖 ?뚮줈??/ P2b: STT)
-- **Phase 3**: 愿由??붾㈃ + 異쒖옣 ?곗뒪?ы넲
-- **Phase 4**: ?꾩옣?뺣퉬??紐⑤컮??(PWA + WASAPI Loopback STT POC)
-- **Phase 5**: LLM 怨좊룄??+ ?듦퀎 + Silent STT ?댁쁺
-- **Phase 6**: ?덉젙??(移댁뭅???뚮┝???꾩껜 泥닿퀎)
+- **Phase 0**: 기반 설계 (DB DDL, docker-compose, monorepo 설정)
+- **Phase 1**: 백엔드 API + 데이터 파이프라인 (분류엔진, fact.csv 임포트)
+- **Phase 2**: 상담 화면 MVP (P2a: 핵심 플로우 / P2b: STT)
+- **Phase 3**: 관리 화면 + 출장 데스크톱
+- **Phase 4**: 현장정비사 모바일 (PWA + WASAPI Loopback STT POC)
+- **Phase 5**: LLM 고도화 + 통계 + Silent STT 운영
+- **Phase 6**: 안정화 (카카오 알림톡 전체 체계)

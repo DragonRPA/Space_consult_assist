@@ -1,4 +1,4 @@
-﻿# ?섍꼍蹂??(?덈? 而ㅻ컠 湲덉?)
+# 환경변수 (절대 커밋 금지)
 .env
 .env.local
 .env.production
@@ -20,18 +20,18 @@ frontend/packages/mobile/dist/
 frontend/packages/common/dist/
 *.local
 
-# Ollama 紐⑤뜽
+# Ollama 모델
 *.gguf
 *.bin
 ollama_data/
 
-# DB / ?곗씠???뚯씪
+# DB / 데이터 파일
 *.sqlite
 *.db
 *.csv
 *.xlsx
 
-# 濡쒓렇
+# 로그
 *.log
 crash_dump.log
 
