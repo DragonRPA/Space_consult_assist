@@ -29,7 +29,13 @@ export interface MatchedDiagnosis {
   source: string;
 }
 
+export type DesignMode = 'mode-1' | 'mode-2' | 'mode-3';
+
 interface CounselWorkstationState {
+  // Design Theme Mode
+  designMode: DesignMode;
+  setDesignMode: (mode: DesignMode) => void;
+
   // Global / Call State
   isRecording: boolean;
   callSeconds: number;
@@ -125,6 +131,9 @@ const DEFAULT_CUSTOMERS: CustomerInfo[] = [
 ];
 
 export const useCounselStore = create<CounselWorkstationState>((set) => ({
+  designMode: 'mode-1',
+  setDesignMode: (mode) => set({ designMode: mode }),
+
   isRecording: false,
   callSeconds: 204, // 03:24
   counselorName: '이지은 상담원 (선임)',

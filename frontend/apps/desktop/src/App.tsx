@@ -11,6 +11,7 @@ import {
   CheckSquare, 
   Square, 
   Sparkles,
+  Palette,
   X
 } from 'lucide-react';
 import { useCounselStore } from './store';
@@ -25,6 +26,8 @@ declare global {
 
 export default function App() {
   const {
+    designMode,
+    setDesignMode,
     isRecording,
     callSeconds,
     counselorName,
@@ -232,25 +235,26 @@ export default function App() {
   const totalCount = actionChecklist.length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: 'var(--canvas)', color: 'var(--ink)' }}>
+    <div data-theme={designMode} style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: 'var(--canvas)', color: 'var(--ink)' }}>
       
       {/* ========================================================= */}
-      {/* 1. TOP GLOBAL NAVIGATION / STATUS BAR (Linear/Intercom Bar) */}
+      {/* 1. TOP GLOBAL NAVIGATION & DESIGN MODE SELECTOR           */}
       {/* ========================================================= */}
       <header style={{ 
-        height: '48px', 
+        height: '52px', 
         borderBottom: '1px solid var(--hairline)', 
         backgroundColor: 'var(--surface-1)', 
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'space-between', 
         padding: '0 16px',
-        flexShrink: 0
+        flexShrink: 0,
+        boxShadow: 'var(--card-shadow)'
       }}>
         {/* Brand & Counselor */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-blue)', boxShadow: '0 0 8px var(--accent-blue)' }} />
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)', boxShadow: '0 0 8px var(--accent-primary)' }} />
             <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.3px', color: 'var(--ink)' }}>
               Space Advisor <span style={{ fontWeight: 400, color: 'var(--ink-muted)', fontSize: '12px' }}>PRO 관제</span>
             </span>
@@ -263,6 +267,67 @@ export default function App() {
           </span>
         </div>
 
+        {/* 3-Way Design Mode Switcher (awesome-design-md live switcher) */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '4px', 
+          padding: '3px', 
+          backgroundColor: 'var(--surface-2)', 
+          border: '1px solid var(--hairline)', 
+          borderRadius: '8px' 
+        }}>
+          <Palette size={13} style={{ color: 'var(--ink-muted)', margin: '0 4px' }} />
+          
+          <button
+            onClick={() => setDesignMode('mode-1')}
+            style={{
+              padding: '4px 10px',
+              fontSize: '11px',
+              fontWeight: designMode === 'mode-1' ? 700 : 500,
+              borderRadius: '6px',
+              border: 'none',
+              backgroundColor: designMode === 'mode-1' ? 'var(--accent-primary)' : 'transparent',
+              color: designMode === 'mode-1' ? '#fff' : 'var(--ink-muted)',
+              cursor: 'pointer'
+            }}
+          >
+            디자인 1: Linear 다크
+          </button>
+
+          <button
+            onClick={() => setDesignMode('mode-2')}
+            style={{
+              padding: '4px 10px',
+              fontSize: '11px',
+              fontWeight: designMode === 'mode-2' ? 700 : 500,
+              borderRadius: '6px',
+              border: 'none',
+              backgroundColor: designMode === 'mode-2' ? 'var(--accent-primary)' : 'transparent',
+              color: designMode === 'mode-2' ? '#fff' : 'var(--ink-muted)',
+              cursor: 'pointer'
+            }}
+          >
+            디자인 2: Intercom 크림
+          </button>
+
+          <button
+            onClick={() => setDesignMode('mode-3')}
+            style={{
+              padding: '4px 10px',
+              fontSize: '11px',
+              fontWeight: designMode === 'mode-3' ? 700 : 500,
+              borderRadius: '6px',
+              border: 'none',
+              backgroundColor: designMode === 'mode-3' ? 'var(--accent-primary)' : 'transparent',
+              color: designMode === 'mode-3' ? '#fff' : 'var(--ink-muted)',
+              cursor: 'pointer'
+            }}
+          >
+            디자인 3: Supabase 에메랄드
+          </button>
+        </div>
+
         {/* Live Call Stopwatch & Audio Indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ 
@@ -271,15 +336,15 @@ export default function App() {
             gap: '6px', 
             padding: '4px 10px', 
             borderRadius: '16px', 
-            backgroundColor: 'rgba(239, 68, 68, 0.15)', 
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#f87171',
+            backgroundColor: 'rgba(239, 68, 68, 0.12)', 
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            color: 'var(--accent-danger)',
             fontSize: '12px',
             fontWeight: 600
           }}>
             <PhoneCall size={14} className="animate-pulse" />
             <span className="nowrap">통화중</span>
-            <span className="font-mono" style={{ color: '#fff' }}>{formatTimer(callSeconds)}</span>
+            <span className="font-mono">{formatTimer(callSeconds)}</span>
           </div>
 
           <button 
@@ -290,7 +355,7 @@ export default function App() {
               gap: '6px',
               padding: '4px 12px',
               borderRadius: '6px',
-              backgroundColor: isRecording ? 'var(--accent-red)' : 'var(--accent-blue)',
+              backgroundColor: isRecording ? 'var(--accent-danger)' : 'var(--accent-primary)',
               color: '#fff',
               border: 'none',
               fontSize: '12px',
@@ -299,15 +364,8 @@ export default function App() {
             }}
           >
             {isRecording ? <MicOff size={14} /> : <Mic size={14} />}
-            <span className="nowrap">{isRecording ? "STT 수신 정지" : "STT 수신 시작"}</span>
+            <span className="nowrap">{isRecording ? "STT 정지" : "STT 시작"}</span>
           </button>
-        </div>
-
-        {/* System Telemetry & KPIs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12px', color: 'var(--ink-muted)' }}>
-          <span className="nowrap">DB 연결됨: <strong style={{ color: 'var(--accent-green)' }}>Supabase Cloud</strong></span>
-          <span className="nowrap">금일 배차: <strong style={{ color: 'var(--ink)' }}>14건</strong></span>
-          <span className="nowrap">금일 완료: <strong style={{ color: 'var(--accent-green)' }}>9건</strong></span>
         </div>
       </header>
 
@@ -324,6 +382,7 @@ export default function App() {
           backgroundColor: 'var(--surface-1)', 
           border: '1px solid var(--hairline)', 
           borderRadius: '8px', 
+          boxShadow: 'var(--card-shadow)',
           display: 'flex', 
           flexDirection: 'column', 
           overflow: 'hidden' 
@@ -361,7 +420,7 @@ export default function App() {
                   backgroundColor: 'var(--surface-2)',
                   border: '1px solid var(--hairline)',
                   borderRadius: '6px',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
                   zIndex: 50,
                   maxHeight: '180px',
                   overflowY: 'auto'
@@ -379,7 +438,7 @@ export default function App() {
                         cursor: 'pointer',
                         fontSize: '12px'
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--surface-3)')}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--surface-hover)')}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                     >
                       <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{cust.name}</div>
@@ -398,7 +457,7 @@ export default function App() {
             <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--ink)' }}>{selectedCustomer.name}</span>
-                <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(37, 99, 235, 0.2)', color: '#93c5fd', fontWeight: 600 }}>
+                <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--badge-bg)', color: 'var(--badge-text)', fontWeight: 600 }}>
                   {selectedCustomer.salesType}
                 </span>
               </div>
@@ -418,7 +477,7 @@ export default function App() {
               </div>
               <div style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', color: 'var(--ink-muted)' }}>
                 <span>시리얼: <span className="font-mono" style={{ color: 'var(--ink)' }}>{selectedCustomer.serialNumber}</span></span>
-                <span style={{ color: 'var(--accent-amber)', fontWeight: 600 }}>{selectedCustomer.warrantyRemaining}</span>
+                <span style={{ color: 'var(--accent-warning)', fontWeight: 600 }}>{selectedCustomer.warrantyRemaining}</span>
               </div>
             </div>
 
@@ -443,10 +502,10 @@ export default function App() {
                       fontSize: '12px'
                     }}
                   >
-                    <div style={{ fontSize: '10px', color: item.isWarning ? 'var(--accent-amber)' : 'var(--ink-muted)', fontWeight: 600 }}>
+                    <div style={{ fontSize: '10px', color: item.isWarning ? 'var(--accent-warning)' : 'var(--ink-muted)', fontWeight: 600 }}>
                       {item.date}
                     </div>
-                    <div style={{ color: item.isWarning ? '#fde68a' : 'var(--ink)', fontWeight: item.isWarning ? 600 : 400, marginTop: '2px' }}>
+                    <div style={{ color: item.isWarning ? 'var(--accent-warning)' : 'var(--ink)', fontWeight: item.isWarning ? 600 : 400, marginTop: '2px' }}>
                       {item.title}
                     </div>
                   </div>
@@ -465,6 +524,7 @@ export default function App() {
           backgroundColor: 'var(--surface-1)', 
           border: '1px solid var(--hairline)', 
           borderRadius: '8px', 
+          boxShadow: 'var(--card-shadow)',
           display: 'flex', 
           flexDirection: 'column', 
           overflow: 'hidden' 
@@ -473,21 +533,21 @@ export default function App() {
           <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Sparkles size={14} style={{ color: 'var(--accent-blue)' }} />
+                <Sparkles size={14} style={{ color: 'var(--accent-primary)' }} />
                 실시간 음성 전사 및 AI 분류
               </span>
-              <span style={{ fontSize: '11px', color: isRecording ? 'var(--accent-red)' : 'var(--ink-muted)', fontWeight: 600 }}>
+              <span style={{ fontSize: '11px', color: isRecording ? 'var(--accent-danger)' : 'var(--ink-muted)', fontWeight: 600 }}>
                 {isRecording ? "● 음성 스트리밍 수신중" : "대기 상태"}
               </span>
             </div>
 
             <div style={{ 
-              backgroundColor: 'rgba(59, 130, 246, 0.08)', 
-              border: '1px solid rgba(59, 130, 246, 0.2)', 
+              backgroundColor: 'var(--ars-bg)', 
+              border: '1px solid var(--ars-border)', 
               borderRadius: '4px', 
               padding: '6px 10px', 
               fontSize: '11px', 
-              color: '#93c5fd',
+              color: 'var(--ars-text)',
               lineHeight: 1.3 
             }}>
               ⚖️ [ARS 고지 필수] "본 통화는 품질 향상 및 AI 상담 지원을 위해 녹음/분석됩니다."
@@ -513,7 +573,7 @@ export default function App() {
               {sttText ? (
                 <span>
                   {sttText}
-                  {isRecording && <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '14px', backgroundColor: 'var(--accent-blue)', marginLeft: '4px', verticalAlign: 'middle' }} />}
+                  {isRecording && <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '14px', backgroundColor: 'var(--accent-primary)', marginLeft: '4px', verticalAlign: 'middle' }} />}
                 </span>
               ) : (
                 <span style={{ color: 'var(--ink-subtle)' }}>통화 음성이 인식되면 실시간으로 자막이 표시됩니다...</span>
@@ -534,9 +594,9 @@ export default function App() {
                     style={{
                       padding: '4px 10px',
                       borderRadius: '16px',
-                      backgroundColor: 'rgba(37, 99, 235, 0.15)',
-                      border: '1px solid rgba(37, 99, 235, 0.4)',
-                      color: '#bfdbfe',
+                      backgroundColor: 'var(--badge-bg)',
+                      border: '1px solid var(--hairline)',
+                      color: 'var(--badge-text)',
                       fontSize: '12px',
                       fontWeight: 600
                     }}
@@ -551,8 +611,8 @@ export default function App() {
             {matchedDiagnosis && (
               <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-blue)' }}>{matchedDiagnosis.category}</span>
-                  <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-green)', fontWeight: 600 }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-primary)' }}>{matchedDiagnosis.category}</span>
+                  <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-success)', fontWeight: 600 }}>
                     신뢰도 {matchedDiagnosis.confidence}%
                   </span>
                 </div>
@@ -561,7 +621,7 @@ export default function App() {
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--ink-muted)', display: 'flex', justifyContent: 'space-between' }}>
                   <span>부품코드: <strong className="font-mono" style={{ color: 'var(--ink)' }}>{matchedDiagnosis.partCode}</strong></span>
-                  <span>본사재고: <strong style={{ color: matchedDiagnosis.stock > 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>{matchedDiagnosis.stock}개 보유</strong></span>
+                  <span>본사재고: <strong style={{ color: matchedDiagnosis.stock > 0 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>{matchedDiagnosis.stock}개 보유</strong></span>
                 </div>
               </div>
             )}
@@ -620,6 +680,7 @@ export default function App() {
           backgroundColor: 'var(--surface-1)', 
           border: '1px solid var(--hairline)', 
           borderRadius: '8px', 
+          boxShadow: 'var(--card-shadow)',
           display: 'flex', 
           flexDirection: 'column', 
           overflow: 'hidden' 
@@ -629,7 +690,7 @@ export default function App() {
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
               표준 조치 체크리스트 (SOP)
             </span>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: checkedCount === totalCount ? 'var(--accent-green)' : 'var(--accent-blue)' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: checkedCount === totalCount ? 'var(--accent-success)' : 'var(--accent-primary)' }}>
               {checkedCount} / {totalCount} 완료 ({Math.round((checkedCount / totalCount) * 100)}%)
             </span>
           </div>
@@ -652,10 +713,10 @@ export default function App() {
                   transition: 'all 0.15s ease'
                 }}
               >
-                <button style={{ background: 'none', border: 'none', color: item.checked ? 'var(--accent-green)' : 'var(--ink-subtle)', cursor: 'pointer', marginTop: '1px' }}>
+                <button style={{ background: 'none', border: 'none', color: item.checked ? 'var(--accent-success)' : 'var(--ink-subtle)', cursor: 'pointer', marginTop: '1px' }}>
                   {item.checked ? <CheckSquare size={16} /> : <Square size={16} />}
                 </button>
-                <div style={{ flex: 1, fontSize: '13px', lineHeight: 1.4, color: item.checked ? '#a7f3d0' : 'var(--ink)', textDecoration: item.checked ? 'line-through' : 'none' }}>
+                <div style={{ flex: 1, fontSize: '13px', lineHeight: 1.4, color: item.checked ? 'var(--accent-success)' : 'var(--ink)', textDecoration: item.checked ? 'line-through' : 'none' }}>
                   <strong style={{ marginRight: '4px', color: 'var(--ink-muted)' }}>{item.id}.</strong> {item.text}
                 </div>
               </div>
@@ -671,7 +732,7 @@ export default function App() {
               style={{
                 width: '100%',
                 padding: '10px',
-                backgroundColor: 'var(--accent-green)',
+                backgroundColor: 'var(--accent-success)',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '6px',
@@ -695,7 +756,7 @@ export default function App() {
                 style={{
                   flex: 1.2,
                   padding: '10px',
-                  backgroundColor: 'var(--accent-blue)',
+                  backgroundColor: 'var(--accent-primary)',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '6px',
@@ -750,7 +811,7 @@ export default function App() {
           width: '420px',
           backgroundColor: 'var(--surface-1)',
           borderLeft: '1px solid var(--hairline)',
-          boxShadow: '-8px 0 32px rgba(0,0,0,0.6)',
+          boxShadow: '-8px 0 32px rgba(0,0,0,0.5)',
           zIndex: 100,
           display: 'flex',
           flexDirection: 'column',
@@ -759,7 +820,7 @@ export default function App() {
           {/* Drawer Header */}
           <div style={{ padding: '16px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Wrench size={18} style={{ color: 'var(--accent-blue)' }} />
+              <Wrench size={18} style={{ color: 'var(--accent-primary)' }} />
               출장 배차 접수 (100% 자동완성)
             </span>
             <button onClick={() => setDispatchDrawerOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}>
@@ -823,7 +884,7 @@ export default function App() {
               style={{
                 width: '100%',
                 padding: '12px',
-                backgroundColor: 'var(--accent-blue)',
+                backgroundColor: 'var(--accent-primary)',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '6px',
@@ -884,7 +945,7 @@ export default function App() {
               style={{
                 width: '100%',
                 padding: '10px',
-                backgroundColor: 'var(--accent-amber)',
+                backgroundColor: 'var(--accent-warning)',
                 color: '#000',
                 border: 'none',
                 borderRadius: '6px',
@@ -908,14 +969,14 @@ export default function App() {
           bottom: '20px',
           left: '50%',
           transform: 'translateX(-50%)',
-          backgroundColor: '#1e293b',
-          border: '1px solid var(--accent-green)',
-          color: '#fff',
+          backgroundColor: 'var(--surface-2)',
+          border: '1px solid var(--accent-success)',
+          color: 'var(--ink)',
           padding: '10px 20px',
           borderRadius: '24px',
           fontSize: '13px',
           fontWeight: 600,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.8)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
           zIndex: 200,
           display: 'flex',
           alignItems: 'center',

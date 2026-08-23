@@ -1,25 +1,92 @@
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
 
-:root {
+/* ========================================================= */
+/* DESIGN MODE 1: Linear Slate Precision (Technical Dark)   */
+/* ========================================================= */
+[data-theme="mode-1"] {
   --canvas: #0b0f17;
   --surface-1: #131b2e;
   --surface-2: #1e293b;
   --surface-3: #27354f;
+  --surface-hover: #334155;
   --hairline: #23334d;
   --hairline-strong: #3b82f6;
   --ink: #f8fafc;
   --ink-muted: #94a3b8;
   --ink-subtle: #64748b;
-  --accent-blue: #2563eb;
-  --accent-green: #10b981;
-  --accent-amber: #f59e0b;
-  --accent-red: #ef4444;
+  --accent-primary: #2563eb;
+  --accent-primary-hover: #3b82f6;
+  --accent-success: #10b981;
+  --accent-warning: #f59e0b;
+  --accent-danger: #ef4444;
+  --card-shadow: none;
+  --badge-bg: rgba(37, 99, 235, 0.15);
+  --badge-text: #bfdbfe;
+  --ars-bg: rgba(59, 130, 246, 0.08);
+  --ars-border: rgba(59, 130, 246, 0.2);
+  --ars-text: #93c5fd;
+}
+
+/* ========================================================= */
+/* DESIGN MODE 2: Intercom Warm Editorial Cream (Clean Light)*/
+/* ========================================================= */
+[data-theme="mode-2"] {
+  --canvas: #f5f1ec;
+  --surface-1: #ffffff;
+  --surface-2: #ebe7e1;
+  --surface-3: #dfd9d0;
+  --surface-hover: #e2ddd5;
+  --hairline: #d3cec6;
+  --hairline-strong: #ff5600;
+  --ink: #111111;
+  --ink-muted: #626260;
+  --ink-subtle: #8a8f98;
+  --accent-primary: #ff5600; /* Intercom Fin AI Orange */
+  --accent-primary-hover: #e04c00;
+  --accent-success: #059669;
+  --accent-warning: #d97706;
+  --accent-danger: #dc2626;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --badge-bg: rgba(255, 86, 0, 0.1);
+  --badge-text: #c2410c;
+  --ars-bg: rgba(255, 86, 0, 0.06);
+  --ars-border: rgba(255, 86, 0, 0.2);
+  --ars-text: #9a3412;
+}
+
+/* ========================================================= */
+/* DESIGN MODE 3: Supabase Cyber Emerald Neon (High-Tech)    */
+/* ========================================================= */
+[data-theme="mode-3"] {
+  --canvas: #06080c;
+  --surface-1: #0c1310;
+  --surface-2: #12201b;
+  --surface-3: #182d26;
+  --surface-hover: #1f3a31;
+  --hairline: #1e3b30;
+  --hairline-strong: #10b981;
+  --ink: #ecfdf5;
+  --ink-muted: #6ee7b7;
+  --ink-subtle: #34d399;
+  --accent-primary: #10b981; /* Supabase Neon Emerald */
+  --accent-primary-hover: #059669;
+  --accent-success: #10b981;
+  --accent-warning: #fbbf24;
+  --accent-danger: #f87171;
+  --card-shadow: 0 0 16px rgba(16, 185, 129, 0.06);
+  --badge-bg: rgba(16, 185, 129, 0.15);
+  --badge-text: #6ee7b7;
+  --ars-bg: rgba(16, 185, 129, 0.08);
+  --ars-border: rgba(16, 185, 129, 0.25);
+  --ars-text: #a7f3d0;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
 }
 
 body {
@@ -34,7 +101,7 @@ input, select, textarea, button {
   font-family: inherit;
 }
 
-/* Custom Scrollbar for sleek Linear/Intercom look */
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -53,12 +120,10 @@ input, select, textarea, button {
   background: var(--ink-subtle);
 }
 
-/* Monospace font utility */
 .font-mono {
   font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
 }
 
-/* No-wrap utility per system charter 3.2 */
 .nowrap {
   white-space: nowrap;
   flex-shrink: 0;
