@@ -242,6 +242,7 @@ class LoopbackSTTService:
                 
                 speech_buffer = []
                 silence_strikes = 0
+                is_streaming = False
                 MAX_SILENCE_STRIKES = 2   # 1.0초 무음 시 문장 끝으로 간주
                 MAX_SPEECH_CHUNKS = 20    # 10초 이상 길어지면 강제 전사 (실시간성 보장)
 
@@ -251,6 +252,9 @@ class LoopbackSTTService:
                         self._reset_requested = False
                         speech_buffer = []
                         silence_strikes = 0
+                        if is_streaming:
+                            is_streaming = False
+                            segment_callback({"type": "stream_state", "streaming": False})
                         # 0.5초 버퍼 플러시
                         try:
                             recorder.record(numframes=mini_chunk_frames)
@@ -271,6 +275,9 @@ class LoopbackSTTService:
                     if rms >= SILENCE_THRESHOLD_RMS:
                         speech_buffer.append(audio_mono)
                         silence_strikes = 0
+                        if not is_streaming:
+                            is_streaming = True
+                            segment_callback({"type": "stream_state", "streaming": True})
                     else:
                         if len(speech_buffer) > 0:
                             silence_strikes += 1
@@ -279,12 +286,19 @@ class LoopbackSTTService:
                                 speech_buffer = []
                                 silence_strikes = 0
                                 continue
+                        else:
+                            # 완전 무음이 3초 이상 지속 시 스트리밍 종료 알림
+                            silence_strikes += 1
+                            if is_streaming and silence_strikes >= 6:
+                                is_streaming = False
+                                segment_callback({"type": "stream_state", "streaming": False})
 
                     trigger_stt = False
                     if len(speech_buffer) > 0 and silence_strikes >= MAX_SILENCE_STRIKES:
                         trigger_stt = True
                     elif len(speech_buffer) >= MAX_SPEECH_CHUNKS:
                         trigger_stt = True
+
 
                     if trigger_stt:
                         sentence_audio = np.concatenate(speech_buffer)

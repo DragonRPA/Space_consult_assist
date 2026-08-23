@@ -109,6 +109,7 @@ export default function App() {
   const [isWhisperLauncherModalOpen, setIsWhisperLauncherModalOpen] = useState(false);
   const [gpuServerOnline, setGpuServerOnline] = useState<boolean | null>(null);
   const [isLoopbackActive, setIsLoopbackActive] = useState(false);
+  const [isAudioStreamingActive, setIsAudioStreamingActive] = useState(false);
   const [loopbackDevice, setLoopbackDevice] = useState<string>('');
   const [loopbackDevices, setLoopbackDevices] = useState<{id: string; name: string}[]>([]);
   const [directEditableText, setDirectEditableText] = useState('');
@@ -320,11 +321,16 @@ export default function App() {
         ws.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data);
+            if (msg.type === 'stream_state') {
+              setIsAudioStreamingActive(!!msg.streaming);
+            }
             if (msg.text) {
+              setIsAudioStreamingActive(true);
               appendFinalParagraph(msg.text, msg.text, []);
               evaluateUtteranceRules(msg.text);
             }
             if (msg.status === 'stopped' && msg.recording) {
+              setIsAudioStreamingActive(false);
               setLastRecordingFile(msg.recording);
               showToast(`[녹음 저장] ${msg.recording}`);
               setTimeout(() => clearToast(), 4000);
@@ -334,6 +340,7 @@ export default function App() {
             }
           } catch (_) {}
         };
+
 
         ws.onerror = () => {
           setIsLoopbackActive(false);
@@ -554,10 +561,13 @@ export default function App() {
     return `${m}:${s}`;
   };
 
-  // Call timer interval
+  // 실제 오디오 재생 또는 가상 오디오 스트리밍 신호가 감지될 때만 통화 활성화
+  const isCallActive = isAudioPlaying || isAudioStreamingActive;
+
+  // Call timer interval - 실제 오디오 신호가 흐를 때만 1초씩 카운트
   useEffect(() => {
     let timer: number | null = null;
-    if (isRecording) {
+    if (isCallActive) {
       timer = window.setInterval(() => {
         incrementCallTimer();
       }, 1000);
@@ -565,13 +575,14 @@ export default function App() {
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [isRecording, incrementCallTimer]);
+  }, [isCallActive, incrementCallTimer]);
 
   const formatTimer = (sec: number) => {
     const m = String(Math.floor(sec / 60)).padStart(2, '0');
     const s = String(sec % 60).padStart(2, '0');
     return `${m}:${s}`;
   };
+
 
   // Auto-scroll transcript box when new speech arrives
   useEffect(() => {
@@ -963,14 +974,15 @@ export default function App() {
             gap: '6px',
             padding: '4px 10px',
             borderRadius: '4px',
-            backgroundColor: isRecording ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface-2)',
-            border: `1px solid ${isRecording ? 'var(--accent-success)' : 'var(--hairline)'}`,
+            backgroundColor: isCallActive ? 'rgba(239, 68, 68, 0.12)' : 'var(--surface-2)',
+            border: `1px solid ${isCallActive ? 'var(--accent-danger)' : 'var(--hairline)'}`,
             fontSize: '11px',
-            color: isRecording ? 'var(--accent-success)' : 'var(--ink-muted)'
+            color: isCallActive ? 'var(--accent-danger)' : 'var(--ink-muted)'
           }}>
-            <Radio size={12} className={isRecording ? "animate-pulse" : ""} />
-            <span>상태: <strong>{isRecording ? "통화 수신 및 실시간 STT 가동 중" : "대기"}</strong></span>
+            <Radio size={12} className={isCallActive ? "animate-pulse" : ""} />
+            <span>상태: <strong>{isCallActive ? "음성 스트리밍 수신 중" : "대기"}</strong></span>
           </div>
+
         </div>
 
         {/* Live Audio & STT Controls */}
@@ -1145,16 +1157,17 @@ export default function App() {
             gap: '6px', 
             padding: '4px 10px', 
             borderRadius: '6px', 
-            backgroundColor: isRecording ? 'rgba(239, 68, 68, 0.12)' : 'var(--surface-2)', 
-            border: `1px solid ${isRecording ? 'rgba(239, 68, 68, 0.25)' : 'var(--hairline)'}`,
-            color: isRecording ? 'var(--accent-danger)' : 'var(--ink-muted)',
+            backgroundColor: isCallActive ? 'rgba(239, 68, 68, 0.15)' : callSeconds > 0 ? 'rgba(59, 130, 246, 0.12)' : 'var(--surface-2)', 
+            border: `1px solid ${isCallActive ? 'rgba(239, 68, 68, 0.4)' : callSeconds > 0 ? 'rgba(59, 130, 246, 0.3)' : 'var(--hairline)'}`,
+            color: isCallActive ? 'var(--accent-danger)' : callSeconds > 0 ? '#93c5fd' : 'var(--ink-muted)',
             fontSize: '12px',
             fontWeight: 600
           }}>
-            <PhoneCall size={14} className="animate-pulse" />
-            <span className="nowrap">{isRecording ? "통화중" : "대기"}</span>
+            <PhoneCall size={14} className={isCallActive ? "animate-pulse" : ""} />
+            <span className="nowrap">{isCallActive ? "통화중" : callSeconds > 0 ? "통화종료" : "대기"}</span>
             <span className="font-mono">{formatTimer(callSeconds)}</span>
           </div>
+
 
           {/* Always-On Live Visualizer Indicator */}
           <div style={{
