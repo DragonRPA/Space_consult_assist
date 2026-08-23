@@ -108,7 +108,6 @@ export default function App() {
   const [isDirectEditMode, setIsDirectEditMode] = useState(false);
   const [showAllSymptoms, setShowAllSymptoms] = useState(false);
   const [isWhisperLauncherModalOpen, setIsWhisperLauncherModalOpen] = useState(false);
-  const [isWhisperProcessing, setIsWhisperProcessing] = useState(false);
   const [gpuServerOnline, setGpuServerOnline] = useState<boolean | null>(null);
   const [isLoopbackActive, setIsLoopbackActive] = useState(false);
   const [loopbackDevice, setLoopbackDevice] = useState<string>('');
@@ -262,7 +261,6 @@ export default function App() {
   const animFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const transcriptBoxRef = useRef<HTMLDivElement | null>(null);
-  const whisperAbortControllerRef = useRef<AbortController | null>(null);
 
   // Synchronous STT Startup Function (Instant Mic Engagement)
   const startSttStreaming = useCallback(() => {
@@ -506,12 +504,7 @@ export default function App() {
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
       try { loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' })); } catch (_) {}
     }
-    if (whisperAbortControllerRef.current) {
-      whisperAbortControllerRef.current.abort();
-      whisperAbortControllerRef.current = null;
-    }
     stopSttStreaming();
-    setIsWhisperProcessing(false);
     setIsAudioPlaying(false);
     setRecording(false);
     setAudioTime(0, 0);
@@ -529,12 +522,7 @@ export default function App() {
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
       try { loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' })); } catch (_) {}
     }
-    if (whisperAbortControllerRef.current) {
-      whisperAbortControllerRef.current.abort();
-      whisperAbortControllerRef.current = null;
-    }
     stopSttStreaming();
-    setIsWhisperProcessing(false);
     setIsAudioPlaying(false);
     setRecording(false);
     clearAudioFile();

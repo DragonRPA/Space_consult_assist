@@ -7,7 +7,7 @@ import os
 import logging
 from fastapi import APIRouter, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
-from app.services.stt_service import transcribe_audio_file, get_whisper_model
+from app.services.stt_service import get_whisper_model
 from app.services.wasapi_loopback_service import get_loopback_service, list_loopback_devices, RECORDINGS_DIR
 
 router = APIRouter()
@@ -30,23 +30,6 @@ async def get_stt_engine_status():
         "max_concurrent": 8,
         "supported_formats": [".m4a", ".wav", ".mp3", ".flac", ".ogg", ".webm"]
     }
-
-
-@router.post("/transcribe")
-async def transcribe_audio(file: UploadFile = File(...)):
-    """
-    파일 기반 배치 전사: 업로드된 오디오 파일을 Faster-Whisper로 전사합니다.
-    """
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No audio file provided.")
-    try:
-        content = await file.read()
-        logger.info(f"🎙️ [STT] Received audio file '{file.filename}' ({len(content):,} bytes) for Large-v3 transcription...")
-        result = transcribe_audio_file(content, filename=file.filename)
-        return JSONResponse(status_code=200, content=result)
-    except Exception as e:
-        logger.error(f"❌ [STT Error]: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/recordings")
