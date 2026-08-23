@@ -180,8 +180,6 @@ class LoopbackSTTService:
                 segment_callback({"error": "Faster-Whisper 모델 로드 실패"})
                 return
 
-            chunk_frames = int(CAPTURE_SAMPLE_RATE * self._chunk_seconds)
-
             # 장치 탐색
             if self._device_name:
                 target = next(
@@ -205,55 +203,70 @@ class LoopbackSTTService:
                 blocksize=4096
             ) as recorder:
                 # ── WASAPI 버퍼 플러시 ────────────────────────────────────────
-                # 레코더를 새로 열 때 이전 세션의 꼬리 오디오가 버퍼에 남아있을 수 있음.
-                # 최초 1초 분량을 무조건 버려서 이전 통화의 마지막 단어 누출을 차단.
                 _flush_frames = int(CAPTURE_SAMPLE_RATE * 1.0)
                 recorder.record(numframes=_flush_frames)
                 logger.info("WASAPI 초기 버퍼 플러시 완료 (1초 폐기)")
 
+                # ── 동적 문장 버퍼링 (Pseudo-streaming) ──────────────────────
+                mini_chunk_seconds = 0.5
+                mini_chunk_frames = int(CAPTURE_SAMPLE_RATE * mini_chunk_seconds)
+                
+                speech_buffer = []
+                silence_strikes = 0
+                MAX_SILENCE_STRIKES = 2   # 1.0초 무음 시 문장 끝으로 간주
+                MAX_SPEECH_CHUNKS = 20    # 10초 이상 길어지면 강제 전사 (실시간성 보장)
+
                 while not self._stop_event.is_set():
-                    chunk = recorder.record(numframes=chunk_frames)
+                    chunk = recorder.record(numframes=mini_chunk_frames)
                     audio_mono = chunk[:, 0] if chunk.ndim > 1 else chunk
                     audio_mono = audio_mono.astype(np.float32)
 
-                    # ── 녹음 버퍼 누적 (무음 포함 전체 통화 저장) ──────────────
+                    # 녹음은 무조건 누적
                     self._recording_chunks.append(audio_mono.copy())
 
                     rms = float(np.sqrt(np.mean(audio_mono ** 2)))
-                    if rms < SILENCE_THRESHOLD_RMS:
-                        continue  # STT는 스킵, 녹음은 이미 누적됨
+                    
+                    if rms >= SILENCE_THRESHOLD_RMS:
+                        speech_buffer.append(audio_mono)
+                        silence_strikes = 0
+                    else:
+                        if len(speech_buffer) > 0:
+                            silence_strikes += 1
 
-                    audio_16k = resample_to_16k(audio_mono, CAPTURE_SAMPLE_RATE)
+                    trigger_stt = False
+                    if len(speech_buffer) > 0 and silence_strikes >= MAX_SILENCE_STRIKES:
+                        trigger_stt = True
+                    elif len(speech_buffer) >= MAX_SPEECH_CHUNKS:
+                        trigger_stt = True
 
-                    segments, _info = model.transcribe(
-                        audio_16k,
-                        language="ko",
-                        beam_size=3,
-                        # ── 컨텍스트 완전 초기화 ─────────────────────────────────
-                        # initial_prompt="": 이전 transcribe() 호출의 암묵적 컨텍스트를
-                        # 명시적으로 초기화. "직전 마지막 단어 누출" 현상 차단.
-                        initial_prompt="",
-                        # ── 환각(Hallucination) 억제 파라미터 ───────────────────
-                        # no_speech_threshold: 이 값 이상의 무음 확률이면 세그먼트 전체 버림
-                        no_speech_threshold=0.6,
-                        # log_prob_threshold: 평균 로그확률이 이 값 미만이면 버림 (낮을수록 엄격)
-                        log_prob_threshold=-1.0,
-                        # compression_ratio_threshold: 반복 텍스트(환각) 감지 후 버림
-                        compression_ratio_threshold=2.4,
-                        # vad_parameters: Silero VAD 내부 임계값 상향 (더 엄격한 음성 감지)
-                        vad_filter=True,
-                        vad_parameters={"threshold": 0.5, "min_silence_duration_ms": 300},
-                        condition_on_previous_text=False,
-                    )
+                    if trigger_stt:
+                        sentence_audio = np.concatenate(speech_buffer)
+                        speech_buffer = []
+                        silence_strikes = 0
 
-                    for seg in segments:
-                        text = seg.text.strip()
-                        if text:
-                            segment_callback({
-                                "text": text,
-                                "start": round(seg.start, 2),
-                                "end": round(seg.end, 2),
-                            })
+                        audio_16k = resample_to_16k(sentence_audio, CAPTURE_SAMPLE_RATE)
+                        
+                        segments, _info = model.transcribe(
+                            audio_16k,
+                            language="ko",
+                            beam_size=3,
+                            initial_prompt="",
+                            no_speech_threshold=0.6,
+                            log_prob_threshold=-1.0,
+                            compression_ratio_threshold=2.4,
+                            vad_filter=True,
+                            vad_parameters={"threshold": 0.5, "min_silence_duration_ms": 300},
+                            condition_on_previous_text=False,
+                        )
+
+                        for seg in segments:
+                            text = seg.text.strip()
+                            if text:
+                                segment_callback({
+                                    "text": text,
+                                    "start": round(seg.start, 2),
+                                    "end": round(seg.end, 2),
+                                })
 
         except Exception as e:
             logger.error(f"LoopbackSTT capture error: {e}", exc_info=True)
