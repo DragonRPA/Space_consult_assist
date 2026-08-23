@@ -212,7 +212,15 @@ export default function App() {
       globalAudioRef.current.currentTime = 0;
     }
     setIsAudioPlaying(false);
+    stopSttStreaming();
     setAudioTime(0, audioDuration);
+    showToast("⏹️ 음성 재생 및 STT 수신 정지됨");
+    setTimeout(() => clearToast(), 2000);
+  };
+
+  const handleClearAudioFile = () => {
+    stopAudioPlayback();
+    clearAudioFile();
   };
 
   const formatAudioTime = (sec: number) => {
@@ -541,8 +549,9 @@ export default function App() {
         }}
         onEnded={() => {
           setIsAudioPlaying(false);
-          showToast("⏹️ 음성 파일 재생이 종료되었습니다.");
-          setTimeout(() => clearToast(), 2500);
+          stopSttStreaming();
+          showToast("⏹️ 음성 파일 재생 완료 (STT 수신이 자동으로 종료되었습니다)");
+          setTimeout(() => clearToast(), 3500);
         }}
         onError={(e) => {
           console.error("Audio Load Error:", e);
@@ -1004,7 +1013,7 @@ export default function App() {
                   </button>
 
                   <button
-                    onClick={clearAudioFile}
+                    onClick={handleClearAudioFile}
                     title="음성 파일 제거"
                     style={{
                       padding: '4px 6px',
