@@ -1,16 +1,18 @@
-﻿from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-import os
-from dotenv import load_dotenv
+﻿import sys
+import asyncio
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-load_dotenv()
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import get_settings
+
+settings = get_settings()
 
 app = FastAPI(title="Space Advisor API", version="1.0.0")
 
 # CORS setup
-origins = os.getenv("CORS_ORIGINS", "").split(",")
-if not origins or origins == [""]:
-    origins = ["http://localhost:5173", "http://localhost:5174"]
+origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,7 +24,7 @@ app.add_middleware(
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "Space Advisor Backend"}
+    return {"status": "ok", "service": "Space Advisor Backend", "env": settings.app_env}
 
 if __name__ == "__main__":
     import uvicorn

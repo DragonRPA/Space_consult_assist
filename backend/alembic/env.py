@@ -1,14 +1,11 @@
-﻿import asyncio
-from logging.config import fileConfig
-from sqlalchemy import pool
-from sqlalchemy.ext.asyncio import async_engine_from_config
+﻿from logging.config import fileConfig
+from sqlalchemy import create_engine, pool
 from alembic import context
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Import models
 from app.models.base import Base
 import app.models.domain
 
@@ -22,10 +19,9 @@ target_metadata = Base.metadata
 def get_url():
     url = os.getenv("DATABASE_URL_MIGRATION")
     if not url:
-        url = "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"
-    # Ensure it uses asyncpg
+        url = "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"
     if url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
     return url
 
 def run_migrations_offline() -> None:
@@ -39,26 +35,17 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
-def do_run_migrations(connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
-    with context.begin_transaction():
-        context.run_migrations()
-
-async def run_async_migrations() -> None:
-    configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = get_url()
-    
-    connectable = async_engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
+def run_migrations_online() -> None:
+    connectable = create_engine(
+        get_url(),
         poolclass=pool.NullPool,
     )
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-    await connectable.dispose()
-
-def run_migrations_online() -> None:
-    asyncio.run(run_async_migrations())
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection, target_metadata=target_metadata
+        )
+        with context.begin_transaction():
+            context.run_migrations()
 
 if context.is_offline_mode():
     run_migrations_offline()
