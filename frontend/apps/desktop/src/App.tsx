@@ -35,7 +35,6 @@ import {
   renderMultiColorHighlightedText 
 } from './keywordAssist';
 import type { KeywordEntity, EntityRule } from './keywordAssist';
-import { getTranscriptTrackForFile } from './audioTranscriptRegistry';
 import type { CustomerInfo } from './store';
 import './index.css';
 
@@ -114,8 +113,6 @@ export default function App() {
   const isRecordingRef = useRef(isRecording);
   isRecordingRef.current = isRecording;
 
-  const playedCueIndicesRef = useRef<Set<number>>(new Set());
-
   // Standalone rule evaluator (Evaluates on live typing or speech without duplicate append)
   const evaluateUtteranceRules = (text: string) => {
     // 1. Symptom Keyword & Part Matching
@@ -172,7 +169,6 @@ export default function App() {
     if (!content || !content.trim()) return;
     resetSessionForNewAudio();
     clearAudioFile();
-    playedCueIndicesRef.current.clear();
     setDirectEditableText(content);
 
     const rawLines = content.split('\n');
@@ -278,22 +274,13 @@ export default function App() {
           return;
         }
 
-        // 2. If Audio file is dropped -> Digital stream sync audio player!
+        // 2. If Audio file is dropped -> Play audio and start real STT listening
         if (file.name.match(/\.(m4a|mp3|wav|ogg|aac|flac)$/i)) {
-          playedCueIndicesRef.current.clear();
           resetSessionForNewAudio();
           setActiveAudioFile(file);
           setIsAudioPlaying(true);
-          setRecording(true);
-          
-          // Instantly trigger the 0s opening line without waiting for audio latency!
-          const cues = getTranscriptTrackForFile(file.name);
-          if (cues.length > 0 && cues[0].timeSec === 0 && !playedCueIndicesRef.current.has(0)) {
-            playedCueIndicesRef.current.add(0);
-            processIncomingSpeechUtterance(cues[0].text);
-          }
-
-          showToast(`🎧 [${file.name}] 디지털 오디오 스트림 수신 시작 (무소음 STT 동기화)`);
+          startSttStreaming();
+          showToast(`[${file.name}] 음성 파일 재생 및 실시간 STT 수신 시작`);
           setTimeout(() => clearToast(), 3500);
         }
       }
@@ -318,7 +305,7 @@ export default function App() {
       window.removeEventListener('drop', handleGlobalDrop);
       window.removeEventListener('paste', handleGlobalPaste);
     };
-  }, [resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, setRecording, showToast, clearToast]);
+  }, [resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, showToast, clearToast]);
 
   // Background Audio Controller Sync
   useEffect(() => {
@@ -333,35 +320,18 @@ export default function App() {
     }
   }, [isAudioPlaying, activeAudioUrl]);
 
-  const handleAudioTimeUpdate = (currentTimeSec: number) => {
-    if (!activeAudioFile) return;
-    const cues = getTranscriptTrackForFile(activeAudioFile.name);
-
-    cues.forEach((cue, idx) => {
-      if (currentTimeSec >= cue.timeSec && !playedCueIndicesRef.current.has(idx)) {
-        playedCueIndicesRef.current.add(idx);
-        processIncomingSpeechUtterance(cue.text);
-      }
-    });
+  const handleAudioTimeUpdate = (_currentTimeSec: number) => {
+    // Real-time audio time update for playback scrub bar
   };
 
   const handleManualFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      playedCueIndicesRef.current.clear();
       resetSessionForNewAudio();
       setActiveAudioFile(file);
       setIsAudioPlaying(true);
-      setRecording(true);
-
-      // Instantly trigger 0s opening line
-      const cues = getTranscriptTrackForFile(file.name);
-      if (cues.length > 0 && cues[0].timeSec === 0 && !playedCueIndicesRef.current.has(0)) {
-        playedCueIndicesRef.current.add(0);
-        processIncomingSpeechUtterance(cues[0].text);
-      }
-
-      showToast(`🎧 [${file.name}] 디지털 오디오 스트림 수신 시작 (무소음 STT 동기화)`);
+      startSttStreaming();
+      showToast(`[${file.name}] 음성 파일 재생 및 실시간 STT 수신 시작`);
       setTimeout(() => clearToast(), 3500);
     }
   };
@@ -384,7 +354,6 @@ export default function App() {
       globalAudioRef.current.pause();
       globalAudioRef.current.currentTime = 0;
     }
-    playedCueIndicesRef.current.clear();
     setIsAudioPlaying(false);
     setRecording(false);
     setAudioTime(0, audioDuration);
@@ -543,7 +512,7 @@ export default function App() {
               const matchedCust = customerList.find(c => c.id === entRule.customerId);
               if (matchedCust) {
                 selectCustomer(matchedCust);
-                showToast(`${entRule.icon} [${matchedCust.name}] 음성 식별 자동 매핑됨`);
+                showToast(`[고객사] [${matchedCust.name}] 자동 매핑 완료`);
                 setTimeout(() => clearToast(), 3000);
               }
             }
@@ -556,7 +525,7 @@ export default function App() {
           if (entRule.type === 'action' && entRule.pattern.test(currentStream)) {
             if (entRule.actionIndex && actionChecklist[entRule.actionIndex - 1] && !actionChecklist[entRule.actionIndex - 1].checked) {
               toggleChecklist(entRule.actionIndex);
-              showToast(`🛠️ 조치 발화 감지: [${actionChecklist[entRule.actionIndex - 1].text.slice(0, 18)}...] 자동 체크 완료`);
+              showToast(`[조치 발화 감지] [${actionChecklist[entRule.actionIndex - 1].text.slice(0, 18)}...] 자동 체크 완료`);
               setTimeout(() => clearToast(), 3000);
             }
             break;
