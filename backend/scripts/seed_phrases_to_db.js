@@ -12,11 +12,11 @@ const JSON_FILE_PATH = path.join(__dirname, 'master_spoken_synonyms.json');
 const BATCH_SIZE = 250;
 
 // Direct PostgreSQL Connection to Supabase Pooler
-const connectionString = "postgresql://postgres.eknwzjcbchbefdlykqgl:jUHGAmVsSeXc1jdR@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres";
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/postgres";
 
 const pool = new Pool({
   connectionString: connectionString,
-  ssl: { rejectUnauthorized: false },
+  ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false },
   connectionTimeoutMillis: 10000
 });
 

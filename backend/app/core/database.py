@@ -1,4 +1,4 @@
-﻿from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 import os
 from dotenv import load_dotenv
@@ -10,15 +10,19 @@ if not DATABASE_URL:
     # Dummy fallback for Alembic autogenerate before env is set
     DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"
 
-# Supavisor 연동 엔진 (포트 6543)
+connect_args = {}
+if "asyncpg" in DATABASE_URL:
+    connect_args = {
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+    }
+
+# Supavisor 연동 엔진 (포트 6543 / 5432)
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     poolclass=NullPool,
-    connect_args={
-        "statement_cache_size": 0,
-        "prepared_statement_cache_size": 0,
-    }
+    connect_args=connect_args
 )
 
 AsyncSessionLocal = async_sessionmaker(
@@ -33,5 +37,8 @@ async def get_db():
     async with AsyncSessionLocal() as session:
         try:
             yield session
+        except Exception:
+            await session.rollback()
+            raise
         finally:
             await session.close()

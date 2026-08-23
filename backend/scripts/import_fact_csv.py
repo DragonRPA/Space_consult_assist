@@ -1,4 +1,4 @@
-﻿import os
+import os
 import json
 import time
 import pandas as pd
@@ -12,7 +12,7 @@ if db_url.startswith("postgresql+psycopg://"):
 
 # Direct connection to handle bulk better
 engine = create_engine(db_url, pool_size=5, max_overflow=10)
-csv_path = r"D:\스페이스_테스트\ensemble_master\analytics_gpt-oss_120b_top100\consult_analytics_fact.csv"
+csv_path = os.getenv("FACT_CSV_PATH", os.path.join(os.path.dirname(__file__), "consult_analytics_fact.csv"))
 
 DRAFT_SCRIPTS = {
     "SALES_INQUIRY": ["영업상담 및 요구사항 청취", "카탈로그 및 견적서 발송", "모델/스펙 상세 안내", "구매/임대 조건 및 단가 안내", "방문상담 예약 및 영업담당자 배정"],

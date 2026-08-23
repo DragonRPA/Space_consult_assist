@@ -36,21 +36,21 @@ export function applyContextualCorrection(rawText: string): { correctedText: str
   const corrections: CorrectionEvent[] = [];
 
   for (const rule of DOMAIN_CORRECTION_RULES) {
-    if (rule.pattern.test(text)) {
-      const matches = text.match(rule.pattern);
-      if (matches) {
-        matches.forEach(m => {
-          if (!corrections.some(c => c.original === m && c.corrected === rule.replacement)) {
-            corrections.push({
-              original: m,
-              corrected: rule.replacement,
-              category: rule.category,
-              timestamp: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-            });
-          }
-        });
-      }
-      text = text.replace(rule.pattern, rule.replacement);
+    // 가변 lastIndex 상태 오염 방지를 위해 매 실행 시 fresh RegExp 인스턴스 사용
+    const rx = new RegExp(rule.pattern.source, 'g');
+    const matches = text.match(rx);
+    if (matches) {
+      matches.forEach(m => {
+        if (!corrections.some(c => c.original === m && c.corrected === rule.replacement)) {
+          corrections.push({
+            original: m,
+            corrected: rule.replacement,
+            category: rule.category,
+            timestamp: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          });
+        }
+      });
+      text = text.replace(rx, rule.replacement);
     }
   }
 

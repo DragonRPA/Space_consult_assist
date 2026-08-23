@@ -35,9 +35,26 @@ export interface EntityRule {
 // 1. Symptom & Part Keyword Master
 export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
   {
+    id: 'kw-squeegee',
+    keyword: '스퀴지 마모 / 바닥 잔수',
+    synonyms: /스퀴지|바닥\s*물기|잔수|고무\s*블레이드|물\s*자국|고무패드|고무\s*패드|패드\s*거치대|고정판|판\s*거치대|빨아들이지\s*못|물\s*(?:자국|방울|이)?\s*남아|물\s*흡입\s*안|잔수\s*발생/i,
+    category: 'WEARABLE / 스퀴지·소모품',
+    partCode: 'SQUEEGEE-RUBBER',
+    partName: '내유성 우레탄 스퀴지 블레이드 세트',
+    stock: 35,
+    confidence: 96,
+    checklist: [
+      '스퀴지 고무날 마모 상태 및 찢어짐 육안 확인',
+      '스퀴지 블레이드 4면 뒤집기(재사용) 가능 여부 안내',
+      '스퀴지 브라켓 수평 조절 노브 장력 점검',
+      '폐수 흡입 호스 꺾임 및 연결 조인트 기밀 확인'
+    ],
+    selfActionGuide: '스퀴지 고무 블레이드는 4면을 돌려가며 쓸 수 있습니다. 날을 반대로 뒤집어 끼우도록 유도하세요.'
+  },
+  {
     id: 'kw-suction',
     keyword: '흡입모터 과열 / 굉음',
-    synonyms: /흡입\s*모터|흡기|진공압|굉음|타는\s*냄새|모터\s*소리|흡입력|빨아들이(고|면(은)?|지)?|빨아들/i,
+    synonyms: /흡입\s*모터|진공압\s*저하|모터\s*굉음|모터\s*과열|모터에서\s*소리|타는\s*냄새|모터\s*소음/i,
     category: 'POWER / 흡입·구동계통',
     partCode: 'SUCTION-500W',
     partName: '흡입모터 24V 500W 어셈블리',
@@ -51,23 +68,6 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
       '증상 지속 시 1차 셀프조치 중단 및 현장 긴급 정밀점검 배차'
     ],
     selfActionGuide: '고객에게 전원을 끄고 모터 열기를 10분간 식힌 뒤, 폐수탱크 거름망 이물질을 털어내도록 안내하세요.'
-  },
-  {
-    id: 'kw-squeegee',
-    keyword: '스퀴지 마모 / 바닥 잔수',
-    synonyms: /스퀴지|바닥\s*물기|잔수|고무\s*블레이드|물\s*자국|고무패드|고무\s*패드|패드\s*거치대|고정판|판\s*거치대|빨아들이지\s*못|물.*남아/i,
-    category: 'WEARABLE / 스퀴지·소모품',
-    partCode: 'SQUEEGEE-RUBBER',
-    partName: '내유성 우레탄 스퀴지 블레이드 세트',
-    stock: 35,
-    confidence: 96,
-    checklist: [
-      '스퀴지 고무날 마모 상태 및 찢어짐 육안 확인',
-      '스퀴지 블레이드 4면 뒤집기(재사용) 가능 여부 안내',
-      '스퀴지 브라켓 수평 조절 노브 장력 점검',
-      '폐수 흡입 호스 꺾임 및 연결 조인트 기밀 확인'
-    ],
-    selfActionGuide: '스퀴지 고무 블레이드는 4면을 돌려가며 쓸 수 있습니다. 날을 반대로 뒤집어 끼우도록 유도하세요.'
   },
   {
     id: 'kw-battery',
@@ -113,7 +113,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-cust-gangnam',
     type: 'customer',
     label: '고객사',
-    pattern: /스페이스\s*클린|스페이스|최관리\s*(팀장)?/i,
+    pattern: /(주)?\s*스페이스\s*클린|스페이스클린|최관리\s*(팀장)?/i,
     customerId: 'a1111111-1111-1111-1111-111111111111',
     colorScheme: {
       bg: 'rgba(168, 85, 247, 0.18)',
@@ -372,6 +372,10 @@ export function renderMultiColorHighlightedText(
         <span
           key={idx}
           onClick={handleClick}
+          tabIndex={0}
+          role="button"
+          aria-label={titleText}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); } }}
           title={titleText}
           style={{
             display: 'inline',
@@ -388,6 +392,7 @@ export function renderMultiColorHighlightedText(
           }}
         >
           {part}
+
         </span>
       );
     }

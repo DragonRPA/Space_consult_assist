@@ -1,7 +1,12 @@
-﻿import psycopg
+import os
+import psycopg
 import time
+from dotenv import load_dotenv
 
-url = "postgresql://postgres.eknwzjcbchbefdlykqgl:jUHGAmVsSeXc1jdR@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres"
+load_dotenv()
+url = os.getenv("DATABASE_URL")
+if not url:
+    url = "postgresql://postgres:postgres@localhost:5432/postgres"
 
 for i in range(5):
     try:

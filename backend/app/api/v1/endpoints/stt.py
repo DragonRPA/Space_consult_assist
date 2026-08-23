@@ -4,11 +4,13 @@ STT Router: Faster-Whisper Large-v3 Endpoints & WebSocket (Loopback + File)
 
 import asyncio
 import os
+import re
 import logging
-from fastapi import APIRouter, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import APIRouter, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException, Depends
 from fastapi.responses import JSONResponse, FileResponse
 from app.services.stt_service import get_whisper_model
 from app.services.wasapi_loopback_service import get_loopback_service, list_loopback_devices, RECORDINGS_DIR
+from app.core.security import check_stt_rate_limit, get_current_user
 
 router = APIRouter()
 logger = logging.getLogger("space_advisor.stt_api")
@@ -17,17 +19,22 @@ logger = logging.getLogger("space_advisor.stt_api")
 @router.get("/status")
 async def get_stt_engine_status():
     """Faster-Whisper 엔진 상태 및 루프백 캡처 가능 장치 목록 반환"""
+    import ctranslate2
     model = get_whisper_model()
     is_gpu_ready = model is not None
+    cuda_count = ctranslate2.get_cuda_device_count()
     loopback_svc = get_loopback_service()
     devices = list_loopback_devices()
+    
+    device_desc = f"CUDA / float16 (GPU x{cuda_count})" if cuda_count > 0 else "CPU / int8 (Fallback)"
     return {
         "engine": "Faster-Whisper Large-v3-Turbo",
-        "device": "NVIDIA GeForce RTX 5080 (CUDA / float16)" if is_gpu_ready else "CPU/Standby",
+        "device": device_desc if is_gpu_ready else "CPU/Standby",
         "is_ready": is_gpu_ready,
+        "cuda_devices": cuda_count,
         "loopback_running": loopback_svc.is_running,
         "loopback_devices": devices,
-        "max_concurrent": 8,
+        "max_concurrent": max(2, cuda_count * 4),
         "supported_formats": [".m4a", ".wav", ".mp3", ".flac", ".ogg", ".webm"]
     }
 
@@ -43,21 +50,35 @@ async def list_recordings():
     return {"recordings": files, "count": len(files)}
 
 
+from pathlib import Path
+
+WINDOWS_RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"}
+
 @router.get("/recordings/{filename}")
 async def download_recording(filename: str):
-    """통화 녹음 파일 다운로드"""
-    # 경로 순회 공격 방지
-    if ".." in filename or "/" in filename or "\\" in filename:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    filepath = os.path.join(RECORDINGS_DIR, filename)
-    if not os.path.exists(filepath):
+    """통화 녹음 파일 다운로드 (보안 하드닝: 경로 조작, DoS, 확장자 화이트리스트 검증)"""
+    safe_name = os.path.basename(filename)
+    stem = os.path.splitext(safe_name)[0].upper()
+    if stem in WINDOWS_RESERVED_NAMES:
+        raise HTTPException(status_code=400, detail="Invalid filename: Reserved system device name")
+
+    if not re.match(r"^[a-zA-Z0-9_\-]+\.wav$", safe_name):
+        raise HTTPException(status_code=400, detail="Invalid filename format (only .wav allowed)")
+
+    base_dir = Path(RECORDINGS_DIR).resolve()
+    target_path = (base_dir / safe_name).resolve()
+
+    if not str(target_path).startswith(str(base_dir)) or not target_path.exists():
         raise HTTPException(status_code=404, detail="Recording not found")
+
     return FileResponse(
-        path=filepath,
-        filename=filename,
+        path=str(target_path),
+        filename=safe_name,
         media_type="audio/wav"
     )
 
+
+import tempfile
 
 @router.post("/reset")
 async def reset_stt_session():
@@ -67,19 +88,117 @@ async def reset_stt_session():
     return {"status": "cleared"}
 
 
+def _sync_transcribe_file(model, audio_path: str):
+    """별도 워커 스레드에서 실행되는 CTranslate2 동기 추론 함수 (이벤트 루프 차단 방지)"""
+    segments, info = model.transcribe(
+        audio_path,
+        language="ko",
+        beam_size=3,
+        best_of=3,
+        temperature=0.0,
+        vad_filter=True,
+        vad_parameters={"threshold": 0.35, "min_silence_duration_ms": 300},
+        condition_on_previous_text=False,
+    )
+    
+    result_segments = []
+    full_lines = []
+    for seg in segments:
+        text = seg.text.strip()
+        if text:
+            m = int(seg.start // 60)
+            s = int(seg.start % 60)
+            ts = f"[{m:02d}:{s:02d}]"
+            line = f"{ts} {text}"
+            full_lines.append(line)
+            result_segments.append({
+                "start": round(seg.start, 2),
+                "end": round(seg.end, 2),
+                "timestamp": ts,
+                "text": text,
+                "full_line": line
+            })
+    return result_segments, full_lines, info
+
+
+@router.post("/transcribe-file", dependencies=[Depends(check_stt_rate_limit)])
+async def transcribe_uploaded_audio_file(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    업로드된 음성 파일(.m4a, .mp3, .wav 등)을 Faster-Whisper Large-v3로 직접 고속 전사.
+    asyncio.to_thread로 오프로딩하여 메인 이벤트 루프 프리즈 차단.
+    """
+    model = get_whisper_model()
+    if model is None:
+        raise HTTPException(status_code=500, detail="Faster-Whisper 모델을 초기화할 수 없습니다.")
+
+    MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB 제한 (DoS / OOM 방어)
+    
+    # Content-Type 검증 (Magic Number 수준은 백엔드 외부 검증 필요, Content-Type 1차 방어)
+    ALLOWED_CONTENT_TYPES = {
+        "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
+        "audio/mp4", "audio/m4a", "audio/x-m4a", "audio/flac",
+        "audio/ogg", "audio/webm", "video/webm", "application/octet-stream"
+    }
+    file_content_type = file.content_type or ""
+    if file_content_type and file_content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail="지원하지 않는 파일 형식입니다. 지원 형식: m4a, mp3, wav, flac, ogg, webm"
+        )
+
+    suffix = os.path.splitext(file.filename or "audio.m4a")[1]
+    if not suffix:
+        suffix = ".m4a"
+
+    total_bytes = 0
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1MB 청크 스트리밍
+            if not chunk:
+                break
+            total_bytes += len(chunk)
+            if total_bytes > MAX_FILE_SIZE:
+                tmp.close()
+                if os.path.exists(tmp.name):
+                    os.remove(tmp.name)
+                raise HTTPException(status_code=413, detail="파일 크기가 50MB를 초과하여 업로드할 수 없습니다.")
+            tmp.write(chunk)
+        tmp_path = tmp.name
+
+    try:
+        # 비동기 이벤트 루프를 마비시키지 않도록 스레드풀로 오프로딩
+        result_segments, full_lines, info = await asyncio.to_thread(
+            _sync_transcribe_file, model, tmp_path
+        )
+
+        return {
+            "filename": file.filename,
+            "duration": round(info.duration, 2),
+            "language": info.language,
+            "segments": result_segments,
+            "full_transcript": "\n".join(full_lines),
+            "count": len(result_segments)
+        }
+    except Exception as e:
+        logger.error(f"File transcription error: {e}", exc_info=True)
+        # 내부 에러 메시지 노출 방지 (정보 유출 차단)
+        raise HTTPException(status_code=500, detail="음성 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception as del_err:
+                logger.warning(f"Temporary file delete error: {del_err}")
+
+
+
 @router.websocket("/ws")
 async def stt_loopback_websocket(websocket: WebSocket):
     """
     WASAPI Loopback 실시간 STT WebSocket.
-
-    클라이언트 → 서버: JSON {"action": "start", "device": "CABLE Input (VB-Audio Virtual Cable)", "chunk_seconds": 2}
-    클라이언트 → 서버: JSON {"action": "stop"}
-    클라이언트 → 서버: JSON {"action": "clear_buffer"}
-    서버 → 클라이언트: JSON {"text": "...", "start": 0.0, "end": 2.1}  (실시간 세그먼트)
-    서버 → 클라이언트: JSON {"status": "connected", "device": "..."}
-    서버 → 클라이언트: JSON {"status": "stopped", "recording": "20260823_235900_call_recording.wav"}
-    서버 → 클라이언트: JSON {"status": "buffer_cleared"}
-    서버 → 클라이언트: JSON {"error": "..."}
     """
     await websocket.accept()
     logger.info("⚡ [STT-WS] Client connected for WASAPI Loopback real-time STT")
@@ -90,12 +209,14 @@ async def stt_loopback_websocket(websocket: WebSocket):
     def on_segment(segment: dict):
         """백그라운드 스레드 → WebSocket 비동기 전송"""
         try:
-            asyncio.run_coroutine_threadsafe(
+            future = asyncio.run_coroutine_threadsafe(
                 websocket.send_json(segment),
                 loop
             )
-        except Exception:
-            pass
+            # Future 완료 시 에러 로깅
+            future.add_done_callback(lambda f: logger.debug(f"[STT-WS] Sent segment error: {f.exception()}") if f.exception() else None)
+        except Exception as e:
+            logger.debug(f"[STT-WS] Socket send error: {e}")
 
     try:
         while True:

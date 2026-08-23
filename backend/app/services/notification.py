@@ -2,8 +2,18 @@ import os
 from abc import ABC, abstractmethod
 import httpx
 import logging
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# 재사용 가능한 글로벌 비동기 HTTP 클라이언트 (커넥션 풀링 및 10초 타임아웃)
+_http_client: httpx.AsyncClient | None = None
+
+def _get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(timeout=10.0)
+    return _http_client
 
 class NotificationService(ABC):
     @abstractmethod
@@ -30,11 +40,11 @@ class MockNotificationService(NotificationService):
 class AligoKakaoService(NotificationService):
     """CEO 결재 이후 알리고 카카오 알림톡 실제 발송"""
     def __init__(self):
-        self.ALIGO_KEY = os.getenv("ALIGO_KEY")
-        self.ALIGO_USER = os.getenv("ALIGO_USER_ID")
-        self.SENDER = os.getenv("ALIGO_SENDER")
-        self.TPL_COMPLETION = os.getenv("ALIGO_TPL_COMPLETION")
-        self.TPL_VISIT_ACCEPT = os.getenv("ALIGO_TPL_VISIT_ACCEPT")
+        self.ALIGO_KEY = os.getenv("ALIGO_KEY", "")
+        self.ALIGO_USER = os.getenv("ALIGO_USER_ID", "")
+        self.SENDER = os.getenv("ALIGO_SENDER", "")
+        self.TPL_COMPLETION = os.getenv("ALIGO_TPL_COMPLETION", "")
+        self.TPL_VISIT_ACCEPT = os.getenv("ALIGO_TPL_VISIT_ACCEPT", "")
 
     async def send_completion(self, phone: str, customer_name: str,
                                engineer_name: str, completed_at: str, work_summary: str) -> bool:
@@ -52,9 +62,13 @@ class AligoKakaoService(NotificationService):
                 f"문의사항은 담당 AS센터로 연락 주시기 바랍니다."
             ),
         }
-        async with httpx.AsyncClient() as client:
+        try:
+            client = _get_http_client()
             res = await client.post("https://apis.aligo.in/send/", data=payload)
             return res.json().get("result_code") == "1"
+        except Exception as e:
+            logger.error(f"[AligoKakaoService] send_completion 실패: {e}")
+            return False
 
     async def send_visit_accepted(self, phone: str, customer_name: str,
                                    visit_date: str, contact: str) -> bool:
@@ -71,11 +85,22 @@ class AligoKakaoService(NotificationService):
                 f"일정 변경이 필요하시면 담당 AS센터로 연락 주세요."
             ),
         }
-        async with httpx.AsyncClient() as client:
+        try:
+            client = _get_http_client()
             res = await client.post("https://apis.aligo.in/send/", data=payload)
             return res.json().get("result_code") == "1"
+        except Exception as e:
+            logger.error(f"[AligoKakaoService] send_visit_accepted 실패: {e}")
+            return False
+
+_cached_service: NotificationService | None = None
 
 def get_notification_service() -> NotificationService:
-    if os.getenv("NOTIFICATION_ENABLED", "false").lower() == "true":
-        return AligoKakaoService()
-    return MockNotificationService()
+    global _cached_service
+    if _cached_service is None:
+        settings = get_settings()
+        if settings.notification_enabled:
+            _cached_service = AligoKakaoService()
+        else:
+            _cached_service = MockNotificationService()
+    return _cached_service

@@ -91,6 +91,7 @@ export default function App() {
     selectCustomer,
     appendFinalParagraph,
     setInterimSttText,
+    setDiagnosisResult,
     toggleChecklist,
     setManualOverrideKeyword,
     setDispatchDrawerOpen,
@@ -102,6 +103,8 @@ export default function App() {
     clearToast
   } = useCounselStore();
 
+  const [salesTransferType, setSalesTransferType] = useState("신규 렌탈 견적서 요청");
+  const [salesTransferNote, setSalesTransferNote] = useState("기존 장비 가동률 증가로 추가 1대 렌탈 단가 견적 요청");
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [isMicTestOpen, setIsMicTestOpen] = useState(false);
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
@@ -118,6 +121,9 @@ export default function App() {
   const [micAudioLevel, setMicAudioLevel] = useState(0);
   const [justTriggeredKeyword, setJustTriggeredKeyword] = useState<string | null>(null);
   const [isDragOverDropzone, setIsDragOverDropzone] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
 
   // Periodic Local GPU Server Heartbeat Monitor (Every 3 seconds)
   useEffect(() => {
@@ -209,15 +215,24 @@ export default function App() {
   const processIncomingSpeechUtterance = (rawText: string) => {
     if (!rawText || !rawText.trim()) return;
     const trimmed = rawText.trim();
-    // 텍스트 앞머리에 이미 [mm:ss] 타임스탬프가 없으면 현재 callSeconds를 기반으로 부착
+    
+    // 텍스트 앞머리에 이미 [mm:ss] 타임스탬프가 있는지 확인
     const hasTimestamp = /^\[\d{1,2}:\d{2}(?::\d{2})?\]/.test(trimmed);
-    const timestampStr = hasTimestamp ? '' : `[${formatTimer(callSeconds)}] `;
+    
+    let timestampStr = '';
+    if (!hasTimestamp) {
+      // 오디오 파일 재생 중일 때는 오디오의 실제 현재 재생 시간(currentTime)을 최우선 기준으로 타임스탬프 동기화
+      const currentAudioTime = globalAudioRef.current ? globalAudioRef.current.currentTime : audioCurrentTime;
+      const targetSec = activeAudioFile && currentAudioTime > 0 ? Math.floor(currentAudioTime) : callSeconds;
+      timestampStr = `[${formatTimer(targetSec)}] `;
+    }
+
     const fullRawLine = `${timestampStr}${trimmed}`.trim();
 
     // 순수 텍스트(타임스탬프 분리된 본문)로 문맥 보정 및 규칙 평가
     const cleanContent = fullRawLine.replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '');
     const { correctedText, corrections } = applyContextualCorrection(cleanContent);
-    const fullCorrectedLine = hasTimestamp ? fullRawLine : `[${formatTimer(callSeconds)}] ${correctedText}`;
+    const fullCorrectedLine = hasTimestamp ? fullRawLine : `${timestampStr}${correctedText}`.trim();
 
     appendFinalParagraph(fullRawLine, fullCorrectedLine, corrections);
     evaluateUtteranceRules(correctedText);
@@ -348,9 +363,12 @@ export default function App() {
             }
             if (msg.text) {
               setIsAudioStreamingActive(true);
-              const formattedLine = msg.full_line || (msg.timestamp ? `${msg.timestamp} ${msg.text}` : msg.text);
-              appendFinalParagraph(formattedLine, formattedLine, []);
-              evaluateUtteranceRules(msg.text);
+              const cleanText = msg.text.trim();
+              const { correctedText, corrections } = applyContextualCorrection(cleanText);
+              const rawLine = msg.full_line || (msg.timestamp ? `${msg.timestamp} ${cleanText}` : cleanText);
+              const correctedLine = msg.timestamp ? `${msg.timestamp} ${correctedText}` : correctedText;
+              appendFinalParagraph(rawLine, correctedLine, corrections);
+              evaluateUtteranceRules(correctedText);
             }
 
             if (msg.status === 'stopped' && msg.recording) {
@@ -419,18 +437,41 @@ export default function App() {
       } catch (_) {}
     }
 
-    // Faster-Whisper GPU 모드: 파일을 드롭하면 플레이어만 구동하고, 실시간 루프백을 통해 단일 전사 (이중 출력 방지)
-    if (sttEngine === 'whisper_large_v3') {
-      showToast(`[${file.name}] 재생 준비 완료 → 스피커 출력 실시간 STT`);
+    // 1. Faster-Whisper GPU 모드: 파일을 백엔드 GPU로 직접 전송하여 100% 무누락 고속 전사 수행
+    if (sttEngine === 'whisper_large_v3' && gpuServerOnline) {
+      showToast(`⚡ [${file.name}] RTX 5080 고속 STT 분석 중...`);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('http://127.0.0.1:8000/api/v1/stt/transcribe-file', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.segments) && data.segments.length > 0) {
+            data.segments.forEach((seg: { full_line: string }) => {
+              processIncomingSpeechUtterance(seg.full_line);
+            });
+            showToast(`✅ [${file.name}] Faster-Whisper GPU 분석 완료: ${data.count}개 문장 전사됨`);
+            setTimeout(() => clearToast(), 3500);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Direct file transcription fallback:', err);
+      }
+      showToast(`[${file.name}] 스피커 출력 실시간 STT 모드로 수신합니다.`);
       setTimeout(() => clearToast(), 2500);
       return;
     }
 
-    // Web Speech API 모드인 경우에만 브라우저 마이크 스트리밍 가동
+    // 2. Web Speech API 모드인 경우 브라우저 마이크 스트리밍 가동
     startSttStreaming();
     showToast(`[${file.name}] 음성 파일 재생 및 Web Speech STT 수신 시작`);
     setTimeout(() => clearToast(), 3500);
-  }, [sttEngine, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, showToast, clearToast]);
+  }, [sttEngine, gpuServerOnline, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, showToast, clearToast]);
 
 
 
@@ -465,9 +506,13 @@ export default function App() {
               handlePasteText(content, file.name);
             }
           };
+          reader.onerror = () => {
+            console.error('FileReader 오류: 파일을 읽을 수 없습니다.', file.name);
+          };
           reader.readAsText(file, 'utf-8');
           return;
         }
+
 
         // 2. If Audio file is dropped -> Process with active STT engine (Faster-Whisper GPU or Web Speech)
         if (file.name.match(/\.(m4a|mp3|wav|ogg|aac|flac)$/i)) {
@@ -586,8 +631,8 @@ export default function App() {
     return `${m}:${s}`;
   };
 
-  // 가상 오디오 케이블에서 실제 음성 스트리밍 신호가 감지될 때만 통화 활성화 (SSOT)
-  const isCallActive = isAudioStreamingActive;
+  // 통화 활성화 상태 (Faster-Whisper 스트리밍 수신 중이거나, Web Speech 녹음 중이거나, 오디오 재생 중)
+  const isCallActive = isAudioStreamingActive || (sttEngine === 'web_speech' && isRecording) || isAudioPlaying;
 
   // Call timer interval - 가상 오디오 스트리밍이 진행되는 동안에만 1초씩 카운트
   useEffect(() => {
@@ -604,12 +649,12 @@ export default function App() {
 
 
 
-  // Auto-scroll transcript box when new speech arrives
+  // Auto-scroll transcript box when new speech arrives (스마트 스크롤: 위로 스크롤 시 튕김 방지)
   useEffect(() => {
-    if (transcriptBoxRef.current) {
+    if (transcriptBoxRef.current && !isUserScrolledUp) {
       transcriptBoxRef.current.scrollTop = transcriptBoxRef.current.scrollHeight;
     }
-  }, [finalParagraphs, interimSttText]);
+  }, [finalParagraphs, interimSttText, isUserScrolledUp]);
 
   // Live Audio Level Visualizer
   useEffect(() => {
@@ -814,15 +859,51 @@ export default function App() {
     }
   };
 
-  const handleResolveComplete = () => {
-    showToast("✓ 1차 셀프조치 해결 완료로 기록되었습니다. (3초 후 DB 확정)");
+  const handleResolveComplete = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+      const authToken = import.meta.env.VITE_DEV_TOKEN || "space-advisor-desktop-agent";
+      const res = await fetch(`${apiBase}/counsel`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          customer_id: selectedCustomer.id,
+          customer_name: selectedCustomer.name,
+          manager: selectedCustomer.manager,
+          serial_number: selectedCustomer.serialNumber || "",
+          model_name: selectedCustomer.assetModel || "",
+          keyword: activeKeywordEntity?.keyword || "1차 셀프조치 해결",
+          part_code: activeKeywordEntity?.partCode || "",
+          symptoms: rawParagraphs.join(" ") || "1차 상담 셀프 조치 완료",
+          action_taken: actionChecklist.filter(c => c.checked).map(c => c.text).join(", ") || activeKeywordEntity?.selfActionGuide || "전화 안내 조치 완료",
+          is_completed: true,
+          is_visit_required: false
+        })
+      });
+      if (!res.ok) {
+        throw new Error(`상담 저장 실패 (HTTP ${res.status}): ${res.statusText}`);
+      }
+      showToast("✓ 1차 셀프조치 해결 이력이 DB에 정상 등록되었습니다.");
+    } catch (e) {
+      console.error("셀프조치 저장 실패:", e);
+      showToast(`⚠️ DB 저장 실패: ${e instanceof Error ? e.message : '네트워크 오류'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
     setTimeout(() => clearToast(), 3500);
   };
 
   const handleConfirmDispatch = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
-      await fetch(`${apiBase}/visits`, {
+      const res = await fetch(`${apiBase}/visits`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -832,39 +913,54 @@ export default function App() {
           phone: selectedCustomer.phone,
           address: selectedCustomer.address,
           address_detail: selectedCustomer.addressDetail,
+          assigned_engineer: assignedEngineer,
+          dispatch_date: dispatchDate,
           request_note: dispatchNote,
-          status: "접수",
           client_type: "desktop"
         })
       });
+      if (!res.ok) {
+        throw new Error(`배차 등록 실패 (HTTP ${res.status}): ${res.statusText}`);
+      }
+      setDispatchDrawerOpen(false);
+      showToast(`🚗 [${selectedCustomer.name}] 출장 배차 접수가 정상 등록되었습니다.`);
     } catch (e) {
-      console.warn("로컬 모의 저장 완료", e);
+      console.error("배차 저장 실패:", e);
+      showToast(`❌ 배차 접수 실패: ${e instanceof Error ? e.message : '서버 통신 실패'}`);
+    } finally {
+      setIsSubmitting(false);
     }
-    setDispatchDrawerOpen(false);
-    showToast(`🚗 [${selectedCustomer.name}] 출장 배차 접수가 정상 완료되었습니다!`);
-    setTimeout(() => clearToast(), 3500);
+    setTimeout(() => clearToast(), 4000);
   };
 
   const handleConfirmSalesTransfer = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
-      await fetch(`${apiBase}/sales`, {
+      const res = await fetch(`${apiBase}/sales`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          inquiry_type: "신규 장비 추가 렌탈 견적",
+          inquiry_type: salesTransferType,
           customer_name: selectedCustomer.name,
           manager: selectedCustomer.manager,
           manager_phone: selectedCustomer.phone,
-          request_note: "기존 장비 가동률 증가로 추가 1대 렌탈 단가 견적 요청",
+          request_note: salesTransferNote,
           client_type: "desktop"
         })
       });
+      if (!res.ok) {
+        throw new Error(`영업 이관 실패 (HTTP ${res.status}): ${res.statusText}`);
+      }
+      setSalesModalOpen(false);
+      showToast(`💼 영업팀으로 신규 견적 문의가 성공적으로 이관되었습니다.`);
     } catch (e) {
-      console.warn("로컬 영업 이관 모의 완료", e);
+      console.error("영업 이관 실패:", e);
+      showToast(`❌ 영업 이관 실패: ${e instanceof Error ? e.message : '서버 통신 실패'}`);
+    } finally {
+      setIsSubmitting(false);
     }
-    setSalesModalOpen(false);
-    showToast(`💼 영업팀으로 신규 견적 문의가 성공적으로 이관되었습니다.`);
     setTimeout(() => clearToast(), 3500);
   };
 
@@ -954,7 +1050,7 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)', boxShadow: '0 0 8px var(--glow-color)' }} />
             <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.3px', color: 'var(--ink)' }}>
-              Space Advisor <span style={{ fontWeight: 400, color: 'var(--ink-muted)', fontSize: '12px' }}>PRO 관제</span>
+              Space Advisor <span style={{ fontWeight: 400, color: 'var(--ink-muted)', fontSize: '12px' }}>상담 관제</span>
             </span>
           </div>
 
@@ -1248,10 +1344,37 @@ export default function App() {
               <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--ink-subtle)' }} />
               <input
                 type="text"
-                placeholder="고객사명 또는 전화번호 4자리..."
+                placeholder="고객사명 또는 전화번호 4자리... (↑/↓ 키보드 탐색)"
                 value={searchQuery}
-                onFocus={() => setSearchDropdownOpen(true)}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => {
+                  setSearchDropdownOpen(true);
+                  setSelectedSearchIndex(-1);
+                }}
+                onKeyDown={(e) => {
+                  if (!searchDropdownOpen || customerList.length === 0) return;
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSelectedSearchIndex((prev) => (prev < customerList.length - 1 ? prev + 1 : 0));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSelectedSearchIndex((prev) => (prev > 0 ? prev - 1 : customerList.length - 1));
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const targetCust = selectedSearchIndex >= 0 ? customerList[selectedSearchIndex] : customerList[0];
+                    if (targetCust) {
+                      selectCustomer(targetCust);
+                      setSearchDropdownOpen(false);
+                      setSelectedSearchIndex(-1);
+                    }
+                  } else if (e.key === 'Escape') {
+                    setSearchDropdownOpen(false);
+                    setSelectedSearchIndex(-1);
+                  }
+                }}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSelectedSearchIndex(-1);
+                }}
                 style={{
                   width: '100%',
                   padding: '8px 8px 8px 32px',
@@ -1277,21 +1400,22 @@ export default function App() {
                   maxHeight: '180px',
                   overflowY: 'auto'
                 }}>
-                  {customerList.map((cust) => (
+                  {customerList.map((cust, idx) => (
                     <div
                       key={cust.id}
                       onClick={() => {
                         selectCustomer(cust);
                         setSearchDropdownOpen(false);
+                        setSelectedSearchIndex(-1);
                       }}
                       style={{
                         padding: '8px 12px',
                         borderBottom: '1px solid var(--hairline)',
                         cursor: 'pointer',
-                        fontSize: '12px'
+                        fontSize: '12px',
+                        backgroundColor: idx === selectedSearchIndex ? 'var(--surface-hover)' : 'transparent'
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--surface-hover)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      onMouseEnter={() => setSelectedSearchIndex(idx)}
                     >
                       <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{cust.name}</div>
                       <div style={{ color: 'var(--ink-muted)', fontSize: '11px' }}>{cust.manager} · {cust.phone}</div>
@@ -1655,15 +1779,23 @@ export default function App() {
               display: 'flex', 
               flexDirection: 'column', 
               borderBottom: '1px solid var(--hairline)',
-              overflow: 'hidden' 
+              overflow: 'hidden',
+              position: 'relative'
             }}
           >
             <div 
               ref={transcriptBoxRef}
               onDragEnter={() => setIsDragOverDropzone(true)}
               onDragLeave={() => setIsDragOverDropzone(false)}
+              onScroll={(e) => {
+                const target = e.currentTarget;
+                const isUp = target.scrollHeight - target.scrollTop - target.clientHeight > 80;
+                setIsUserScrolledUp(isUp);
+              }}
               onDoubleClick={() => {
-                if (!isDirectEditMode) {
+                // 텍스트 선택 중(드래그)에는 직접 수정 모드로 강제 전환 방지
+                const sel = window.getSelection()?.toString().trim();
+                if (!sel && !isDirectEditMode) {
                   setDirectEditableText(activeParagraphs.join('\n'));
                   setIsDirectEditMode(true);
                 }
@@ -1803,6 +1935,37 @@ export default function App() {
                 </div>
               )}
             </div>
+            {isUserScrolledUp && (
+              <button
+                onClick={() => {
+                  if (transcriptBoxRef.current) {
+                    transcriptBoxRef.current.scrollTop = transcriptBoxRef.current.scrollHeight;
+                    setIsUserScrolledUp(false);
+                  }
+                }}
+                style={{
+                  position: 'absolute',
+                  bottom: '16px',
+                  right: '16px',
+                  backgroundColor: 'var(--accent-primary)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '16px',
+                  padding: '6px 12px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                  cursor: 'pointer',
+                  zIndex: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <span>최신 발화 이동</span>
+                <span>↓</span>
+              </button>
+            )}
           </div>
 
           {/* Detected Keywords & Diagnosis Panel (FIXED HEIGHT RATIO WITH SCROLLBAR) */}
@@ -1961,11 +2124,44 @@ export default function App() {
                   }}
                 />
                 <button 
-                  onClick={() => {
-                    if (manualOverrideKeyword.trim()) {
-                      showToast(`수동 교정 키워드 [${manualOverrideKeyword}]가 적용되었습니다.`);
-                      setTimeout(() => clearToast(), 3000);
+                  onClick={async () => {
+                    const kw = manualOverrideKeyword.trim();
+                    if (!kw) return;
+                    try {
+                      const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+                      const res = await fetch(`${apiBase}/counsel/classify`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ text: kw })
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        const scriptList = Array.isArray(data.action_script) && data.action_script.length > 0
+                          ? data.action_script
+                          : ["1단계: 전원 차단 및 육안 점검", "2단계: 부품 체결 및 세척 확인", "3단계: 재가동 테스트"];
+                        
+                        setDiagnosisResult(
+                          [kw],
+                          {
+                            category: "수동 교정 진단",
+                            partCode: data.part_code || "MANUAL_PART",
+                            partName: data.keyword || kw,
+                            stock: 12,
+                            confidence: data.confidence || 1.0,
+                            source: data.source || "manual_override",
+                            selfActionGuide: scriptList[0] || "1차 셀프조치 가이드를 확인하십시오."
+                          },
+                          scriptList
+                        );
+                        showToast(`✓ 키워드 [${kw}] 진단/부품/SOP 실시간 교정 적용 완료`);
+                      } else {
+                        showToast(`수동 교정 키워드 [${kw}]가 적용되었습니다.`);
+                      }
+                    } catch (err) {
+                      console.error("교정 API 호출 실패:", err);
+                      showToast(`수동 교정 키워드 [${kw}]가 적용되었습니다.`);
                     }
+                    setTimeout(() => clearToast(), 3500);
                   }}
                   style={{
                     padding: '6px 12px',
@@ -2071,16 +2267,17 @@ export default function App() {
             {/* Action 1: 1-Click Resolve Complete */}
             <button
               onClick={handleResolveComplete}
+              disabled={isSubmitting}
               style={{
                 width: '100%',
                 padding: '11px',
-                backgroundColor: 'var(--accent-success)',
+                backgroundColor: isSubmitting ? 'var(--surface-3)' : 'var(--accent-success)',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '6px',
                 fontSize: '13px',
                 fontWeight: 700,
-                cursor: 'pointer',
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -2088,23 +2285,24 @@ export default function App() {
               }}
             >
               <CheckCircle2 size={16} />
-              1차 셀프조치 해결 완료 (종결)
+              {isSubmitting ? '처리 중...' : '셀프조치 완료 (종결)'}
             </button>
 
             {/* Dual Action: Dispatch vs Sales Transfer */}
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 onClick={() => setDispatchDrawerOpen(true)}
+                disabled={isSubmitting}
                 style={{
                   flex: 1.2,
                   padding: '11px',
-                  backgroundColor: 'var(--accent-primary)',
+                  backgroundColor: isSubmitting ? 'var(--surface-3)' : 'var(--accent-primary)',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '6px',
                   fontSize: '13px',
                   fontWeight: 700,
-                  cursor: 'pointer',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -2112,11 +2310,12 @@ export default function App() {
                 }}
               >
                 <Wrench size={15} />
-                긴급 출장 배차 접수
+                출장 배차 접수
               </button>
 
               <button
                 onClick={() => setSalesModalOpen(true)}
+                disabled={isSubmitting}
                 style={{
                   flex: 0.8,
                   padding: '11px',
@@ -2126,11 +2325,11 @@ export default function App() {
                   borderRadius: '6px',
                   fontSize: '12px',
                   fontWeight: 600,
-                  cursor: 'pointer',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '4px'
+                  gap: '6px'
                 }}
               >
                 <Building2 size={14} />
@@ -2142,28 +2341,38 @@ export default function App() {
       </div>
 
       {/* ========================================================= */}
-      {/* 3. SLIDE-IN DISPATCH BOOKING DRAWER (Intercom Style)       */}
+      {/* 3. CENTER DISPATCH BOOKING MODAL                          */}
       {/* ========================================================= */}
       {dispatchDrawerOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: '420px',
-          backgroundColor: 'var(--surface-1)',
-          borderLeft: '1px solid var(--hairline)',
-          boxShadow: '-8px 0 32px rgba(0,0,0,0.5)',
-          zIndex: 100,
-          display: 'flex',
-          flexDirection: 'column',
-          animation: 'slideIn 0.2s ease-out'
-        }}>
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            animation: 'fadeIn 0.15s ease-out'
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setDispatchDrawerOpen(false); }}
+        >
+          <div style={{
+            width: '500px',
+            maxHeight: '90vh',
+            backgroundColor: 'var(--surface-1)',
+            border: '1px solid var(--hairline)',
+            borderRadius: '8px',
+            boxShadow: '0 16px 40px rgba(0,0,0,0.8)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }}>
           {/* Drawer Header */}
           <div style={{ padding: '16px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Wrench size={18} style={{ color: 'var(--accent-primary)' }} />
-              출장 배차 접수 (100% 자동완성)
+              출장 배차 접수
             </span>
             <button onClick={() => setDispatchDrawerOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}>
               <X size={18} />
@@ -2238,6 +2447,7 @@ export default function App() {
               배차 확정 및 기사 모바일 앱 전송
             </button>
           </div>
+          </div>
         </div>
       )}
 
@@ -2273,13 +2483,27 @@ export default function App() {
               고객사 <strong style={{ color: 'var(--ink)' }}>{selectedCustomer.name}</strong>의 단순 견적/계약 문의를 영업팀 리드 대장으로 이관합니다.
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
               <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>이관 유형</label>
-              <select style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)' }}>
-                <option>신규 렌탈 견적서 요청</option>
-                <option>장비 추가 도입 및 계약 변경</option>
-                <option>단순 소모품 구매 견적</option>
+              <select 
+                value={salesTransferType}
+                onChange={(e) => setSalesTransferType(e.target.value)}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)' }}
+              >
+                <option value="신규 렌탈 견적서 요청">신규 렌탈 견적서 요청</option>
+                <option value="장비 추가 도입 및 계약 변경">장비 추가 도입 및 계약 변경</option>
+                <option value="단순 소모품 구매 견적">단순 소모품 구매 견적</option>
               </select>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
+              <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>상세 요청사항</label>
+              <textarea
+                value={salesTransferNote}
+                onChange={(e) => setSalesTransferNote(e.target.value)}
+                rows={3}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '12px', resize: 'none' }}
+              />
             </div>
 
             <button
@@ -2482,13 +2706,13 @@ export default function App() {
 
             <div style={{ backgroundColor: 'var(--surface-2)', padding: '14px', borderRadius: '6px', border: '1px solid var(--hairline)', marginBottom: '16px' }}>
               <div style={{ fontSize: '11px', color: 'var(--ink-muted)', marginBottom: '6px', fontWeight: 600 }}>
-                1-클릭 실행 배치 파일 경로:
+                백엔드 STT 실행 스크립트
               </div>
               <div style={{ fontSize: '12px', fontFamily: 'monospace', color: 'var(--accent-primary)', backgroundColor: 'var(--surface-3)', padding: '8px 10px', borderRadius: '4px', wordBreak: 'break-all', marginBottom: '10px' }}>
-                D:\GoogleDrive\RPA_dev\01.AntiGravity\Space_consult_assist\start_backend_stt.bat
+                start_backend_stt.bat
               </div>
               <div style={{ fontSize: '12px', color: 'var(--ink)' }}>
-                👉 위 파일을 <strong>더블클릭</strong>하여 실행하면 로컬 GPU 서버가 <code>localhost:8000</code>에서 즉시 켜집니다.
+                루트 디렉터리의 <code>start_backend_stt.bat</code> 실행 시 포트 8000에서 STT 서버가 구동됩니다.
               </div>
             </div>
 
@@ -2510,19 +2734,19 @@ export default function App() {
                   <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent-warning)' }} />
                 )}
                 <span style={{ fontSize: '13px', fontWeight: 700, color: gpuServerOnline ? 'var(--accent-success)' : 'var(--accent-warning)' }}>
-                  {gpuServerOnline ? "✅ 로컬 GPU 에이전트 연결 성공!" : "로컬 GPU 서버 가동 대기 중..."}
+                  {gpuServerOnline ? "GPU 엔진 연결됨" : "GPU 서버 대기 중"}
                 </span>
               </div>
               <span style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
-                {gpuServerOnline ? "포트 8000 정상 응답" : "2초마다 자동 감지 중"}
+                {gpuServerOnline ? "포트 8000 정상" : "자동 감지 중"}
               </span>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText("D:\\GoogleDrive\\RPA_dev\\01.AntiGravity\\Space_consult_assist\\start_backend_stt.bat");
-                  showToast("배치 파일 경로가 클립보드에 복사되었습니다.");
+                  navigator.clipboard.writeText("start_backend_stt.bat");
+                  showToast("실행 파일명이 클립보드에 복사되었습니다.");
                   setTimeout(() => clearToast(), 3000);
                 }}
                 style={{
@@ -2536,7 +2760,7 @@ export default function App() {
                   fontWeight: 600
                 }}
               >
-                경로 복사
+                파일명 복사
               </button>
               <button
                 onClick={() => setIsWhisperLauncherModalOpen(false)}

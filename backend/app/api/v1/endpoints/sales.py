@@ -17,12 +17,24 @@ class SalesInquiryCreate(BaseModel):
     manager: Optional[str] = ""
     manager_phone: str
     request_note: Optional[str] = ""
+    counselor_name: Optional[str] = None
     client_type: Optional[str] = "desktop"
 
 @router.post("/")
 async def create_sales_inquiry(req: SalesInquiryCreate, db: AsyncSession = Depends(get_db)):
     """영업 문의 이관 접수 생성"""
     new_id = uuid.uuid4()
+    
+    emp_id = None
+    if req.counselor_name:
+        emp_res = await db.execute(
+            text("SELECT id FROM employees WHERE name = :name LIMIT 1"),
+            {"name": req.counselor_name.strip()}
+        )
+        emp_row = emp_res.fetchone()
+        if emp_row:
+            emp_id = emp_row.id
+
     query = text("""
         INSERT INTO sales_inquiries (id, inquiry_type, customer_name, manager, manager_phone, request_note, is_completed, client_type, timestamp)
         VALUES (:id, :itype, :cname, :mgr, :phone, :note, false, :client_type, CURRENT_TIMESTAMP)
@@ -39,12 +51,12 @@ async def create_sales_inquiry(req: SalesInquiryCreate, db: AsyncSession = Depen
     })
     inquiry_id = res.scalar()
 
-    # 감사 로그 기록
+    # 감사 로그 기록 (changed_by 무누락 연동)
     audit_q = text("""
-        INSERT INTO audit_log_minimal (id, table_name, record_id, action, changed_at)
-        VALUES (:aid, 'sales_inquiries', :rid, 'INSERT', CURRENT_TIMESTAMP)
+        INSERT INTO audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
+        VALUES (:aid, 'sales_inquiries', :rid, 'INSERT', :emp_id, CURRENT_TIMESTAMP)
     """)
-    await db.execute(audit_q, {"aid": uuid.uuid4(), "rid": inquiry_id})
+    await db.execute(audit_q, {"aid": uuid.uuid4(), "rid": inquiry_id, "emp_id": emp_id})
 
     await db.commit()
     return {"inquiry_id": str(inquiry_id), "status": "접수", "message": "영업팀 이관 접수 완료"}

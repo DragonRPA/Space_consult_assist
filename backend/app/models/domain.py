@@ -1,4 +1,4 @@
-﻿import uuid
+import uuid
 from datetime import datetime
 from sqlalchemy import UniqueConstraint, String, Integer, Boolean, DateTime, ForeignKey, Text, SmallInteger, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -188,3 +188,11 @@ class VisitPart(Base):
     part_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("parts.id"), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, default=1)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class VehicleInventory(Base):
+    __tablename__ = "vehicle_inventories"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    employee_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"), nullable=False)
+    part_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("parts.id"), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
