@@ -3,12 +3,12 @@ STT Router: Faster-Whisper Large-v3 Endpoints & WebSocket (Loopback + File)
 """
 
 import asyncio
-import threading
+import os
 import logging
 from fastapi import APIRouter, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from app.services.stt_service import transcribe_audio_file, get_whisper_model
-from app.services.wasapi_loopback_service import get_loopback_service, list_loopback_devices
+from app.services.wasapi_loopback_service import get_loopback_service, list_loopback_devices, RECORDINGS_DIR
 
 router = APIRouter()
 logger = logging.getLogger("space_advisor.stt_api")
@@ -49,15 +49,43 @@ async def transcribe_audio(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/recordings")
+async def list_recordings():
+    """저장된 통화 녹음 파일 목록 반환"""
+    os.makedirs(RECORDINGS_DIR, exist_ok=True)
+    files = sorted(
+        [f for f in os.listdir(RECORDINGS_DIR) if f.endswith(".wav")],
+        reverse=True
+    )
+    return {"recordings": files, "count": len(files)}
+
+
+@router.get("/recordings/{filename}")
+async def download_recording(filename: str):
+    """통화 녹음 파일 다운로드"""
+    # 경로 순회 공격 방지
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    filepath = os.path.join(RECORDINGS_DIR, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Recording not found")
+    return FileResponse(
+        path=filepath,
+        filename=filename,
+        media_type="audio/wav"
+    )
+
+
 @router.websocket("/ws")
 async def stt_loopback_websocket(websocket: WebSocket):
     """
     WASAPI Loopback 실시간 STT WebSocket.
-    
-    클라이언트 → 서버: JSON {"action": "start", "device": "CABLE Input (VB-Audio Virtual Cable)"}
+
+    클라이언트 → 서버: JSON {"action": "start", "device": "CABLE Input (VB-Audio Virtual Cable)", "chunk_seconds": 2}
     클라이언트 → 서버: JSON {"action": "stop"}
     서버 → 클라이언트: JSON {"text": "...", "start": 0.0, "end": 2.1}  (실시간 세그먼트)
     서버 → 클라이언트: JSON {"status": "connected", "device": "..."}
+    서버 → 클라이언트: JSON {"status": "stopped", "recording": "20260823_235900_call_recording.wav"}
     서버 → 클라이언트: JSON {"error": "..."}
     """
     await websocket.accept()
@@ -86,14 +114,18 @@ async def stt_loopback_websocket(websocket: WebSocket):
                     loopback_svc.stop()
                 device_name = msg.get("device", None)
                 chunk_seconds = float(msg.get("chunk_seconds", 2.0))
-                chunk_seconds = max(0.3, min(chunk_seconds, 10.0))  # 0.3s ~ 10s 범위 제한
+                chunk_seconds = max(0.3, min(chunk_seconds, 10.0))
                 logger.info(f"▶ [STT-WS] Loopback STT 시작 (device={device_name}, chunk={chunk_seconds}s)")
                 loopback_svc.start(on_segment, device_name=device_name, chunk_seconds=chunk_seconds)
 
             elif action == "stop":
-                logger.info("⏹ [STT-WS] Loopback STT 중지")
-                loopback_svc.stop()
-                await websocket.send_json({"status": "stopped"})
+                logger.info("⏹ [STT-WS] Loopback STT 중지 + 녹음 저장")
+                recording_filename = loopback_svc.stop()
+                resp = {"status": "stopped"}
+                if recording_filename:
+                    resp["recording"] = recording_filename
+                    logger.info(f"📼 녹음 파일 저장: {recording_filename}")
+                await websocket.send_json(resp)
 
     except WebSocketDisconnect:
         logger.info("🔌 [STT-WS] Client disconnected → stopping loopback")

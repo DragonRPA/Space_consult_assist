@@ -80,11 +80,15 @@ def find_vb_cable_device():
         return None
 
 
+RECORDINGS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "recordings")
+
+
 class LoopbackSTTService:
     """
     WASAPI Loopback 실시간 STT 서비스.
     백그라운드 스레드에서 오디오를 캡처하고
     segment_callback으로 전사 결과를 비동기 전달합니다.
+    통화 중 오디오를 누적하여 종료 시 .wav 파일로 저장합니다.
     """
 
     def __init__(self):
@@ -92,10 +96,17 @@ class LoopbackSTTService:
         self._thread: Optional[threading.Thread] = None
         self._device_name: Optional[str] = None
         self._chunk_seconds: float = 2.0
+        # ── 녹음 버퍼 ───────────────────────────────────────────────────────
+        self._recording_chunks: list = []   # 48kHz mono float32 청크 리스트
+        self._last_recording_path: Optional[str] = None
 
     @property
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
+
+    @property
+    def last_recording_path(self) -> Optional[str]:
+        return self._last_recording_path
 
     def start(
         self,
@@ -110,7 +121,9 @@ class LoopbackSTTService:
 
         self._stop_event.clear()
         self._device_name = device_name
-        self._chunk_seconds = max(0.3, float(chunk_seconds))  # 최소 0.3초 보장
+        self._chunk_seconds = max(0.3, float(chunk_seconds))
+        self._recording_chunks = []          # 녹음 버퍼 초기화
+        self._last_recording_path = None
         self._thread = threading.Thread(
             target=self._capture_loop,
             args=(segment_callback,),
@@ -120,13 +133,41 @@ class LoopbackSTTService:
         self._thread.start()
         logger.info(f"LoopbackSTTService started (chunk={self._chunk_seconds}s)")
 
-    def stop(self):
-        """루프백 캡처 스레드 중지"""
+    def stop(self) -> Optional[str]:
+        """루프백 캡처 스레드 중지 후 녹음 파일 저장. 저장된 파일명 반환."""
         self._stop_event.set()
         if self._thread:
             self._thread.join(timeout=5)
             self._thread = None
-        logger.info("LoopbackSTTService stopped")
+
+        saved_path = self._save_recording()
+        self._recording_chunks = []
+        logger.info(f"LoopbackSTTService stopped. Recording: {saved_path}")
+        return saved_path
+
+    def _save_recording(self) -> Optional[str]:
+        """누적된 청크를 .wav 파일로 저장. 저장 경로 반환."""
+        if not self._recording_chunks:
+            return None
+        try:
+            from scipy.io import wavfile
+            from datetime import datetime
+
+            os.makedirs(RECORDINGS_DIR, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{timestamp}_call_recording.wav"
+            filepath = os.path.join(RECORDINGS_DIR, filename)
+
+            audio = np.concatenate(self._recording_chunks, axis=0)
+            audio_int16 = np.clip(audio * 32767, -32768, 32767).astype(np.int16)
+            wavfile.write(filepath, WHISPER_SAMPLE_RATE, audio_int16)
+
+            self._last_recording_path = filepath
+            logger.info(f"✅ 통화 녹음 저장 완료: {filepath} ({len(audio_int16)/WHISPER_SAMPLE_RATE:.1f}초)")
+            return filename
+        except Exception as e:
+            logger.error(f"녹음 저장 실패: {e}", exc_info=True)
+            return None
 
     def _capture_loop(self, segment_callback: Callable[[dict], None]):
         """실제 WASAPI 루프백 캡처 + VAD + Whisper 추론 루프"""
@@ -166,10 +207,14 @@ class LoopbackSTTService:
                 while not self._stop_event.is_set():
                     chunk = recorder.record(numframes=chunk_frames)
                     audio_mono = chunk[:, 0] if chunk.ndim > 1 else chunk
+                    audio_mono = audio_mono.astype(np.float32)
 
-                    rms = float(np.sqrt(np.mean(audio_mono.astype(np.float32) ** 2)))
+                    # ── 녹음 버퍼 누적 (무음 포함 전체 통화 저장) ──────────────
+                    self._recording_chunks.append(audio_mono.copy())
+
+                    rms = float(np.sqrt(np.mean(audio_mono ** 2)))
                     if rms < SILENCE_THRESHOLD_RMS:
-                        continue
+                        continue  # STT는 스킵, 녹음은 이미 누적됨
 
                     audio_16k = resample_to_16k(audio_mono, CAPTURE_SAMPLE_RATE)
 

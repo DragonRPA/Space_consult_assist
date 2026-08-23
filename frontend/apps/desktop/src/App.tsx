@@ -24,6 +24,7 @@ import {
   Edit3,
   Eye,
   Loader2,
+  Download,
   X 
 } from 'lucide-react';
 import { useCounselStore } from './store';
@@ -288,10 +289,13 @@ export default function App() {
 
   // ── WASAPI Loopback Real-time STT ─────────────────────────────────────────
 
+  const [lastRecordingFile, setLastRecordingFile] = useState<string | null>(null);
+
   const startLoopbackSTT = useCallback((deviceName?: string, chunkSec: number = 2) => {
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
       return; // already connected
     }
+    setLastRecordingFile(null);
     const ws = new WebSocket('ws://127.0.0.1:8000/api/v1/stt/ws');
     loopbackWsRef.current = ws;
 
@@ -309,6 +313,12 @@ export default function App() {
         if (msg.text) {
           appendFinalParagraph(msg.text, msg.text, []);
           evaluateUtteranceRules(msg.text);
+        }
+        if (msg.status === 'stopped' && msg.recording) {
+          // 녹음 파일 저장 완료 → 다운로드 배지 표출
+          setLastRecordingFile(msg.recording);
+          showToast(`[녹음 저장] ${msg.recording}`);
+          setTimeout(() => clearToast(), 4000);
         }
         if (msg.error) {
           showToast(`[루프백 STT 오류] ${msg.error}`);
@@ -335,15 +345,15 @@ export default function App() {
     if (loopbackWsRef.current) {
       if (loopbackWsRef.current.readyState === WebSocket.OPEN) {
         loopbackWsRef.current.send(JSON.stringify({ action: 'stop' }));
-        loopbackWsRef.current.close();
+        // WebSocket은 서버가 stopped 응답 후 onclose에서 정리
       }
-      loopbackWsRef.current = null;
     }
     setIsLoopbackActive(false);
     setRecording(false);
-    showToast('[루프백 STT] 실시간 캡처 중지');
-    setTimeout(() => clearToast(), 2000);
+    showToast('[루프백 STT] 실시간 캡처 중지 — 녹음 저장 중...');
+    setTimeout(() => clearToast(), 2500);
   }, [showToast, clearToast, setRecording]);
+
 
   const processAudioWithActiveEngine = useCallback(async (file: File) => {
     // 이전 스케줄된 타이머 전부 취소
@@ -1111,9 +1121,24 @@ export default function App() {
                     </button>
                   </>
                 )}
+                {/* 녹음 다운로드 버튼 (루프백 중지 후 파일 준비 시) */}
+                {lastRecordingFile && !isLoopbackActive && (
+                  <a
+                    href={`http://127.0.0.1:8000/api/v1/stt/recordings/${lastRecordingFile}`}
+                    download={lastRecordingFile}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '4px',
+                      padding: '4px 10px', borderRadius: '6px',
+                      backgroundColor: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)',
+                      color: 'var(--accent-success)', fontSize: '11px', fontWeight: 700,
+                      textDecoration: 'none', whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Download size={11} />
+                    <span>녹음 다운로드</span>
+                  </a>
+                )}
 
-
-                {/* 장치 선택 드롭다운 */}
                 {loopbackDevices.length > 0 && !isLoopbackActive && (
                   <select
                     value={loopbackDevice}
