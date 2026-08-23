@@ -66,7 +66,9 @@ export default function App() {
     correctionHistory,
     toggleContextCorrection,
     activeKeywordEntity,
+    detectedKeywordEntities,
     setActiveKeywordEntity,
+    addDetectedKeywordEntity,
     searchQuery,
     customerList,
     selectedCustomer,
@@ -102,6 +104,7 @@ export default function App() {
   const [isMicTestOpen, setIsMicTestOpen] = useState(false);
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [isDirectEditMode, setIsDirectEditMode] = useState(false);
+  const [showAllSymptoms, setShowAllSymptoms] = useState(false);
   const [directEditableText, setDirectEditableText] = useState('');
   const [pastedInputText, setPastedInputText] = useState('');
   const [micAudioLevel, setMicAudioLevel] = useState(0);
@@ -119,6 +122,7 @@ export default function App() {
     // 1. Symptom Keyword & Part Matching
     for (const entity of DOMAIN_KEYWORD_REGISTRY) {
       if (entity.synonyms.test(text)) {
+        addDetectedKeywordEntity(entity);
         if (activeKeywordEntity?.id !== entity.id) {
           setActiveKeywordEntity(entity);
           setJustTriggeredKeyword(entity.keyword);
@@ -484,6 +488,7 @@ export default function App() {
         // 1. Symptom Trigger
         for (const entity of DOMAIN_KEYWORD_REGISTRY) {
           if (entity.synonyms.test(currentStream)) {
+            addDetectedKeywordEntity(entity);
             if (!activeKeywordEntity || activeKeywordEntity.id !== entity.id) {
               setActiveKeywordEntity(entity);
               setJustTriggeredKeyword(entity.keyword);
@@ -1488,43 +1493,103 @@ export default function App() {
           <div style={{ flex: '1 1 50%', minHeight: '160px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ fontSize: '11px', color: 'var(--ink-muted)', display: 'block' }}>
-                  감지된 증상 키워드 (클릭 시 해당 어시스트 즉시 조회)
-                </label>
-                {justTriggeredKeyword && (
-                  <span style={{ fontSize: '11px', color: 'var(--accent-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Zap size={12} /> [{justTriggeredKeyword}] 자동 조회됨!
-                  </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--ink-muted)', display: 'block', fontWeight: 600 }}>
+                    이번 통화 실시간 감지 증상 ({detectedKeywordEntities.length}건)
+                  </label>
+                  {justTriggeredKeyword && (
+                    <span style={{ fontSize: '11px', color: 'var(--accent-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Zap size={12} /> [{justTriggeredKeyword}] 포착!
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowAllSymptoms(!showAllSymptoms)}
+                  style={{
+                    fontSize: '10px',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    backgroundColor: showAllSymptoms ? 'var(--accent-primary)' : 'var(--surface-2)',
+                    border: '1px solid var(--hairline)',
+                    color: showAllSymptoms ? '#fff' : 'var(--ink-muted)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {showAllSymptoms ? '전체 목록 닫기' : '+ 전체 6대 증상 목록'}
+                </button>
+              </div>
+
+              {/* Dynamic Detected Symptoms from THIS Call */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', minHeight: '32px', alignItems: 'center' }}>
+                {detectedKeywordEntities.length > 0 ? (
+                  detectedKeywordEntities.map((entity) => {
+                    const isSelected = activeKeywordEntity?.id === entity.id;
+                    return (
+                      <button
+                        key={entity.id}
+                        onClick={() => handleKeywordSelect(entity)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '5px 12px',
+                          borderRadius: '6px',
+                          backgroundColor: isSelected ? 'var(--accent-primary)' : 'rgba(37, 99, 235, 0.12)',
+                          border: `1px solid ${isSelected ? 'var(--accent-primary)' : 'rgba(37, 99, 235, 0.35)'}`,
+                          color: isSelected ? '#fff' : '#93c5fd',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: isSelected ? '0 0 10px rgba(37, 99, 235, 0.5)' : 'none',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <span>#{entity.keyword}</span>
+                        <span style={{ fontSize: '10px', opacity: 0.85, fontWeight: 500 }}>({entity.category})</span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div style={{ fontSize: '11px', color: 'var(--ink-subtle)', fontStyle: 'italic', padding: '4px 0' }}>
+                    상담 대화 중 고객이 언급한 고장 증상이 실시간으로 여기에 자동 포착됩니다.
+                  </div>
                 )}
               </div>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {DOMAIN_KEYWORD_REGISTRY.map((entity) => {
-                  const isSelected = activeKeywordEntity?.id === entity.id;
-                  return (
-                    <button
-                      key={entity.id}
-                      onClick={() => handleKeywordSelect(entity)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '4px 10px',
-                        borderRadius: '4px',
-                        backgroundColor: isSelected ? 'var(--accent-primary)' : 'var(--badge-bg)',
-                        border: `1px solid ${isSelected ? 'var(--accent-primary)' : 'var(--hairline)'}`,
-                        color: isSelected ? '#fff' : 'var(--badge-text)',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <span>#{entity.keyword}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              {/* Collapsible Full Symptoms Catalog (Optional Manual Lookup) */}
+              {showAllSymptoms && (
+                <div style={{ marginTop: '8px', padding: '8px', backgroundColor: 'var(--surface-3)', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--ink-muted)', marginBottom: '4px', fontWeight: 600 }}>
+                    수동 증상 선택 카탈로그 (전체 6대 분류):
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    {DOMAIN_KEYWORD_REGISTRY.map((entity) => {
+                      const isSelected = activeKeywordEntity?.id === entity.id;
+                      return (
+                        <button
+                          key={entity.id}
+                          onClick={() => {
+                            addDetectedKeywordEntity(entity);
+                            handleKeywordSelect(entity);
+                          }}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            backgroundColor: isSelected ? 'var(--accent-primary)' : 'var(--badge-bg)',
+                            border: `1px solid ${isSelected ? 'var(--accent-primary)' : 'var(--hairline)'}`,
+                            color: isSelected ? '#fff' : 'var(--badge-text)',
+                            fontSize: '11px',
+                            fontWeight: 500,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          #{entity.keyword}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Diagnosis Result Card */}

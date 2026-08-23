@@ -64,7 +64,9 @@ interface CounselWorkstationState {
 
   // Real-time Keyword & Auto-Assist Trigger
   activeKeywordEntity: KeywordEntity | null;
+  detectedKeywordEntities: KeywordEntity[];
   setActiveKeywordEntity: (entity: KeywordEntity) => void;
+  addDetectedKeywordEntity: (entity: KeywordEntity) => void;
 
   // Panel A: Customer & Asset
   searchQuery: string;
@@ -199,6 +201,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
     correctionHistory: [],
     callSeconds: 0,
     activeKeywordEntity: null,
+    detectedKeywordEntities: [],
     detectedKeywords: [],
     matchedDiagnosis: null,
     actionChecklist: [],
@@ -213,6 +216,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
   toggleContextCorrection: () => set((state) => ({ isContextCorrectionEnabled: !state.isContextCorrectionEnabled })),
 
   activeKeywordEntity: null,
+  detectedKeywordEntities: [],
   setActiveKeywordEntity: (entity) => set({
     activeKeywordEntity: entity,
     matchedDiagnosis: {
@@ -225,6 +229,11 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
       selfActionGuide: entity.selfActionGuide
     },
     actionChecklist: entity.checklist.map((txt, idx) => ({ id: idx + 1, text: txt, checked: false }))
+  }),
+  addDetectedKeywordEntity: (entity) => set((state) => {
+    const exists = state.detectedKeywordEntities.some(e => e.id === entity.id);
+    if (exists) return state;
+    return { detectedKeywordEntities: [...state.detectedKeywordEntities, entity] };
   }),
 
   searchQuery: '',
