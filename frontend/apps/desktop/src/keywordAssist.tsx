@@ -38,7 +38,7 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
   {
     id: 'kw-suction',
     keyword: '흡입모터 과열 / 굉음',
-    synonyms: /흡입\s*모터|진공압|굉음|타는\s*냄새|모터\s*소리|흡입력/i,
+    synonyms: /흡입\s*모터|흡기|진공압|굉음|타는\s*냄새|모터\s*소리|흡입력|빨아들이(고|면(은)?|지)?|빨아들/i,
     category: 'POWER / 흡입·구동계통',
     partCode: 'SUCTION-500W',
     partName: '흡입모터 24V 500W 어셈블리',
@@ -56,7 +56,7 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
   {
     id: 'kw-squeegee',
     keyword: '스퀴지 마모 / 바닥 잔수',
-    synonyms: /스퀴지|바닥\s*물기|잔수|고무\s*블레이드|물\s*자국/i,
+    synonyms: /스퀴지|바닥\s*물기|잔수|고무\s*블레이드|물\s*자국|빨아들이지\s*못|물.*남아/i,
     category: 'WEARABLE / 스퀴지·소모품',
     partCode: 'SQUEEGEE-RUBBER',
     partName: '내유성 우레탄 스퀴지 블레이드 세트',
@@ -202,7 +202,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-suction',
     type: 'symptom',
     label: '증상/부품',
-    pattern: /흡입\s*모터|진공압|굉음|타는\s*냄새|모터\s*소리|흡입력/i,
+    pattern: /흡입\s*모터|흡기|진공압|굉음|타는\s*냄새|모터\s*소리|흡입력|빨아들이(고|면(은)?|지)?|빨아들/i,
     icon: '🔍',
     keywordId: 'kw-suction',
     colorScheme: {
