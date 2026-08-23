@@ -6,11 +6,13 @@ Faster-Whisper Large-v3-Turbo로 실시간 전사합니다.
 
 import os
 import sys
+import time
 import threading
 import logging
 import numpy as np
 from typing import Callable, Optional
 from math import gcd
+
 
 # Register NVIDIA CUDA DLLs on Windows
 if sys.platform == "win32":
