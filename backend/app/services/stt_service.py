@@ -24,23 +24,23 @@ def get_whisper_model():
         return _whisper_model
 
     try:
+        import ctranslate2
         from faster_whisper import WhisperModel
-        import torch
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        cuda_count = ctranslate2.get_cuda_device_count()
+        device = "cuda" if cuda_count > 0 else "cpu"
         compute_type = "float16" if device == "cuda" else "int8"
         
-        logger.info(f"⚡ [Faster-Whisper] Loading large-v3 on {device.upper()} (compute: {compute_type})...")
+        logger.info(f"⚡ [Faster-Whisper] Loading pre-cached large-v3-turbo on {device.upper()} (CUDA devices: {cuda_count}, compute: {compute_type})...")
         _whisper_model = WhisperModel(
-            "large-v3",
+            "large-v3-turbo",
             device=device,
             compute_type=compute_type,
-            download_root=os.path.join(os.path.expanduser("~"), ".cache", "whisper")
         )
-        logger.info("✅ [Faster-Whisper] Large-v3 model initialized successfully!")
+        logger.info("✅ [Faster-Whisper] Large-v3-Turbo model initialized successfully on RTX 5080 GPU!")
         return _whisper_model
     except Exception as e:
-        logger.warning(f"⚠️ [Faster-Whisper] GPU model initialization warning: {e}. Running in lightweight fallback mode.")
+        logger.error(f"❌ [Faster-Whisper] GPU model initialization error: {e}", exc_info=True)
         return None
 
 
