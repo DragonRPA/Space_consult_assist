@@ -86,6 +86,7 @@ export default function App() {
     dispatchDate,
     setRecording,
     incrementCallTimer,
+    resetCallTimer,
     setSearchQuery,
     selectCustomer,
     appendFinalParagraph,
@@ -322,7 +323,14 @@ export default function App() {
           try {
             const msg = JSON.parse(event.data);
             if (msg.type === 'stream_state') {
-              setIsAudioStreamingActive(!!msg.streaming);
+              if (msg.streaming) {
+                setIsAudioStreamingActive((prev) => {
+                  if (!prev) resetCallTimer();
+                  return true;
+                });
+              } else {
+                setIsAudioStreamingActive(false);
+              }
             }
             if (msg.text) {
               setIsAudioStreamingActive(true);
@@ -340,6 +348,7 @@ export default function App() {
             }
           } catch (_) {}
         };
+
 
 
         ws.onerror = () => {
@@ -561,10 +570,10 @@ export default function App() {
     return `${m}:${s}`;
   };
 
-  // 실제 오디오 재생 또는 가상 오디오 스트리밍 신호가 감지될 때만 통화 활성화
-  const isCallActive = isAudioPlaying || isAudioStreamingActive;
+  // 가상 오디오 케이블에서 실제 음성 스트리밍 신호가 감지될 때만 통화 활성화 (SSOT)
+  const isCallActive = isAudioStreamingActive;
 
-  // Call timer interval - 실제 오디오 신호가 흐를 때만 1초씩 카운트
+  // Call timer interval - 가상 오디오 스트리밍이 진행되는 동안에만 1초씩 카운트
   useEffect(() => {
     let timer: number | null = null;
     if (isCallActive) {
@@ -576,6 +585,7 @@ export default function App() {
       if (timer) clearInterval(timer);
     };
   }, [isCallActive, incrementCallTimer]);
+
 
   const formatTimer = (sec: number) => {
     const m = String(Math.floor(sec / 60)).padStart(2, '0');
