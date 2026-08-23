@@ -13,10 +13,12 @@ import {
   Sparkles, 
   Volume2, 
   Radio,
+  BrainCircuit,
   X 
 } from 'lucide-react';
 import { useCounselStore } from './store';
 import { MicTestModal } from './MicTestModal';
+import { applyContextualCorrection } from './contextCorrector';
 import './index.css';
 
 declare global {
@@ -83,9 +85,13 @@ export default function App() {
     callSeconds,
     counselorName,
     toastMessage,
+    isContextCorrectionEnabled,
+    correctionHistory,
+    toggleContextCorrection,
     searchQuery,
     customerList,
     selectedCustomer,
+    rawFinalSttText,
     finalSttText,
     interimSttText,
     detectedKeywords,
@@ -118,6 +124,7 @@ export default function App() {
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [isMicTestOpen, setIsMicTestOpen] = useState(false);
   const [micAudioLevel, setMicAudioLevel] = useState(0);
+  const [showCorrectionsPopover, setShowCorrectionsPopover] = useState(false);
 
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -139,7 +146,7 @@ export default function App() {
     return `${m}:${s}`;
   };
 
-  // Live Audio Level Visualizer when isRecording is true
+  // Live Audio Level Visualizer
   useEffect(() => {
     if (isRecording) {
       navigator.mediaDevices?.getUserMedia({ audio: true })
@@ -185,7 +192,7 @@ export default function App() {
     };
   }, [isRecording]);
 
-  // Real-time Web Speech API with Interim Token Processing
+  // Real-time Web Speech API with Interim Token Processing & Context Correction
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -208,14 +215,28 @@ export default function App() {
         }
 
         if (final) {
-          appendFinalSttText(final.trim());
+          const rawSentence = final.trim();
+          let processedSentence = rawSentence;
+          let newCorrections: any[] = [];
+
+          if (isContextCorrectionEnabled) {
+            const result = applyContextualCorrection(rawSentence);
+            processedSentence = result.correctedText;
+            newCorrections = result.corrections;
+            if (newCorrections.length > 0) {
+              showToast(`✨ 맥락 교정 적용됨: "${newCorrections[0].original}" ➔ "${newCorrections[0].corrected}"`);
+              setTimeout(() => clearToast(), 3000);
+            }
+          }
+
+          appendFinalSttText(rawSentence, processedSentence, newCorrections);
           setInterimSttText('');
         } else if (interim) {
           setInterimSttText(interim);
         }
 
         // Instantaneous Real-time Keyword & SOP Trigger (<50ms on interim speech tokens!)
-        const fullCurrentStream = (finalSttText + ' ' + interim).trim();
+        const fullCurrentStream = ((isContextCorrectionEnabled ? finalSttText : rawFinalSttText) + ' ' + interim).trim();
         for (const rule of INSTANT_SYMPTOM_RULES) {
           if (rule.pattern.test(fullCurrentStream)) {
             setDiagnosisResult(
@@ -256,7 +277,7 @@ export default function App() {
 
       recognitionRef.current = recognition;
     }
-  }, [appendFinalSttText, setInterimSttText, finalSttText, isRecording, setRecording, setDiagnosisResult, showToast, clearToast]);
+  }, [appendFinalSttText, setInterimSttText, finalSttText, rawFinalSttText, isContextCorrectionEnabled, isRecording, setRecording, setDiagnosisResult, showToast, clearToast]);
 
   const toggleRecording = () => {
     if (!isRecording) {
@@ -371,21 +392,43 @@ export default function App() {
           </span>
         </div>
 
-        {/* Real-time Streaming Status Badge */}
+        {/* Semantic Contextual STT Correction Toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          
+          <button
+            onClick={toggleContextCorrection}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              backgroundColor: isContextCorrectionEnabled ? 'rgba(37, 99, 235, 0.15)' : 'var(--surface-2)',
+              border: `1px solid ${isContextCorrectionEnabled ? 'var(--accent-primary)' : 'var(--hairline)'}`,
+              color: isContextCorrectionEnabled ? '#93c5fd' : 'var(--ink-muted)',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            <BrainCircuit size={13} style={{ color: isContextCorrectionEnabled ? 'var(--accent-primary)' : 'var(--ink-subtle)' }} />
+            <span>맥락적 STT 자동 보정: <strong>{isContextCorrectionEnabled ? "ON (활성)" : "OFF"}</strong></span>
+          </button>
+
+          {/* Real-time Streaming Status Badge */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
             padding: '4px 10px',
             borderRadius: '4px',
-            backgroundColor: isRecording ? 'rgba(37, 99, 235, 0.15)' : 'var(--surface-2)',
-            border: `1px solid ${isRecording ? 'var(--accent-primary)' : 'var(--hairline)'}`,
+            backgroundColor: isRecording ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface-2)',
+            border: `1px solid ${isRecording ? 'var(--accent-success)' : 'var(--hairline)'}`,
             fontSize: '11px',
-            color: isRecording ? '#93c5fd' : 'var(--ink-muted)'
+            color: isRecording ? 'var(--accent-success)' : 'var(--ink-muted)'
           }}>
-            <Radio size={12} className={isRecording ? "animate-pulse text-blue-400" : ""} />
-            <span>스트리밍 STT: <strong>{isRecording ? "실시간 발화 감지 중 (<50ms)" : "대기"}</strong></span>
+            <Radio size={12} className={isRecording ? "animate-pulse" : ""} />
+            <span>스트리밍 STT: <strong>{isRecording ? "실시간 발화 중 (<50ms)" : "대기"}</strong></span>
           </div>
         </div>
 
@@ -661,12 +704,29 @@ export default function App() {
             </div>
           </div>
 
-          {/* STT Live Transcript Box (Splits Final and Live Interim Stream) */}
+          {/* STT Live Transcript Box */}
           <div style={{ flex: '1.2', padding: '12px', display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--hairline)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
-                실시간 전사 자막 (말하는 즉시 0.1초 단위 표시)
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
+                  실시간 전사 자막 (말하는 즉시 0.1초 단위 표시)
+                </label>
+                {correctionHistory.length > 0 && isContextCorrectionEnabled && (
+                  <button 
+                    onClick={() => setShowCorrectionsPopover(!showCorrectionsPopover)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--accent-primary)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ✨ 교정 {correctionHistory.length}건
+                  </button>
+                )}
+              </div>
               <button 
                 onClick={() => setIsMicTestOpen(true)}
                 style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
@@ -686,10 +746,10 @@ export default function App() {
               lineHeight: 1.6,
               color: 'var(--ink)'
             }}>
-              {/* 1) Final Confirmed Sentences (Solid Ink) */}
-              <span>{finalSttText} </span>
+              {/* 1) Confirmed Sentences */}
+              <span>{isContextCorrectionEnabled ? finalSttText : rawFinalSttText} </span>
 
-              {/* 2) Real-time Interim Streaming Words (Glowing Blue Text) */}
+              {/* 2) Real-time Interim Streaming Words (Glowing Blue) */}
               {interimSttText && (
                 <span style={{ color: '#93c5fd', backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '1px 4px', borderRadius: '3px', fontWeight: 600 }}>
                   {interimSttText}
@@ -1086,7 +1146,7 @@ export default function App() {
       )}
 
       {/* ========================================================= */}
-      {/* 5. TOAST NOTIFICATION (3-Second Undo / Feedback)          */}
+      {/* 5. TOAST NOTIFICATION (3-Second Feedback)                 */}
       {/* ========================================================= */}
       {toastMessage && (
         <div style={{

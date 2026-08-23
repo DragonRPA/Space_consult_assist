@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { CorrectionEvent } from './contextCorrector';
 
 export interface CustomerInfo {
   id: string;
@@ -36,12 +37,18 @@ interface CounselWorkstationState {
   counselorName: string;
   toastMessage: string | null;
 
+  // Contextual STT Semantic Correction Engine
+  isContextCorrectionEnabled: boolean;
+  correctionHistory: CorrectionEvent[];
+  toggleContextCorrection: () => void;
+
   // Panel A: Customer & Asset
   searchQuery: string;
   customerList: CustomerInfo[];
   selectedCustomer: CustomerInfo;
 
   // Panel B: STT & Live Streaming
+  rawFinalSttText: string;
   finalSttText: string;
   interimSttText: string;
   detectedKeywords: string[];
@@ -61,7 +68,7 @@ interface CounselWorkstationState {
   incrementCallTimer: () => void;
   setSearchQuery: (query: string) => void;
   selectCustomer: (customer: CustomerInfo) => void;
-  appendFinalSttText: (text: string) => void;
+  appendFinalSttText: (rawText: string, correctedText: string, corrections: CorrectionEvent[]) => void;
   setInterimSttText: (text: string) => void;
   setDiagnosisResult: (keywords: string[], diagnosis: MatchedDiagnosis, checklist: string[]) => void;
   toggleChecklist: (id: number) => void;
@@ -131,10 +138,18 @@ export const useCounselStore = create<CounselWorkstationState>((set) => ({
   counselorName: '이지은 상담원 (선임)',
   toastMessage: null,
 
+  isContextCorrectionEnabled: true,
+  correctionHistory: [
+    { original: '스키즈', corrected: '스퀴지', category: '소모품/스퀴지', timestamp: '03:10' },
+    { original: '흐빕 모터', corrected: '흡입 모터', category: '구동/흡입', timestamp: '03:15' }
+  ],
+  toggleContextCorrection: () => set((state) => ({ isContextCorrectionEnabled: !state.isContextCorrectionEnabled })),
+
   searchQuery: '',
   customerList: DEFAULT_CUSTOMERS,
   selectedCustomer: DEFAULT_CUSTOMERS[0],
 
+  rawFinalSttText: '흡입 모터 쪽에서 타는 냄새가 나고 굉음이 심하게 발생하면서',
   finalSttText: '흡입 모터 쪽에서 타는 냄새가 나고 굉음이 심하게 발생하면서',
   interimSttText: '바닥 오수 흡입이 전혀 안돼요...',
   detectedKeywords: ['흡입모터 굉음', '타는 냄새', '오수 흡입불량'],
@@ -165,7 +180,11 @@ export const useCounselStore = create<CounselWorkstationState>((set) => ({
   incrementCallTimer: () => set((state) => ({ callSeconds: state.callSeconds + 1 })),
   setSearchQuery: (query) => set({ searchQuery: query }),
   selectCustomer: (customer) => set({ selectedCustomer: customer }),
-  appendFinalSttText: (text) => set((state) => ({ finalSttText: (state.finalSttText ? state.finalSttText + ' ' : '') + text })),
+  appendFinalSttText: (rawText, correctedText, newCorrections) => set((state) => ({
+    rawFinalSttText: (state.rawFinalSttText ? state.rawFinalSttText + ' ' : '') + rawText,
+    finalSttText: (state.finalSttText ? state.finalSttText + ' ' : '') + correctedText,
+    correctionHistory: [...state.correctionHistory, ...newCorrections]
+  })),
   setInterimSttText: (text) => set({ interimSttText: text }),
   setDiagnosisResult: (keywords, diagnosis, checklist) => set({
     detectedKeywords: keywords,
