@@ -124,28 +124,27 @@ export default function App() {
     const checkGpuServer = async () => {
       try {
         const res = await fetch('http://127.0.0.1:8000/api/v1/stt/status');
-        if (isMounted && res.ok) {
-          const data = await res.json();
+        if (!isMounted) return;
+        if (res.ok) {
           setGpuServerOnline(true);
-          if (data.loopback_devices && data.loopback_devices.length > 0) {
-            setLoopbackDevices(data.loopback_devices);
-          }
-        } else if (isMounted) {
+          try {
+            const data = await res.json();
+            if (Array.isArray(data.loopback_devices) && data.loopback_devices.length > 0) {
+              setLoopbackDevices(data.loopback_devices);
+            }
+          } catch (_) { /* JSON 파싱 실패해도 online 상태는 유지 */ }
+        } else {
           setGpuServerOnline(false);
         }
       } catch (_) {
-        if (isMounted) {
-          setGpuServerOnline(false);
-        }
+        if (isMounted) setGpuServerOnline(false);
       }
     };
     checkGpuServer();
     const interval = setInterval(checkGpuServer, 3000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
+    return () => { isMounted = false; clearInterval(interval); };
   }, []);
+
 
   const globalAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -346,9 +345,9 @@ export default function App() {
   }, [showToast, clearToast, setRecording]);
 
   const processAudioWithActiveEngine = useCallback(async (file: File) => {
-    // 이전 세그먼트 타이머 전부 취소
+    // 이전 스케줄된 타이머 전부 취소
     if ((window as any).__segTimers) {
-      (window as any).__segTimers.forEach((id: number) => clearTimeout(id));
+      ((window as any).__segTimers as number[]).forEach(clearTimeout);
     }
     (window as any).__segTimers = [];
 
@@ -356,19 +355,18 @@ export default function App() {
     setActiveAudioFile(file);
     setIsAudioPlaying(true);
 
-    // ─── 실시간 루프백 STT 활성 상태 ───────────────────────────────────────
-    // 루프백 WebSocket이 켜져 있으면 배치 전사를 차단한다.
-    // 오디오는 시스템(VB-CABLE)으로 나가고 Python 루프백이 2초 청크씩 처리한다.
+    // ── 루프백 활성 중: 배치 전사 차단 ─────────────────────────────────────
+    // Python WASAPI 루프백 스레드가 2초 청크씩 실시간 처리하므로
+    // 파일 전체를 Whisper로 던지는 배치 전사를 절대 실행하지 않는다.
     if (isLoopbackActive) {
-      showToast(`[루프백 STT] '${file.name}' → VB-CABLE 실시간 캡처 중`);
+      showToast(`[루프백 STT] 오디오 재생 → VB-CABLE 실시간 캡처 중`);
       setTimeout(() => clearToast(), 2500);
       return;
     }
 
     if (sttEngine === 'whisper_large_v3') {
       setIsWhisperProcessing(true);
-      showToast(`[Faster-Whisper GPU] '${file.name}' 전사 중...`);
-
+      showToast(`[Faster-Whisper GPU] '${file.name}' 배치 전사 중...`);
       const formData = new FormData();
       formData.append('file', file);
 
@@ -378,44 +376,27 @@ export default function App() {
       const abortController = new AbortController();
       whisperAbortControllerRef.current = abortController;
 
-      // 오디오 재생 시작 시각 기록 (전사 요청과 동시에 음성도 흘러간다)
-      const audioPlayStartTime = Date.now();
-
       try {
         const response = await fetch('http://127.0.0.1:8000/api/v1/stt/transcribe', {
           method: 'POST',
           body: formData,
           signal: abortController.signal
         });
-
         if (response.ok) {
           const data = await response.json();
-
           if (data.segments && data.segments.length > 0) {
-            setIsWhisperProcessing(false);
-            const elapsed = Date.now() - audioPlayStartTime; // 전사 소요시간(ms)
-
-            showToast(`[Faster-Whisper GPU] ${data.segments.length}개 세그먼트 → 타임라인 동기화 표출`);
-            setTimeout(() => clearToast(), 2500);
-
-            // ── 핵심: 각 세그먼트를 오디오 타임스탬프에 맞춰 순차 표출 ──
-            // seg.start는 오디오 파일 내 발화 시작 시각(초)
-            // elapsed를 빼서 이미 흐른 시간만큼 앞당긴다 (최솟값 0)
             data.segments.forEach((seg: any) => {
-              const delay = Math.max(0, seg.start * 1000 - elapsed);
-              const timerId = window.setTimeout(() => {
-                appendFinalParagraph(seg.text, seg.text, []);
-                evaluateUtteranceRules(seg.text);
-              }, delay);
-              (window as any).__segTimers.push(timerId);
+              appendFinalParagraph(seg.text, seg.text, []);
+              evaluateUtteranceRules(seg.text);
             });
+            showToast(`[Faster-Whisper GPU] ${data.segments.length}개 세그먼트 전사 완료`);
+            setTimeout(() => clearToast(), 3000);
+            setIsWhisperProcessing(false);
             return;
           }
         }
       } catch (err: any) {
-        if (err.name === 'AbortError') {
-          return;
-        }
+        if (err.name === 'AbortError') return;
         console.warn('Faster-Whisper offline, fallback:', err);
       } finally {
         setIsWhisperProcessing(false);
@@ -424,9 +405,11 @@ export default function App() {
     }
 
     startSttStreaming();
-    showToast(`[${file.name}] 음성 파일 재생 및 실시간 STT 수신 시작`);
+    showToast(`[${file.name}] 음성 파일 재생 및 STT 수신 시작`);
     setTimeout(() => clearToast(), 3500);
   }, [sttEngine, isLoopbackActive, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, appendFinalParagraph, showToast, clearToast]);
+
+
 
 
 
