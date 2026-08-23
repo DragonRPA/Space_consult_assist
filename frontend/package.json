@@ -1,8 +1,17 @@
-﻿{
+{
   "name": "space-consult-assist",
   "private": true,
+  "scripts": {
+    "dev:desktop": "npm run dev --workspace=apps/desktop",
+    "dev:mobile": "npm run dev --workspace=apps/mobile",
+    "build:desktop": "npm run build --workspace=apps/desktop",
+    "build:mobile": "npm run build --workspace=apps/mobile",
+    "build": "npm run build:desktop && npm run build:mobile && node build_monorepo.js"
+  },
   "workspaces": [
-    "apps/*",
-    "packages/*"
-  ]
+    "apps/*"
+  ],
+  "dependencies": {
+    "zustand": "^5.0.15"
+  }
 }

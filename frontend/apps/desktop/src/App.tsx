@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useCounselStore } from './store';
 import './index.css';
 
@@ -18,12 +18,10 @@ function App() {
     actionScripts, 
     isRecording, 
     setRecording, 
-    setSttText,
     appendSttText,
     setClassificationResult 
   } = useCounselStore();
 
-  const [localText, setLocalText] = useState("");
   const debounceTimer = useRef<number | null>(null);
   const recognitionRef = useRef<any>(null);
 
@@ -56,9 +54,12 @@ function App() {
       };
 
       recognition.onend = () => {
-        // 녹음이 활성화되어 있는데 끊겼다면 재시작 (자동 이어가기)
         if (isRecording) {
-          recognition.start();
+          try {
+            recognition.start();
+          } catch (e) {
+            console.error(e);
+          }
         }
       };
 
@@ -103,7 +104,7 @@ function App() {
       } catch (e) {
         console.error("분류 API 호출 실패", e);
       }
-    }, 1000); // 1000ms 디바운스로 안정화
+    }, 1000);
   }, [sttText, setClassificationResult]);
 
   const handleMicToggle = () => {
@@ -160,7 +161,7 @@ function App() {
         <div style={{ flex: 1, backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '16px' }}>
           {actionScripts.length > 0 ? (
             <ul style={{ listStyleType: 'none', padding: 0, margin: 0 }}>
-              {actionScripts.map((script, idx) => (
+              {actionScripts.map((script: string, idx: number) => (
                 <li key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input type="checkbox" id={`chk-${idx}`} />
                   <label htmlFor={`chk-${idx}`} style={{ cursor: 'pointer', flex: 1 }}>{script}</label>
@@ -173,7 +174,6 @@ function App() {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px', gap: '12px', alignItems: 'center' }}>
-          
           <div style={{ marginRight: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
             <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#374151' }}>부서 이관</label>
             <select style={{ padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', backgroundColor: '#fff' }}>

@@ -43,10 +43,10 @@ export const useMobileStore = create<MobileState>((set) => ({
   activeTab: 'FEED',
   engineerName: '김기사',
 
-  setVisits: (visits) => set({ visits }),
-  setParts: (parts) => set({ parts }),
-  setSelectedVisit: (visit) => set({ selectedVisit: visit }),
-  setLoading: (isLoading) => set({ isLoading }),
-  setActiveTab: (activeTab) => set({ activeTab }),
-  setEngineerName: (engineerName) => set({ engineerName }),
+  setVisits: (visits: VisitItem[]) => set({ visits }),
+  setParts: (parts: PartItem[]) => set({ parts }),
+  setSelectedVisit: (visit: VisitItem | null) => set({ selectedVisit: visit }),
+  setLoading: (isLoading: boolean) => set({ isLoading }),
+  setActiveTab: (activeTab: 'FEED' | 'DETAIL') => set({ activeTab }),
+  setEngineerName: (engineerName: string) => set({ engineerName }),
 }));

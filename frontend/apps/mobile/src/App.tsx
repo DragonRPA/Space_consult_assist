@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useMobileStore, VisitItem, PartItem } from './store';
+import { useEffect, useState } from 'react';
+import { useMobileStore, type VisitItem } from './store';
 import './index.css';
 
 const API_BASE = "http://localhost:8000/api/v1";
@@ -17,15 +17,12 @@ function App() {
     setSelectedVisit,
     setLoading,
     setActiveTab,
-    setEngineerName,
   } = useMobileStore();
 
   const [selectedPartId, setSelectedPartId] = useState<string>("");
   const [partQty, setPartQty] = useState<number>(1);
   const [usedPartsList, setUsedPartsList] = useState<any[]>([]);
   const [workSummary, setWorkSummary] = useState<string>("");
-  const [undoTimer, setUndoTimer] = useState<number | null>(null);
-  const [lastAction, setLastAction] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
 
   useEffect(() => {

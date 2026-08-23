@@ -18,8 +18,8 @@ export const useCounselStore = create<CounselState>((set) => ({
   partCode: '',
   actionScripts: [],
   isRecording: false,
-  setSttText: (text) => set({ sttText: text }),
-  appendSttText: (text) => set((state) => ({ sttText: state.sttText + ' ' + text })),
-  setClassificationResult: (keyword, partCode, actionScripts) => set({ keyword, partCode, actionScripts }),
-  setRecording: (status) => set({ isRecording: status })
+  setSttText: (text: string) => set({ sttText: text }),
+  appendSttText: (text: string) => set((state) => ({ sttText: state.sttText + ' ' + text })),
+  setClassificationResult: (keyword: string, partCode: string, actionScripts: string[]) => set({ keyword, partCode, actionScripts }),
+  setRecording: (status: boolean) => set({ isRecording: status })
 }));
