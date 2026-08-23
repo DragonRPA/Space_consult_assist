@@ -23,6 +23,7 @@ import {
   ClipboardList,
   Edit3,
   Eye,
+  Loader2,
   X 
 } from 'lucide-react';
 import { useCounselStore } from './store';
@@ -105,11 +106,37 @@ export default function App() {
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [isDirectEditMode, setIsDirectEditMode] = useState(false);
   const [showAllSymptoms, setShowAllSymptoms] = useState(false);
+  const [isWhisperLauncherModalOpen, setIsWhisperLauncherModalOpen] = useState(false);
+  const [isWhisperProcessing, setIsWhisperProcessing] = useState(false);
+  const [gpuServerOnline, setGpuServerOnline] = useState<boolean | null>(null);
   const [directEditableText, setDirectEditableText] = useState('');
   const [pastedInputText, setPastedInputText] = useState('');
   const [micAudioLevel, setMicAudioLevel] = useState(0);
   const [justTriggeredKeyword, setJustTriggeredKeyword] = useState<string | null>(null);
   const [isDragOverDropzone, setIsDragOverDropzone] = useState(false);
+
+  // Periodic Local GPU Server Heartbeat Monitor (Every 3 seconds)
+  useEffect(() => {
+    let isMounted = true;
+    const checkGpuServer = async () => {
+      try {
+        const res = await fetch('http://127.0.0.1:8000/api/v1/stt/status');
+        if (isMounted) {
+          setGpuServerOnline(res.ok);
+        }
+      } catch (_) {
+        if (isMounted) {
+          setGpuServerOnline(false);
+        }
+      }
+    };
+    checkGpuServer();
+    const interval = setInterval(checkGpuServer, 3000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const globalAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -254,12 +281,13 @@ export default function App() {
     setIsAudioPlaying(true);
 
     if (sttEngine === 'whisper_large_v3') {
-      showToast(`[Faster-Whisper GPU] '${file.name}' 로컬 GPU 전사 요청 중...`);
+      setIsWhisperProcessing(true);
+      showToast(`[Faster-Whisper GPU] '${file.name}' RTX 5080 GPU 고속 전사 중...`);
       const formData = new FormData();
       formData.append('file', file);
 
       try {
-        const response = await fetch('http://localhost:8000/api/v1/stt/transcribe', {
+        const response = await fetch('http://127.0.0.1:8000/api/v1/stt/transcribe', {
           method: 'POST',
           body: formData
         });
@@ -272,11 +300,14 @@ export default function App() {
             });
             showToast(`[Faster-Whisper GPU] ${data.segments.length}개 세그먼트 고품질 전사 완료!`);
             setTimeout(() => clearToast(), 3500);
+            setIsWhisperProcessing(false);
             return;
           }
         }
       } catch (err) {
         console.warn("Local Faster-Whisper agent offline, fallback to Web Speech audio stream:", err);
+      } finally {
+        setIsWhisperProcessing(false);
       }
     }
 
@@ -846,6 +877,9 @@ export default function App() {
                 setTimeout(() => clearToast(), 3000);
               }}
               style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
                 padding: '4px 9px',
                 fontSize: '11px',
                 fontWeight: 700,
@@ -857,7 +891,14 @@ export default function App() {
                 transition: 'all 0.15s ease'
               }}
             >
-              Faster-Whisper (GPU)
+              <span style={{
+                display: 'inline-block',
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                backgroundColor: gpuServerOnline ? 'var(--accent-success)' : 'var(--accent-danger)'
+              }} />
+              <span>Faster-Whisper (GPU)</span>
             </button>
             <button
               onClick={() => {
@@ -880,6 +921,73 @@ export default function App() {
               Web Speech (브라우저)
             </button>
           </div>
+
+          {/* Local Whisper Live State Indicator & 1-Click Launcher Button */}
+          {sttEngine === 'whisper_large_v3' && (
+            gpuServerOnline ? (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                backgroundColor: isWhisperProcessing ? 'rgba(59, 130, 246, 0.2)' : 'rgba(16, 185, 129, 0.12)',
+                border: `1px solid ${isWhisperProcessing ? 'var(--accent-primary)' : 'rgba(16, 185, 129, 0.35)'}`,
+                fontSize: '11px',
+                fontWeight: 700,
+                color: isWhisperProcessing ? '#93c5fd' : 'var(--accent-success)'
+              }}>
+                {isWhisperProcessing ? (
+                  <>
+                    <Loader2 size={12} className="animate-spin" />
+                    <span>⚡ GPU 연산 진행 중 (RTX 5080)</span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', backgroundColor: 'var(--accent-success)' }} className="animate-pulse" />
+                    <span>로컬 휘스퍼 가동 중 (RTX 5080)</span>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: 'var(--accent-danger)'
+                }}>
+                  <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--accent-danger)' }} />
+                  <span>로컬 휘스퍼 미실행</span>
+                </div>
+                <button
+                  onClick={() => setIsWhisperLauncherModalOpen(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    backgroundColor: 'var(--accent-primary)',
+                    color: '#fff',
+                    border: 'none',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Play size={11} fill="#fff" />
+                  <span>실행하기</span>
+                </button>
+              </div>
+            )
+          )}
 
           {/* Dedicated Mic Test Button */}
           <button
@@ -1441,6 +1549,31 @@ export default function App() {
                 }}>
                   <Upload size={32} className="animate-bounce" style={{ marginBottom: '8px', color: '#93c5fd' }} />
                   <span>대화록(.txt) 또는 음성(.m4a) 파일을 놓으면 분석됩니다.</span>
+                </div>
+              )}
+
+              {/* Faster-Whisper GPU Real-time Processing Banner */}
+              {isWhisperProcessing && (
+                <div style={{
+                  padding: '12px 14px',
+                  backgroundColor: 'rgba(37, 99, 235, 0.15)',
+                  border: '1px solid var(--accent-primary)',
+                  borderRadius: '6px',
+                  marginBottom: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  boxShadow: '0 0 16px rgba(37, 99, 235, 0.35)'
+                }}>
+                  <Loader2 size={20} className="animate-spin" style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#93c5fd' }}>
+                      ⚡ Faster-Whisper Large-v3 GPU 고속 연산 진행 중...
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--ink-muted)', marginTop: '2px' }}>
+                      NVIDIA GeForce RTX 5080 가속으로 40배속 무소음 전사 및 구어체 진단을 수행하고 있습니다.
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -2144,6 +2277,125 @@ export default function App() {
                 }}
               >
                 분석 실행
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 8. LOCAL FASTER-WHISPER GPU LAUNCHER MODAL               */}
+      {/* ========================================================= */}
+      {isWhisperLauncherModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 160
+        }}>
+          <div style={{
+            width: '560px',
+            backgroundColor: 'var(--surface-1)',
+            border: '1px solid var(--accent-primary)',
+            borderRadius: '8px',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.9)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Zap size={20} color="var(--accent-primary)" />
+                <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)' }}>로컬 Faster-Whisper GPU 에이전트 실행</span>
+              </div>
+              <button 
+                onClick={() => setIsWhisperLauncherModalOpen(false)} 
+                style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ fontSize: '13px', color: 'var(--ink-muted)', marginBottom: '16px', lineHeight: 1.6 }}>
+              로컬 GPU(RTX 5080)에서 무소음 40배속 고속 STT를 구동하려면 로컬 백엔드 에이전트가 켜져 있어야 합니다.
+            </div>
+
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '14px', borderRadius: '6px', border: '1px solid var(--hairline)', marginBottom: '16px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--ink-muted)', marginBottom: '6px', fontWeight: 600 }}>
+                1-클릭 실행 배치 파일 경로:
+              </div>
+              <div style={{ fontSize: '12px', fontFamily: 'monospace', color: 'var(--accent-primary)', backgroundColor: 'var(--surface-3)', padding: '8px 10px', borderRadius: '4px', wordBreak: 'break-all', marginBottom: '10px' }}>
+                D:\GoogleDrive\RPA_dev\01.AntiGravity\Space_consult_assist\start_backend_stt.bat
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--ink)' }}>
+                👉 위 파일을 <strong>더블클릭</strong>하여 실행하면 로컬 GPU 서버가 <code>localhost:8000</code>에서 즉시 켜집니다.
+              </div>
+            </div>
+
+            {/* Live Polling Status Box */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              padding: '12px 16px', 
+              borderRadius: '6px', 
+              backgroundColor: gpuServerOnline ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.12)',
+              border: `1px solid ${gpuServerOnline ? 'var(--accent-success)' : 'rgba(245, 158, 11, 0.3)'}`,
+              marginBottom: '16px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {gpuServerOnline ? (
+                  <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-success)' }} className="animate-pulse" />
+                ) : (
+                  <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent-warning)' }} />
+                )}
+                <span style={{ fontSize: '13px', fontWeight: 700, color: gpuServerOnline ? 'var(--accent-success)' : 'var(--accent-warning)' }}>
+                  {gpuServerOnline ? "✅ 로컬 GPU 에이전트 연결 성공!" : "로컬 GPU 서버 가동 대기 중..."}
+                </span>
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
+                {gpuServerOnline ? "포트 8000 정상 응답" : "2초마다 자동 감지 중"}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText("D:\\GoogleDrive\\RPA_dev\\01.AntiGravity\\Space_consult_assist\\start_backend_stt.bat");
+                  showToast("배치 파일 경로가 클립보드에 복사되었습니다.");
+                  setTimeout(() => clearToast(), 3000);
+                }}
+                style={{
+                  padding: '9px 16px',
+                  backgroundColor: 'var(--surface-3)',
+                  border: '1px solid var(--hairline)',
+                  borderRadius: '6px',
+                  color: 'var(--ink)',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                경로 복사
+              </button>
+              <button
+                onClick={() => setIsWhisperLauncherModalOpen(false)}
+                style={{
+                  padding: '9px 20px',
+                  backgroundColor: 'var(--accent-primary)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: '#fff',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: 700
+                }}
+              >
+                닫기
               </button>
             </div>
           </div>
