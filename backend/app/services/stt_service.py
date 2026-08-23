@@ -9,6 +9,19 @@ import tempfile
 import logging
 from typing import List, Dict, Any, Optional
 
+# Register NVIDIA CUDA & CUDNN runtime DLL paths on Windows
+if sys.platform == "win32":
+    import site
+    for sp in site.getsitepackages():
+        for sub in ["nvidia/cublas/bin", "nvidia/cudnn/bin", "nvidia/cuda_nvrtc/bin"]:
+            dll_dir = os.path.join(sp, sub.replace("/", os.sep))
+            if os.path.isdir(dll_dir):
+                try:
+                    os.add_dll_directory(dll_dir)
+                    os.environ["PATH"] = dll_dir + os.pathsep + os.environ.get("PATH", "")
+                except Exception:
+                    pass
+
 logger = logging.getLogger("space_advisor.stt")
 logging.basicConfig(level=logging.INFO)
 
