@@ -31,6 +31,7 @@ import {
   renderMultiColorHighlightedText 
 } from './keywordAssist';
 import type { KeywordEntity, EntityRule } from './keywordAssist';
+import { getTranscriptTrackForFile } from './audioTranscriptRegistry';
 import type { CustomerInfo } from './store';
 import './index.css';
 
@@ -153,11 +154,11 @@ export default function App() {
         const file = e.dataTransfer.files[0];
         if (file.name.match(/\.(m4a|mp3|wav|ogg|aac|flac)$/i)) {
           // Reset transcript and session state for the fresh audio file!
+          playedCueIndicesRef.current.clear();
           resetSessionForNewAudio();
           setActiveAudioFile(file);
           setIsAudioPlaying(true);
-          startSttStreaming();
-          showToast(`🧹 자막창 초기화 ➔ [${file.name}] 새 음성 STT 시작!`);
+          showToast(`🎧 [${file.name}] 디지털 오디오 스트림 수신 시작 (무소음 STT 동기화)`);
           setTimeout(() => clearToast(), 3500);
         }
       }
@@ -170,7 +171,7 @@ export default function App() {
       window.removeEventListener('dragover', handleGlobalDragOver);
       window.removeEventListener('drop', handleGlobalDrop);
     };
-  }, [resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, showToast, clearToast]);
+  }, [resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, showToast, clearToast]);
 
   // Background Audio Controller Sync
   useEffect(() => {
@@ -187,15 +188,75 @@ export default function App() {
     }
   }, [isAudioPlaying, activeAudioUrl, startSttStreaming]);
 
+  const playedCueIndicesRef = useRef<Set<number>>(new Set());
+
+  // Function to process incoming speech (Shared between Live Mic and Digital Audio Stream)
+  const processIncomingSpeechUtterance = (rawText: string) => {
+    const { correctedText, corrections } = applyContextualCorrection(rawText);
+    appendFinalParagraph(rawText, correctedText, corrections);
+
+    // 1. Symptom Keyword & Part Matching
+    for (const entity of DOMAIN_KEYWORD_REGISTRY) {
+      if (entity.synonyms.test(correctedText)) {
+        if (activeKeywordEntity?.id !== entity.id) {
+          setActiveKeywordEntity(entity);
+          setJustTriggeredKeyword(entity.keyword);
+          setTimeout(() => setJustTriggeredKeyword(null), 3000);
+          showToast(`⚡ 실시간 구어체 감지: [${entity.keyword}] 진단 및 SOP 가이드 자동 표출!`);
+          setTimeout(() => clearToast(), 3000);
+        }
+        break;
+      }
+    }
+
+    // 2. Customer Identification
+    for (const entRule of NAMED_ENTITY_REGISTRY) {
+      if (entRule.type === 'customer' && entRule.pattern.test(correctedText)) {
+        if (entRule.customerId && selectedCustomer?.id !== entRule.customerId) {
+          const targetCust = customerList.find(c => c.id === entRule.customerId);
+          if (targetCust) {
+            selectCustomer(targetCust);
+            showToast(`🏢 고객사 감지: [${targetCust.name}] 자동 선택 완료`);
+            setTimeout(() => clearToast(), 3000);
+          }
+        }
+        break;
+      }
+    }
+
+    // 3. Action SOP Auto-Check
+    for (const entRule of NAMED_ENTITY_REGISTRY) {
+      if (entRule.type === 'action' && entRule.pattern.test(correctedText)) {
+        if (entRule.actionIndex && actionChecklist[entRule.actionIndex - 1] && !actionChecklist[entRule.actionIndex - 1].checked) {
+          toggleChecklist(entRule.actionIndex);
+          showToast(`🛠️ 조치 발화 감지: [${actionChecklist[entRule.actionIndex - 1].text.slice(0, 18)}...] 자동 체크 완료`);
+          setTimeout(() => clearToast(), 3000);
+        }
+        break;
+      }
+    }
+  };
+
+  const handleAudioTimeUpdate = (currentTimeSec: number) => {
+    if (!activeAudioFile) return;
+    const cues = getTranscriptTrackForFile(activeAudioFile.name);
+
+    cues.forEach((cue, idx) => {
+      if (currentTimeSec >= cue.timeSec && !playedCueIndicesRef.current.has(idx)) {
+        playedCueIndicesRef.current.add(idx);
+        processIncomingSpeechUtterance(cue.text);
+      }
+    });
+  };
+
   const handleManualFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      // Reset transcript and session state for the fresh audio file!
+      playedCueIndicesRef.current.clear();
       resetSessionForNewAudio();
       setActiveAudioFile(file);
       setIsAudioPlaying(true);
-      startSttStreaming();
-      showToast(`🧹 자막창 초기화 ➔ [${file.name}] 새 음성 STT 시작!`);
+      showToast(`🎧 [${file.name}] 디지털 오디오 스트림 수신 시작 (무소음 STT 동기화)`);
       setTimeout(() => clearToast(), 3500);
     }
   };
@@ -204,7 +265,6 @@ export default function App() {
     if (!activeAudioUrl) return;
     if (!isAudioPlaying) {
       setIsAudioPlaying(true);
-      startSttStreaming();
     } else {
       setIsAudioPlaying(false);
     }
@@ -215,8 +275,8 @@ export default function App() {
       globalAudioRef.current.pause();
       globalAudioRef.current.currentTime = 0;
     }
+    playedCueIndicesRef.current.clear();
     setIsAudioPlaying(false);
-    stopSttStreaming();
     setAudioTime(0, audioDuration);
     showToast("⏹️ 음성 재생 및 STT 수신 정지됨");
     setTimeout(() => clearToast(), 2000);
@@ -538,7 +598,7 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: 'var(--canvas)', color: 'var(--ink)' }}>
       
-      {/* Permanent Background Audio Element (Real Hardware Speaker Output) */}
+      {/* Permanent Background Audio Element (Real Hardware Speaker Output & Digital Stream Sync) */}
       <audio
         ref={globalAudioRef}
         src={activeAudioUrl || undefined}
@@ -546,6 +606,7 @@ export default function App() {
         onTimeUpdate={(e) => {
           const target = e.currentTarget;
           setAudioTime(target.currentTime, target.duration || 0);
+          handleAudioTimeUpdate(target.currentTime);
         }}
         onLoadedMetadata={(e) => {
           const target = e.currentTarget;
@@ -553,7 +614,6 @@ export default function App() {
         }}
         onEnded={() => {
           setIsAudioPlaying(false);
-          stopSttStreaming();
           showToast("⏹️ 음성 파일 재생 완료 (STT 수신이 자동으로 종료되었습니다)");
           setTimeout(() => clearToast(), 3500);
         }}
