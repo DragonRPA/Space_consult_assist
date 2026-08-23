@@ -264,7 +264,7 @@ export default function App() {
   // Synchronous STT Startup Function (Instant Mic Engagement)
   const startSttStreaming = useCallback(() => {
     setRecording(true);
-    if (recognitionRef.current) {
+    if (sttEngine === 'web_speech' && recognitionRef.current) {
       try {
         recognitionRef.current.start();
       } catch (e: any) {
@@ -273,16 +273,17 @@ export default function App() {
         }
       }
     }
-  }, [setRecording]);
+  }, [sttEngine, setRecording]);
 
   const stopSttStreaming = useCallback(() => {
     setRecording(false);
-    if (recognitionRef.current) {
+    if (sttEngine === 'web_speech' && recognitionRef.current) {
       try {
         recognitionRef.current.stop();
       } catch (_) {}
     }
-  }, [setRecording]);
+  }, [sttEngine, setRecording]);
+
 
   // ── WASAPI Loopback Real-time STT (Always-On Auto-Connect) ────────────────
   const [lastRecordingFile, setLastRecordingFile] = useState<string | null>(null);
@@ -628,6 +629,15 @@ export default function App() {
 
   // Robust Persistent Web Speech API with Multi-Entity & Action Auto-Trigger
   useEffect(() => {
+    // Faster-Whisper GPU 모드일 때는 Web Speech API를 완전히 비활성화 (브라우저 마이크 이중 수음 방지)
+    if (sttEngine !== 'web_speech') {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (_) {}
+        recognitionRef.current = null;
+      }
+      return;
+    }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
@@ -714,14 +724,14 @@ export default function App() {
 
     // Keep-Alive Auto-Recovery
     recognition.onend = () => {
-      if (isRecordingRef.current) {
+      if (isRecordingRef.current && sttEngine === 'web_speech') {
         setTimeout(() => {
-          if (isRecordingRef.current) {
+          if (isRecordingRef.current && sttEngine === 'web_speech') {
             try {
               recognition.start();
             } catch (e) {
               setTimeout(() => {
-                if (isRecordingRef.current) {
+                if (isRecordingRef.current && sttEngine === 'web_speech') {
                   try { recognition.start(); } catch (_) {}
                 }
               }, 400);
@@ -734,7 +744,7 @@ export default function App() {
     recognitionRef.current = recognition;
 
     const handleWindowFocus = () => {
-      if (isRecordingRef.current && recognitionRef.current) {
+      if (isRecordingRef.current && recognitionRef.current && sttEngine === 'web_speech') {
         try {
           recognitionRef.current.start();
         } catch (_) {}
@@ -751,7 +761,8 @@ export default function App() {
         recognition.stop();
       } catch (_) {}
     };
-  }, [appendFinalParagraph, setInterimSttText, isContextCorrectionEnabled, setRecording, activeKeywordEntity, setActiveKeywordEntity, selectedCustomer, customerList, selectCustomer, actionChecklist, toggleChecklist, showToast, clearToast]);
+  }, [sttEngine, appendFinalParagraph, setInterimSttText, isContextCorrectionEnabled, setRecording, activeKeywordEntity, setActiveKeywordEntity, selectedCustomer, customerList, selectCustomer, actionChecklist, toggleChecklist, showToast, clearToast]);
+
 
   const toggleRecording = () => {
     if (!isRecording) {
