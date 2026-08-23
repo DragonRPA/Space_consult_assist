@@ -334,9 +334,11 @@ export default function App() {
             }
             if (msg.text) {
               setIsAudioStreamingActive(true);
-              appendFinalParagraph(msg.text, msg.text, []);
+              const formattedLine = msg.full_line || (msg.timestamp ? `${msg.timestamp} ${msg.text}` : msg.text);
+              appendFinalParagraph(formattedLine, formattedLine, []);
               evaluateUtteranceRules(msg.text);
             }
+
             if (msg.status === 'stopped' && msg.recording) {
               setIsAudioStreamingActive(false);
               setLastRecordingFile(msg.recording);
@@ -1723,22 +1725,48 @@ export default function App() {
                 </div>
               ) : activeParagraphs.length > 0 ? (
                 <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '13px' }}>
-                  {activeParagraphs.map((line, pIdx) => (
-                    <div key={pIdx} style={{ minHeight: '1.4em' }}>
-                      {renderMultiColorHighlightedText(
-                        line,
-                        {
-                          onSymptomClick: handleKeywordSelect,
-                          onCustomerClick: handleCustomerSelect,
-                          onSiteClick: handleCustomerSelect,
-                          onActionClick: handleActionSelect
-                        },
-                        activeKeywordEntity?.id,
-                        selectedCustomer?.id,
-                        customerList
-                      )}
-                    </div>
-                  ))}
+                  {activeParagraphs.map((line, pIdx) => {
+                    const match = line.match(/^(\[\d{1,2}:\d{2}(?::\d{2})?\])\s*(.*)$/);
+                    const timestampBadge = match ? match[1] : null;
+                    const contentText = match ? match[2] : line;
+
+                    return (
+                      <div key={pIdx} style={{ display: 'flex', alignItems: 'baseline', gap: '8px', minHeight: '1.5em', marginBottom: '2px' }}>
+                        {timestampBadge && (
+                          <span style={{ 
+                            fontFamily: 'monospace', 
+                            fontSize: '11px', 
+                            fontWeight: 600, 
+                            color: 'var(--ink-muted)', 
+                            backgroundColor: 'var(--surface-3)', 
+                            border: '1px solid var(--hairline)', 
+                            borderRadius: '3px', 
+                            padding: '0px 5px', 
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap',
+                            userSelect: 'none'
+                          }}>
+                            {timestampBadge}
+                          </span>
+                        )}
+                        <div style={{ flex: 1 }}>
+                          {renderMultiColorHighlightedText(
+                            contentText,
+                            {
+                              onSymptomClick: handleKeywordSelect,
+                              onCustomerClick: handleCustomerSelect,
+                              onSiteClick: handleCustomerSelect,
+                              onActionClick: handleActionSelect
+                            },
+                            activeKeywordEntity?.id,
+                            selectedCustomer?.id,
+                            customerList
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
 
                   {/* Real-time Interim Streaming Words on current line */}
                   {interimSttText && (

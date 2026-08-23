@@ -235,7 +235,6 @@ class LoopbackSTTService:
                 recorder.record(numframes=_flush_frames)
                 logger.info("WASAPI 초기 버퍼 플러시 완료 (1초 폐기)")
 
-
                 # ── 동적 문장 버퍼링 (Pseudo-streaming) ──────────────────────
                 mini_chunk_seconds = 0.5
                 mini_chunk_frames = int(CAPTURE_SAMPLE_RATE * mini_chunk_seconds)
@@ -243,6 +242,7 @@ class LoopbackSTTService:
                 speech_buffer = []
                 silence_strikes = 0
                 is_streaming = False
+                stream_start_time = None
                 MAX_SILENCE_STRIKES = 2   # 1.0초 무음 시 문장 끝으로 간주
                 MAX_SPEECH_CHUNKS = 20    # 10초 이상 길어지면 강제 전사 (실시간성 보장)
 
@@ -252,6 +252,7 @@ class LoopbackSTTService:
                         self._reset_requested = False
                         speech_buffer = []
                         silence_strikes = 0
+                        stream_start_time = None
                         if is_streaming:
                             is_streaming = False
                             segment_callback({"type": "stream_state", "streaming": False})
@@ -277,6 +278,7 @@ class LoopbackSTTService:
                         silence_strikes = 0
                         if not is_streaming:
                             is_streaming = True
+                            stream_start_time = time.time()
                             segment_callback({"type": "stream_state", "streaming": True})
                     else:
                         if len(speech_buffer) > 0:
@@ -291,6 +293,7 @@ class LoopbackSTTService:
                             silence_strikes += 1
                             if is_streaming and silence_strikes >= 6:
                                 is_streaming = False
+                                stream_start_time = None
                                 segment_callback({"type": "stream_state", "streaming": False})
 
                     trigger_stt = False
@@ -298,7 +301,6 @@ class LoopbackSTTService:
                         trigger_stt = True
                     elif len(speech_buffer) >= MAX_SPEECH_CHUNKS:
                         trigger_stt = True
-
 
                     if trigger_stt:
                         sentence_audio = np.concatenate(speech_buffer)
@@ -324,19 +326,25 @@ class LoopbackSTTService:
                             condition_on_previous_text=False,
                         )
 
+                        # 발화 타임스탬프 계산 (스트리밍 시작 기준 경과 초)
+                        elapsed_sec = int(time.time() - stream_start_time) if stream_start_time else 0
+                        timestamp_str = f"[{elapsed_sec // 60:02d}:{elapsed_sec % 60:02d}]"
+
                         for seg in segments:
                             text = seg.text.strip()
                             if text:
                                 segment_callback({
                                     "text": text,
+                                    "timestamp": timestamp_str,
+                                    "full_line": f"{timestamp_str} {text}",
                                     "start": round(seg.start, 2),
                                     "end": round(seg.end, 2),
                                 })
 
-
         except Exception as e:
             logger.error(f"LoopbackSTT capture error: {e}", exc_info=True)
             segment_callback({"error": str(e)})
+
 
 
 
