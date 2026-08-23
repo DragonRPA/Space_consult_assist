@@ -16,10 +16,12 @@ import {
   BrainCircuit,
   Zap,
   HelpCircle,
+  Music,
   X 
 } from 'lucide-react';
 import { useCounselStore } from './store';
 import { MicTestModal } from './MicTestModal';
+import { AudioTestPlayer } from './AudioTestPlayer';
 import { applyContextualCorrection } from './contextCorrector';
 import { DOMAIN_KEYWORD_REGISTRY, renderHighlightedText } from './keywordAssist';
 import type { KeywordEntity } from './keywordAssist';
@@ -76,6 +78,7 @@ export default function App() {
 
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [isMicTestOpen, setIsMicTestOpen] = useState(false);
+  const [isAudioPlayerOpen, setIsAudioPlayerOpen] = useState(false);
   const [micAudioLevel, setMicAudioLevel] = useState(0);
   const [justTriggeredKeyword, setJustTriggeredKeyword] = useState<string | null>(null);
 
@@ -184,7 +187,7 @@ export default function App() {
         }
       }
 
-      // 1) When a sentence completes (speech pause / boundary), insert clean new paragraph line
+      // Contextual line breaks per sentence pause
       if (final.trim()) {
         const rawSentence = final.trim();
         let processedSentence = rawSentence;
@@ -206,7 +209,7 @@ export default function App() {
         setInterimSttText(interim);
       }
 
-      // 2) Real-time Keyword Auto-Trigger (<50ms)
+      // Real-time Keyword Auto-Trigger (<50ms)
       const currentStream = interim.trim() || final.trim();
       if (currentStream) {
         for (const entity of DOMAIN_KEYWORD_REGISTRY) {
@@ -231,7 +234,7 @@ export default function App() {
       }
     };
 
-    // 3) Keep-Alive Auto-Recovery: When recognition ends or window blurs, automatically restart if isRecording is true
+    // Keep-Alive Auto-Recovery
     recognition.onend = () => {
       if (isRecordingRef.current) {
         setTimeout(() => {
@@ -239,7 +242,6 @@ export default function App() {
             try {
               recognition.start();
             } catch (e) {
-              // Retry with backoff
               setTimeout(() => {
                 if (isRecordingRef.current) {
                   try { recognition.start(); } catch (_) {}
@@ -253,7 +255,6 @@ export default function App() {
 
     recognitionRef.current = recognition;
 
-    // Window Focus & Visibility Keep-alive listeners (prevents background throttle stoppage)
     const handleWindowFocus = () => {
       if (isRecordingRef.current && recognitionRef.current) {
         try {
@@ -434,8 +435,29 @@ export default function App() {
         </div>
 
         {/* Live Audio & STT Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           
+          {/* Audio Test Player Button (.m4a local playback) */}
+          <button
+            onClick={() => setIsAudioPlayerOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '5px 12px',
+              borderRadius: '6px',
+              backgroundColor: 'rgba(37, 99, 235, 0.15)',
+              border: '1px solid rgba(37, 99, 235, 0.35)',
+              color: '#93c5fd',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            <Music size={14} />
+            <span className="nowrap">음성파일 플레이어 (.m4a)</span>
+          </button>
+
           {/* Dedicated Mic Test Button */}
           <button
             onClick={() => setIsMicTestOpen(true)}
@@ -470,7 +492,7 @@ export default function App() {
             fontSize: '12px',
             fontWeight: 600
           }}>
-            <PhoneCall size={14} className={isRecording ? "animate-pulse" : ""} />
+            <PhoneCall size={14} className="animate-pulse" />
             <span className="nowrap">{isRecording ? "통화중" : "대기"}</span>
             <span className="font-mono">{formatTimer(callSeconds)}</span>
           </div>
@@ -718,12 +740,20 @@ export default function App() {
                   </span>
                 )}
               </div>
-              <button 
-                onClick={() => setIsMicTestOpen(true)}
-                style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
-              >
-                마이크 진단 [테스트]
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  onClick={() => setIsAudioPlayerOpen(true)}
+                  style={{ background: 'none', border: 'none', color: '#93c5fd', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  📁 음성파일 테스트
+                </button>
+                <button 
+                  onClick={() => setIsMicTestOpen(true)}
+                  style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  마이크 진단
+                </button>
+              </div>
             </div>
             
             <div 
@@ -788,7 +818,7 @@ export default function App() {
                 </div>
               ) : (
                 <div style={{ color: 'var(--ink-subtle)', padding: '16px 8px', textAlign: 'center', fontSize: '12px' }}>
-                  🎙️ 상단 <strong>[STT 수신 시작]</strong> 버튼을 누르고 통화를 시작하시면 실시간 대화가 전사됩니다.
+                  🎙️ 상단 <strong>[STT 수신 시작]</strong> 버튼이나 <strong>[음성파일 플레이어]</strong>를 통해 테스트해 보세요.
                 </div>
               )}
             </div>
@@ -1253,9 +1283,10 @@ export default function App() {
       )}
 
       {/* ========================================================= */}
-      {/* 6. MIC TEST & AUDIO DIAGNOSTIC MODAL                      */}
+      {/* 6. MODALS: MIC TEST & AUDIO FILE TEST PLAYER              */}
       {/* ========================================================= */}
       <MicTestModal isOpen={isMicTestOpen} onClose={() => setIsMicTestOpen(false)} />
+      <AudioTestPlayer isOpen={isAudioPlayerOpen} onClose={() => setIsAudioPlayerOpen(false)} />
 
     </div>
   );
