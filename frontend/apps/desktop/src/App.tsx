@@ -281,6 +281,9 @@ export default function App() {
       try {
         recognitionRef.current.stop();
       } catch (_) {}
+    }
+  }, [setRecording]);
+
   // ── WASAPI Loopback Real-time STT (Always-On Auto-Connect) ────────────────
   const [lastRecordingFile, setLastRecordingFile] = useState<string | null>(null);
 
