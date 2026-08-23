@@ -474,44 +474,22 @@ export default function App() {
         speechPauseTimerRef.current = null;
       }
 
-      // Contextual line breaks per sentence pause
+      // Finalized utterance commit
       if (final.trim()) {
         const rawSentence = final.trim();
-        let processedSentence = rawSentence;
-        let newCorrections: any[] = [];
-
-        if (isContextCorrectionEnabled) {
-          const result = applyContextualCorrection(rawSentence);
-          processedSentence = result.correctedText;
-          newCorrections = result.corrections;
-          if (newCorrections.length > 0) {
-            showToast(`[맥락 교정] "${newCorrections[0].original}" ➔ "${newCorrections[0].corrected}"`);
-            setTimeout(() => clearToast(), 3000);
-          }
-        }
-
-        appendFinalParagraph(rawSentence, processedSentence, newCorrections);
+        processIncomingSpeechUtterance(rawSentence);
         setInterimSttText('');
       } else if (interim.trim()) {
         setInterimSttText(interim);
 
-        // Fast silence detection (600ms): commits line swiftly without waiting for slow browser finalization
+        // Fast silence detection (500ms): Stops recognition to force buffer flush and clean restart
         speechPauseTimerRef.current = window.setTimeout(() => {
-          const pendingText = interim.trim();
-          if (pendingText) {
-            let processedSentence = pendingText;
-            let newCorrections: any[] = [];
-
-            if (isContextCorrectionEnabled) {
-              const result = applyContextualCorrection(pendingText);
-              processedSentence = result.correctedText;
-              newCorrections = result.corrections;
-            }
-
-            appendFinalParagraph(pendingText, processedSentence, newCorrections);
-            setInterimSttText('');
+          if (isRecordingRef.current && recognitionRef.current) {
+            try {
+              recognitionRef.current.stop();
+            } catch (_) {}
           }
-        }, 600);
+        }, 500);
       }
 
       // Real-time Multi-Entity Detection (Customer, Site, Symptom, Action)
