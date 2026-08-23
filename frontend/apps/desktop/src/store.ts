@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { CorrectionEvent } from './contextCorrector';
-import { DOMAIN_KEYWORD_REGISTRY } from './keywordAssist';
 import type { KeywordEntity } from './keywordAssist';
 
 export interface CustomerInfo {
@@ -47,7 +46,6 @@ interface CounselWorkstationState {
 
   // Real-time Keyword & Auto-Assist Trigger
   activeKeywordEntity: KeywordEntity | null;
-  detectedEntities: KeywordEntity[];
   setActiveKeywordEntity: (entity: KeywordEntity) => void;
 
   // Panel A: Customer & Asset
@@ -55,9 +53,9 @@ interface CounselWorkstationState {
   customerList: CustomerInfo[];
   selectedCustomer: CustomerInfo;
 
-  // Panel B: STT & Live Streaming
-  rawFinalSttText: string;
-  finalSttText: string;
+  // Panel B: STT & Live Streaming (Clean initial state)
+  rawParagraphs: string[];
+  finalParagraphs: string[];
   interimSttText: string;
   detectedKeywords: string[];
   matchedDiagnosis: MatchedDiagnosis | null;
@@ -76,7 +74,7 @@ interface CounselWorkstationState {
   incrementCallTimer: () => void;
   setSearchQuery: (query: string) => void;
   selectCustomer: (customer: CustomerInfo) => void;
-  appendFinalSttText: (rawText: string, correctedText: string, corrections: CorrectionEvent[]) => void;
+  appendFinalParagraph: (rawText: string, correctedText: string, corrections: CorrectionEvent[]) => void;
   setInterimSttText: (text: string) => void;
   setDiagnosisResult: (keywords: string[], diagnosis: MatchedDiagnosis, checklist: string[]) => void;
   toggleChecklist: (id: number) => void;
@@ -142,19 +140,15 @@ const DEFAULT_CUSTOMERS: CustomerInfo[] = [
 
 export const useCounselStore = create<CounselWorkstationState>((set) => ({
   isRecording: false,
-  callSeconds: 204, // 03:24
+  callSeconds: 0,
   counselorName: '이지은 상담원 (선임)',
   toastMessage: null,
 
   isContextCorrectionEnabled: true,
-  correctionHistory: [
-    { original: '스키즈', corrected: '스퀴지', category: '소모품/스퀴지', timestamp: '03:10' },
-    { original: '흐빕 모터', corrected: '흡입 모터', category: '구동/흡입', timestamp: '03:15' }
-  ],
+  correctionHistory: [],
   toggleContextCorrection: () => set((state) => ({ isContextCorrectionEnabled: !state.isContextCorrectionEnabled })),
 
-  activeKeywordEntity: DOMAIN_KEYWORD_REGISTRY[0],
-  detectedEntities: [DOMAIN_KEYWORD_REGISTRY[0], DOMAIN_KEYWORD_REGISTRY[1]],
+  activeKeywordEntity: null,
   setActiveKeywordEntity: (entity) => set({
     activeKeywordEntity: entity,
     matchedDiagnosis: {
@@ -173,31 +167,18 @@ export const useCounselStore = create<CounselWorkstationState>((set) => ({
   customerList: DEFAULT_CUSTOMERS,
   selectedCustomer: DEFAULT_CUSTOMERS[0],
 
-  rawFinalSttText: '흡입 모터 쪽에서 타는 냄새가 나고 굉음이 심하게 발생하면서',
-  finalSttText: '흡입 모터 쪽에서 타는 냄새가 나고 굉음이 심하게 발생하면서',
-  interimSttText: '바닥 오수 흡입이 전혀 안돼요...',
-  detectedKeywords: ['흡입모터 굉음', '타는 냄새', '오수 흡입불량'],
-  matchedDiagnosis: {
-    category: 'POWER / 흡입·구동계통',
-    partCode: 'SUCTION-500W',
-    partName: '흡입모터 24V 500W 어셈블리',
-    stock: 14,
-    confidence: 98,
-    source: '실시간 키워드 [흡입모터] 즉시 연동',
-    selfActionGuide: '고객에게 전원을 끄고 모터 열기를 10분간 식힌 뒤, 폐수탱크 거름망 이물질을 털어내도록 안내하세요.'
-  },
+  // Completely empty initial state per request
+  rawParagraphs: [],
+  finalParagraphs: [],
+  interimSttText: '',
+  detectedKeywords: [],
+  matchedDiagnosis: null,
   manualOverrideKeyword: '',
 
-  actionChecklist: [
-    { id: 1, text: '전원 스위치 즉시 차단 및 모터 하우징 열기 냉각 안내', checked: true },
-    { id: 2, text: '폐수탱크 플로트 밸브(만수 차단기) 오작동/이물질 확인', checked: true },
-    { id: 3, text: '흡입 호스 및 스퀴지 연결부 막힘 육안 점검', checked: false },
-    { id: 4, text: '10분 후 재가동 시 동일 소음/타는 냄새 지속 여부 확인', checked: false },
-    { id: 5, text: '증상 지속 시 1차 셀프조치 중단 및 현장 긴급 정밀점검 배차', checked: false }
-  ],
+  actionChecklist: [],
   dispatchDrawerOpen: false,
   salesModalOpen: false,
-  dispatchNote: '흡입 모터 과열 및 굉음 발생 건. 14일 전 기교체 이력 확인됨. 진공압 및 메인 전압 정밀 계측 출장 요망.',
+  dispatchNote: '',
   assignedEngineer: '김철수 정비기사 (화성/경기남부)',
   dispatchDate: '2026-08-24 10:00',
 
@@ -205,9 +186,9 @@ export const useCounselStore = create<CounselWorkstationState>((set) => ({
   incrementCallTimer: () => set((state) => ({ callSeconds: state.callSeconds + 1 })),
   setSearchQuery: (query) => set({ searchQuery: query }),
   selectCustomer: (customer) => set({ selectedCustomer: customer }),
-  appendFinalSttText: (rawText, correctedText, newCorrections) => set((state) => ({
-    rawFinalSttText: (state.rawFinalSttText ? state.rawFinalSttText + ' ' : '') + rawText,
-    finalSttText: (state.finalSttText ? state.finalSttText + ' ' : '') + correctedText,
+  appendFinalParagraph: (rawText, correctedText, newCorrections) => set((state) => ({
+    rawParagraphs: [...state.rawParagraphs, rawText],
+    finalParagraphs: [...state.finalParagraphs, correctedText],
     correctionHistory: [...state.correctionHistory, ...newCorrections]
   })),
   setInterimSttText: (text) => set({ interimSttText: text }),

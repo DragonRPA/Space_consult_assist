@@ -46,8 +46,8 @@ export default function App() {
     searchQuery,
     customerList,
     selectedCustomer,
-    rawFinalSttText,
-    finalSttText,
+    rawParagraphs,
+    finalParagraphs,
     interimSttText,
     matchedDiagnosis,
     manualOverrideKeyword,
@@ -61,7 +61,7 @@ export default function App() {
     incrementCallTimer,
     setSearchQuery,
     selectCustomer,
-    appendFinalSttText,
+    appendFinalParagraph,
     setInterimSttText,
     toggleChecklist,
     setManualOverrideKeyword,
@@ -79,25 +79,41 @@ export default function App() {
   const [micAudioLevel, setMicAudioLevel] = useState(0);
   const [justTriggeredKeyword, setJustTriggeredKeyword] = useState<string | null>(null);
 
+  const isRecordingRef = useRef(isRecording);
+  isRecordingRef.current = isRecording;
+
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const transcriptBoxRef = useRef<HTMLDivElement | null>(null);
 
   // Call timer interval
   useEffect(() => {
-    const timer = setInterval(() => {
-      incrementCallTimer();
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [incrementCallTimer]);
+    let timer: number | null = null;
+    if (isRecording) {
+      timer = window.setInterval(() => {
+        incrementCallTimer();
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isRecording, incrementCallTimer]);
 
   const formatTimer = (sec: number) => {
     const m = String(Math.floor(sec / 60)).padStart(2, '0');
     const s = String(sec % 60).padStart(2, '0');
     return `${m}:${s}`;
   };
+
+  // Auto-scroll transcript box when new speech arrives
+  useEffect(() => {
+    if (transcriptBoxRef.current) {
+      transcriptBoxRef.current.scrollTop = transcriptBoxRef.current.scrollHeight;
+    }
+  }, [finalParagraphs, interimSttText]);
 
   // Live Audio Level Visualizer
   useEffect(() => {
@@ -145,53 +161,56 @@ export default function App() {
     };
   }, [isRecording]);
 
-  // Real-time Web Speech API with Auto-Query Assist Trigger
+  // Robust Persistent Web Speech API with Focus-Loss Auto-Recovery
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'ko-KR';
+    if (!SpeechRecognition) return;
 
-      recognition.onresult = (event: any) => {
-        let interim = '';
-        let final = '';
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'ko-KR';
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            final += transcript + ' ';
-          } else {
-            interim += transcript;
+    recognition.onresult = (event: any) => {
+      let interim = '';
+      let final = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          final += transcript + ' ';
+        } else {
+          interim += transcript;
+        }
+      }
+
+      // 1) When a sentence completes (speech pause / boundary), insert clean new paragraph line
+      if (final.trim()) {
+        const rawSentence = final.trim();
+        let processedSentence = rawSentence;
+        let newCorrections: any[] = [];
+
+        if (isContextCorrectionEnabled) {
+          const result = applyContextualCorrection(rawSentence);
+          processedSentence = result.correctedText;
+          newCorrections = result.corrections;
+          if (newCorrections.length > 0) {
+            showToast(`✨ 맥락 교정: "${newCorrections[0].original}" ➔ "${newCorrections[0].corrected}"`);
+            setTimeout(() => clearToast(), 3000);
           }
         }
 
-        if (final) {
-          const rawSentence = final.trim();
-          let processedSentence = rawSentence;
-          let newCorrections: any[] = [];
+        appendFinalParagraph(rawSentence, processedSentence, newCorrections);
+        setInterimSttText('');
+      } else if (interim) {
+        setInterimSttText(interim);
+      }
 
-          if (isContextCorrectionEnabled) {
-            const result = applyContextualCorrection(rawSentence);
-            processedSentence = result.correctedText;
-            newCorrections = result.corrections;
-            if (newCorrections.length > 0) {
-              showToast(`✨ 맥락 교정 적용됨: "${newCorrections[0].original}" ➔ "${newCorrections[0].corrected}"`);
-              setTimeout(() => clearToast(), 3000);
-            }
-          }
-
-          appendFinalSttText(rawSentence, processedSentence, newCorrections);
-          setInterimSttText('');
-        } else if (interim) {
-          setInterimSttText(interim);
-        }
-
-        // Real-Time Keyword Auto-Query Trigger (<50ms)
-        const fullCurrentStream = ((isContextCorrectionEnabled ? finalSttText : rawFinalSttText) + ' ' + interim).trim();
+      // 2) Real-time Keyword Auto-Trigger (<50ms)
+      const currentStream = interim.trim() || final.trim();
+      if (currentStream) {
         for (const entity of DOMAIN_KEYWORD_REGISTRY) {
-          if (entity.synonyms.test(fullCurrentStream)) {
+          if (entity.synonyms.test(currentStream)) {
             if (!activeKeywordEntity || activeKeywordEntity.id !== entity.id) {
               setActiveKeywordEntity(entity);
               setJustTriggeredKeyword(entity.keyword);
@@ -200,30 +219,60 @@ export default function App() {
             break;
           }
         }
-      };
+      }
+    };
 
-      recognition.onerror = (event: any) => {
-        console.error("Speech Recognition Error", event.error);
-        if (event.error === 'not-allowed') {
-          setRecording(false);
-          showToast("⚠ 마이크 권한이 차단되었습니다. 브라우저 설정에서 마이크를 허용해 주세요.");
-          setTimeout(() => clearToast(), 4000);
-        }
-      };
+    recognition.onerror = (event: any) => {
+      console.warn("Speech Recognition Status:", event.error);
+      if (event.error === 'not-allowed') {
+        setRecording(false);
+        showToast("⚠ 마이크 권한이 차단되었습니다. 브라우저 설정에서 마이크를 허용해 주세요.");
+        setTimeout(() => clearToast(), 4000);
+      }
+    };
 
-      recognition.onend = () => {
-        if (isRecording) {
-          try {
-            recognition.start();
-          } catch (e) {
-            console.error(e);
+    // 3) Keep-Alive Auto-Recovery: When recognition ends or window blurs, automatically restart if isRecording is true
+    recognition.onend = () => {
+      if (isRecordingRef.current) {
+        setTimeout(() => {
+          if (isRecordingRef.current) {
+            try {
+              recognition.start();
+            } catch (e) {
+              // Retry with backoff
+              setTimeout(() => {
+                if (isRecordingRef.current) {
+                  try { recognition.start(); } catch (_) {}
+                }
+              }, 400);
+            }
           }
-        }
-      };
+        }, 150);
+      }
+    };
 
-      recognitionRef.current = recognition;
-    }
-  }, [appendFinalSttText, setInterimSttText, finalSttText, rawFinalSttText, isContextCorrectionEnabled, isRecording, setRecording, activeKeywordEntity, setActiveKeywordEntity, showToast, clearToast]);
+    recognitionRef.current = recognition;
+
+    // Window Focus & Visibility Keep-alive listeners (prevents background throttle stoppage)
+    const handleWindowFocus = () => {
+      if (isRecordingRef.current && recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch (_) {}
+      }
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleWindowFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleWindowFocus);
+      try {
+        recognition.stop();
+      } catch (_) {}
+    };
+  }, [appendFinalParagraph, setInterimSttText, isContextCorrectionEnabled, setRecording, activeKeywordEntity, setActiveKeywordEntity, showToast, clearToast]);
 
   const toggleRecording = () => {
     if (!isRecording) {
@@ -231,7 +280,7 @@ export default function App() {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.start();
-          showToast("🎙️ 마이크 실시간 스트리밍이 시작되었습니다. 말씀해 보세요.");
+          showToast("🎙️ 통화 녹음 및 실시간 스트리밍이 시작되었습니다. 말씀해 보세요.");
           setTimeout(() => clearToast(), 3000);
         } catch (e) {
           console.error(e);
@@ -309,6 +358,7 @@ export default function App() {
     setTimeout(() => clearToast(), 3500);
   };
 
+  const activeParagraphs = isContextCorrectionEnabled ? finalParagraphs : rawParagraphs;
   const checkedCount = actionChecklist.filter(c => c.checked).length;
   const totalCount = actionChecklist.length;
 
@@ -379,7 +429,7 @@ export default function App() {
             color: isRecording ? 'var(--accent-success)' : 'var(--ink-muted)'
           }}>
             <Radio size={12} className={isRecording ? "animate-pulse" : ""} />
-            <span>스트리밍 STT: <strong>{isRecording ? "실시간 발화 중 (<50ms)" : "대기"}</strong></span>
+            <span>상태: <strong>{isRecording ? "통화 수신 및 백그라운드 유지 중" : "대기"}</strong></span>
           </div>
         </div>
 
@@ -414,14 +464,14 @@ export default function App() {
             gap: '6px', 
             padding: '4px 10px', 
             borderRadius: '6px', 
-            backgroundColor: 'rgba(239, 68, 68, 0.12)', 
-            border: '1px solid rgba(239, 68, 68, 0.25)',
-            color: 'var(--accent-danger)',
+            backgroundColor: isRecording ? 'rgba(239, 68, 68, 0.12)' : 'var(--surface-2)', 
+            border: `1px solid ${isRecording ? 'rgba(239, 68, 68, 0.25)' : 'var(--hairline)'}`,
+            color: isRecording ? 'var(--accent-danger)' : 'var(--ink-muted)',
             fontSize: '12px',
             fontWeight: 600
           }}>
-            <PhoneCall size={14} className="animate-pulse" />
-            <span className="nowrap">통화중</span>
+            <PhoneCall size={14} className={isRecording ? "animate-pulse" : ""} />
+            <span className="nowrap">{isRecording ? "통화중" : "대기"}</span>
             <span className="font-mono">{formatTimer(callSeconds)}</span>
           </div>
 
@@ -655,12 +705,12 @@ export default function App() {
             </div>
           </div>
 
-          {/* STT Live Transcript Box with Keyword Highlighting */}
+          {/* STT Live Transcript Box with Natural Speech Line Breaks */}
           <div style={{ flex: '1.2', padding: '12px', display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--hairline)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
-                  전사 자막 (단어 클릭 시 해당 어시스트로 즉시 이동)
+                  전사 자막 (대화 끊김 시 맥락상 자동 줄바꿈)
                 </label>
                 {correctionHistory.length > 0 && isContextCorrectionEnabled && (
                   <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 600 }}>
@@ -676,50 +726,80 @@ export default function App() {
               </button>
             </div>
             
-            <div style={{ 
-              flex: 1, 
-              backgroundColor: 'var(--surface-2)', 
-              border: '1px solid var(--hairline)', 
-              borderRadius: '6px', 
-              padding: '12px', 
-              overflowY: 'auto',
-              fontSize: '13px',
-              lineHeight: 1.7,
-              color: 'var(--ink)'
-            }}>
-              {/* Highlighted Confirmed Sentences */}
-              <span>
-                {renderHighlightedText(
-                  isContextCorrectionEnabled ? finalSttText : rawFinalSttText,
-                  handleKeywordSelect,
-                  activeKeywordEntity?.id
-                )}
-              </span>
+            <div 
+              ref={transcriptBoxRef}
+              style={{ 
+                flex: 1, 
+                backgroundColor: 'var(--surface-2)', 
+                border: '1px solid var(--hairline)', 
+                borderRadius: '6px', 
+                padding: '12px', 
+                overflowY: 'auto',
+                fontSize: '13px',
+                lineHeight: 1.6,
+                color: 'var(--ink)'
+              }}
+            >
+              {/* Contextual Line Break Rendering per Speech Pause */}
+              {activeParagraphs.length > 0 ? (
+                <div>
+                  {activeParagraphs.map((paragraph, pIdx) => (
+                    <div 
+                      key={pIdx} 
+                      style={{ 
+                        marginBottom: '10px', 
+                        paddingBottom: '6px', 
+                        borderBottom: '1px dashed rgba(255,255,255,0.06)' 
+                      }}
+                    >
+                      <span style={{ fontSize: '10px', color: 'var(--ink-subtle)', marginRight: '6px', fontFamily: 'monospace' }}>
+                        #{pIdx + 1}
+                      </span>
+                      <span>
+                        {renderHighlightedText(
+                          paragraph,
+                          handleKeywordSelect,
+                          activeKeywordEntity?.id
+                        )}
+                      </span>
+                    </div>
+                  ))}
 
-              {/* Real-time Interim Streaming Words (Glowing Blue) */}
-              {interimSttText && (
-                <span style={{ color: '#93c5fd', backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '1px 4px', borderRadius: '3px', fontWeight: 600, marginLeft: '4px' }}>
-                  {interimSttText}
-                </span>
-              )}
-
-              {/* Pulsing Cursor */}
-              {isRecording && (
-                <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '14px', backgroundColor: 'var(--accent-primary)', marginLeft: '4px', verticalAlign: 'middle' }} />
-              )}
-
-              {!finalSttText && !interimSttText && (
-                <span style={{ color: 'var(--ink-subtle)' }}>상단 [STT 수신 시작]을 누르고 '흡입모터 소음'이나 '스퀴지 잔수'라고 말씀해 보세요...</span>
+                  {/* Real-time Interim Streaming Words on current line */}
+                  {interimSttText && (
+                    <div style={{ marginTop: '4px' }}>
+                      <span style={{ color: '#93c5fd', backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '2px 6px', borderRadius: '3px', fontWeight: 600 }}>
+                        {interimSttText}
+                      </span>
+                      {isRecording && (
+                        <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '14px', backgroundColor: 'var(--accent-primary)', marginLeft: '4px', verticalAlign: 'middle' }} />
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : interimSttText ? (
+                <div>
+                  <span style={{ color: '#93c5fd', backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '2px 6px', borderRadius: '3px', fontWeight: 600 }}>
+                    {interimSttText}
+                  </span>
+                  {isRecording && (
+                    <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '14px', backgroundColor: 'var(--accent-primary)', marginLeft: '4px', verticalAlign: 'middle' }} />
+                  )}
+                </div>
+              ) : (
+                <div style={{ color: 'var(--ink-subtle)', padding: '16px 8px', textAlign: 'center', fontSize: '12px' }}>
+                  🎙️ 상단 <strong>[STT 수신 시작]</strong> 버튼을 누르고 통화를 시작하시면 실시간 대화가 전사됩니다.
+                </div>
               )}
             </div>
           </div>
 
-          {/* Detected Keywords Bar (Clickable Pills) */}
+          {/* Detected Keywords Bar */}
           <div style={{ flex: '1.5', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <label style={{ fontSize: '11px', color: 'var(--ink-muted)', display: 'block' }}>
-                  감지된 증상 키워드 (클릭 시 해당 어시스트 즉시 전환)
+                  감지된 증상 키워드 (클릭 시 해당 어시스트 즉시 조회)
                 </label>
                 {justTriggeredKeyword && (
                   <span style={{ fontSize: '11px', color: 'var(--accent-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -751,7 +831,6 @@ export default function App() {
                       }}
                     >
                       <span>#{entity.keyword}</span>
-                      <span style={{ fontSize: '10px', opacity: 0.8 }}>({entity.confidence}%)</span>
                     </button>
                   );
                 })}
@@ -759,7 +838,7 @@ export default function App() {
             </div>
 
             {/* Diagnosis Result Card */}
-            {matchedDiagnosis && (
+            {matchedDiagnosis ? (
               <div style={{ 
                 backgroundColor: 'var(--surface-2)', 
                 padding: '12px', 
@@ -781,6 +860,10 @@ export default function App() {
                   <span>부품코드: <strong className="font-mono" style={{ color: 'var(--ink)' }}>{matchedDiagnosis.partCode}</strong></span>
                   <span>본사재고: <strong style={{ color: matchedDiagnosis.stock > 0 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>{matchedDiagnosis.stock}개 보유</strong></span>
                 </div>
+              </div>
+            ) : (
+              <div style={{ backgroundColor: 'var(--surface-2)', padding: '16px', borderRadius: '6px', border: '1px dashed var(--hairline)', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '12px' }}>
+                🔍 상담 대화 중 증상 키워드가 감지되면 해당 부품 및 가이드가 자동 표출됩니다.
               </div>
             )}
 
@@ -847,8 +930,8 @@ export default function App() {
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
               표준 조치 체크리스트 (SOP)
             </span>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: checkedCount === totalCount ? 'var(--accent-success)' : 'var(--accent-primary)' }}>
-              {checkedCount} / {totalCount} 완료 ({Math.round((checkedCount / totalCount) * 100)}%)
+            <span style={{ fontSize: '12px', fontWeight: 700, color: totalCount > 0 && checkedCount === totalCount ? 'var(--accent-success)' : 'var(--accent-primary)' }}>
+              {totalCount > 0 ? `${checkedCount} / ${totalCount} 완료 (${Math.round((checkedCount / totalCount) * 100)}%)` : '대기'}
             </span>
           </div>
 
@@ -874,30 +957,36 @@ export default function App() {
 
           {/* Checklist Items Container */}
           <div style={{ flex: 1, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {actionChecklist.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => toggleChecklist(item.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '10px',
-                  padding: '10px',
-                  borderRadius: '6px',
-                  backgroundColor: item.checked ? 'rgba(16, 185, 129, 0.08)' : 'var(--surface-2)',
-                  border: item.checked ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid var(--hairline)',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <button style={{ background: 'none', border: 'none', color: item.checked ? 'var(--accent-success)' : 'var(--ink-subtle)', cursor: 'pointer', marginTop: '1px' }}>
-                  {item.checked ? <CheckSquare size={16} /> : <Square size={16} />}
-                </button>
-                <div style={{ flex: 1, fontSize: '13px', lineHeight: 1.4, color: item.checked ? 'var(--accent-success)' : 'var(--ink)', textDecoration: item.checked ? 'line-through' : 'none' }}>
-                  <strong style={{ marginRight: '4px', color: 'var(--ink-muted)' }}>{item.id}.</strong> {item.text}
+            {actionChecklist.length > 0 ? (
+              actionChecklist.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => toggleChecklist(item.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    backgroundColor: item.checked ? 'rgba(16, 185, 129, 0.08)' : 'var(--surface-2)',
+                    border: item.checked ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid var(--hairline)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <button style={{ background: 'none', border: 'none', color: item.checked ? 'var(--accent-success)' : 'var(--ink-subtle)', cursor: 'pointer', marginTop: '1px' }}>
+                    {item.checked ? <CheckSquare size={16} /> : <Square size={16} />}
+                  </button>
+                  <div style={{ flex: 1, fontSize: '13px', lineHeight: 1.4, color: item.checked ? 'var(--accent-success)' : 'var(--ink)', textDecoration: item.checked ? 'line-through' : 'none' }}>
+                    <strong style={{ marginRight: '4px', color: 'var(--ink-muted)' }}>{item.id}.</strong> {item.text}
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '12px' }}>
+                진단이 시작되면 1~5단계 표준 점검 체크리스트가 표출됩니다.
               </div>
-            ))}
+            )}
           </div>
 
           {/* Bottom Action Command Center */}
