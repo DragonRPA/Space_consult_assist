@@ -251,6 +251,7 @@ export default function App() {
   const animFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const transcriptBoxRef = useRef<HTMLDivElement | null>(null);
+  const whisperAbortControllerRef = useRef<AbortController | null>(null);
 
   // Synchronous STT Startup Function (Instant Mic Engagement)
   const startSttStreaming = useCallback(() => {
@@ -286,10 +287,17 @@ export default function App() {
       const formData = new FormData();
       formData.append('file', file);
 
+      if (whisperAbortControllerRef.current) {
+        whisperAbortControllerRef.current.abort();
+      }
+      const abortController = new AbortController();
+      whisperAbortControllerRef.current = abortController;
+
       try {
         const response = await fetch('http://127.0.0.1:8000/api/v1/stt/transcribe', {
           method: 'POST',
-          body: formData
+          body: formData,
+          signal: abortController.signal
         });
         if (response.ok) {
           const data = await response.json();
@@ -304,10 +312,15 @@ export default function App() {
             return;
           }
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          console.log("Faster-Whisper GPU 전사 요청이 즉시 취소되었습니다.");
+          return;
+        }
         console.warn("Local Faster-Whisper agent offline, fallback to Web Speech audio stream:", err);
       } finally {
         setIsWhisperProcessing(false);
+        whisperAbortControllerRef.current = null;
       }
     }
 
@@ -417,16 +430,37 @@ export default function App() {
       globalAudioRef.current.pause();
       globalAudioRef.current.currentTime = 0;
     }
+    if (whisperAbortControllerRef.current) {
+      whisperAbortControllerRef.current.abort();
+      whisperAbortControllerRef.current = null;
+    }
+    stopSttStreaming();
+    setIsWhisperProcessing(false);
     setIsAudioPlaying(false);
     setRecording(false);
-    setAudioTime(0, audioDuration);
-    showToast("⏹️ 음성 재생 및 STT 수신 정지됨");
+    setAudioTime(0, 0);
+    showToast("음성 재생 및 STT 수신이 즉시 중지되었습니다.");
     setTimeout(() => clearToast(), 2000);
   };
 
   const handleClearAudioFile = () => {
-    stopAudioPlayback();
+    if (globalAudioRef.current) {
+      globalAudioRef.current.pause();
+      globalAudioRef.current.currentTime = 0;
+      globalAudioRef.current.removeAttribute('src');
+      globalAudioRef.current.load();
+    }
+    if (whisperAbortControllerRef.current) {
+      whisperAbortControllerRef.current.abort();
+      whisperAbortControllerRef.current = null;
+    }
+    stopSttStreaming();
+    setIsWhisperProcessing(false);
+    setIsAudioPlaying(false);
+    setRecording(false);
     clearAudioFile();
+    showToast("음성 파일 및 STT 수신이 즉시 제거되었습니다.");
+    setTimeout(() => clearToast(), 2000);
   };
 
   const formatAudioTime = (sec: number) => {
@@ -1549,31 +1583,6 @@ export default function App() {
                 }}>
                   <Upload size={32} className="animate-bounce" style={{ marginBottom: '8px', color: '#93c5fd' }} />
                   <span>대화록(.txt) 또는 음성(.m4a) 파일을 놓으면 분석됩니다.</span>
-                </div>
-              )}
-
-              {/* Faster-Whisper GPU Real-time Processing Banner */}
-              {isWhisperProcessing && (
-                <div style={{
-                  padding: '12px 14px',
-                  backgroundColor: 'rgba(37, 99, 235, 0.15)',
-                  border: '1px solid var(--accent-primary)',
-                  borderRadius: '6px',
-                  marginBottom: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  boxShadow: '0 0 16px rgba(37, 99, 235, 0.35)'
-                }}>
-                  <Loader2 size={20} className="animate-spin" style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#93c5fd' }}>
-                      ⚡ Faster-Whisper Large-v3 GPU 고속 연산 진행 중...
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--ink-muted)', marginTop: '2px' }}>
-                      NVIDIA GeForce RTX 5080 가속으로 40배속 무소음 전사 및 구어체 진단을 수행하고 있습니다.
-                    </div>
-                  </div>
                 </div>
               )}
 
