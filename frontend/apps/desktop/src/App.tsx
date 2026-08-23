@@ -13,9 +13,11 @@ import {
   Sparkles,
   Layers,
   Palette,
+  Volume2,
   X
 } from 'lucide-react';
 import { useCounselStore } from './store';
+import { MicTestModal } from './MicTestModal';
 import './index.css';
 
 declare global {
@@ -66,8 +68,15 @@ export default function App() {
   } = useCounselStore();
 
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
+  const [isMicTestOpen, setIsMicTestOpen] = useState(false);
+  const [micAudioLevel, setMicAudioLevel] = useState(0);
+
   const debounceTimer = useRef<number | null>(null);
   const recognitionRef = useRef<any>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // Call timer interval
   useEffect(() => {
@@ -82,6 +91,52 @@ export default function App() {
     const s = String(sec % 60).padStart(2, '0');
     return `${m}:${s}`;
   };
+
+  // Live Audio Level Visualizer when isRecording is true
+  useEffect(() => {
+    if (isRecording) {
+      navigator.mediaDevices?.getUserMedia({ audio: true })
+        .then((stream) => {
+          streamRef.current = stream;
+          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+          const audioCtx = new AudioCtx();
+          audioContextRef.current = audioCtx;
+
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 64;
+          analyserRef.current = analyser;
+
+          const source = audioCtx.createMediaStreamSource(stream);
+          source.connect(analyser);
+
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          const update = () => {
+            if (!analyserRef.current) return;
+            analyserRef.current.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+            const avg = sum / dataArray.length;
+            setMicAudioLevel(Math.min(100, Math.round((avg / 128) * 100 * 1.6)));
+            animFrameRef.current = requestAnimationFrame(update);
+          };
+          update();
+        })
+        .catch((err) => {
+          console.warn("Audio meter stream failed", err);
+        });
+    } else {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+      setMicAudioLevel(0);
+    }
+
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    };
+  }, [isRecording]);
 
   // Web Speech API STT
   useEffect(() => {
@@ -108,6 +163,10 @@ export default function App() {
         console.error("Speech Recognition Error", event.error);
         if (event.error === 'not-allowed') {
           setRecording(false);
+          showToast("⚠ 마이크 권한이 차단되었습니다. 브라우저 설정에서 마이크를 허용해 주세요.");
+          setTimeout(() => clearToast(), 4000);
+        } else if (event.error === 'no-speech') {
+          // Normal silent pause
         }
       };
 
@@ -122,22 +181,34 @@ export default function App() {
       };
 
       recognitionRef.current = recognition;
+    } else {
+      console.warn("Web Speech API not supported in this browser.");
     }
-  }, [appendSttText, isRecording, setRecording]);
+  }, [appendSttText, isRecording, setRecording, showToast, clearToast]);
 
-  useEffect(() => {
-    if (recognitionRef.current) {
-      if (isRecording) {
+  const toggleRecording = () => {
+    if (!isRecording) {
+      setRecording(true);
+      if (recognitionRef.current) {
         try {
           recognitionRef.current.start();
+          showToast("🎙️ 마이크 음성인식이 시작되었습니다. 말씀해 보세요.");
+          setTimeout(() => clearToast(), 3000);
         } catch (e) {
           console.error(e);
         }
-      } else {
-        recognitionRef.current.stop();
       }
+    } else {
+      setRecording(false);
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {}
+      }
+      showToast("⏹️ 마이크 음성인식이 정지되었습니다.");
+      setTimeout(() => clearToast(), 2500);
     }
-  }, [isRecording]);
+  };
 
   // STT Debounced Classification
   useEffect(() => {
@@ -283,7 +354,7 @@ export default function App() {
         </div>
 
         {/* 3x3 DUAL CONTROLLER: Theme Style & Color Palette */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           
           {/* 1) Design Tone (Theme Style) */}
           <div style={{ 
@@ -296,7 +367,7 @@ export default function App() {
             borderRadius: 'var(--radius-md)' 
           }}>
             <Layers size={13} style={{ color: 'var(--ink-muted)', marginRight: '4px' }} />
-            <span style={{ fontSize: '11px', color: 'var(--ink-muted)', marginRight: '4px', fontWeight: 600 }}>디자인 톤:</span>
+            <span style={{ fontSize: '11px', color: 'var(--ink-muted)', marginRight: '4px', fontWeight: 600 }}>톤:</span>
             
             <button
               onClick={() => setThemeStyle('precision')}
@@ -311,7 +382,7 @@ export default function App() {
                 cursor: 'pointer'
               }}
             >
-              1. Linear 정밀
+              Linear 정밀
             </button>
 
             <button
@@ -327,7 +398,7 @@ export default function App() {
                 cursor: 'pointer'
               }}
             >
-              2. Soft 입체
+              Soft 입체
             </button>
 
             <button
@@ -343,7 +414,7 @@ export default function App() {
                 cursor: 'pointer'
               }}
             >
-              3. Cyber HUD
+              Cyber HUD
             </button>
           </div>
 
@@ -411,8 +482,31 @@ export default function App() {
 
         </div>
 
-        {/* Live Call Stopwatch & Audio Indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Live Audio & STT Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          
+          {/* Dedicated Mic Test Button */}
+          <button
+            onClick={() => setIsMicTestOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '5px 10px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--surface-2)',
+              border: 'var(--border-width) solid var(--hairline)',
+              color: 'var(--ink)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            <Volume2 size={14} style={{ color: 'var(--accent-primary)' }} />
+            <span className="nowrap">마이크 테스트</span>
+          </button>
+
+          {/* Live Call Duration */}
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
@@ -430,8 +524,9 @@ export default function App() {
             <span className="font-mono">{formatTimer(callSeconds)}</span>
           </div>
 
+          {/* STT Start/Stop Button with Live VU Level Bar */}
           <button 
-            onClick={() => setRecording(!isRecording)}
+            onClick={toggleRecording}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -443,11 +538,28 @@ export default function App() {
               border: 'none',
               fontSize: '12px',
               fontWeight: 600,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              position: 'relative',
+              overflow: 'hidden'
             }}
           >
             {isRecording ? <MicOff size={14} /> : <Mic size={14} />}
             <span className="nowrap">{isRecording ? "STT 정지" : "STT 시작"}</span>
+            
+            {/* Live Visualizer Bar inside button when recording */}
+            {isRecording && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'flex-end',
+                gap: '2px',
+                height: '12px',
+                marginLeft: '4px'
+              }}>
+                <span style={{ width: '3px', height: `${Math.max(20, micAudioLevel)}%`, backgroundColor: '#fff', borderRadius: '1px' }} />
+                <span style={{ width: '3px', height: `${Math.max(40, micAudioLevel * 1.2)}%`, backgroundColor: '#fff', borderRadius: '1px' }} />
+                <span style={{ width: '3px', height: `${Math.max(10, micAudioLevel * 0.8)}%`, backgroundColor: '#fff', borderRadius: '1px' }} />
+              </span>
+            )}
           </button>
         </div>
       </header>
@@ -619,9 +731,18 @@ export default function App() {
                 <Sparkles size={14} style={{ color: 'var(--accent-primary)' }} />
                 실시간 음성 전사 및 AI 분류
               </span>
-              <span style={{ fontSize: '11px', color: isRecording ? 'var(--accent-danger)' : 'var(--ink-muted)', fontWeight: 600 }}>
-                {isRecording ? "● 음성 스트리밍 수신중" : "대기 상태"}
-              </span>
+              
+              {/* Dynamic Mic Activity Indicator */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {isRecording && micAudioLevel > 15 && (
+                  <span style={{ fontSize: '10px', color: 'var(--accent-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Volume2 size={12} /> 음성 감지 중 ({micAudioLevel}%)
+                  </span>
+                )}
+                <span style={{ fontSize: '11px', color: isRecording ? 'var(--accent-danger)' : 'var(--ink-muted)', fontWeight: 600 }}>
+                  {isRecording ? "● 음성 스트리밍 수신중" : "대기 상태"}
+                </span>
+              </div>
             </div>
 
             <div style={{ 
@@ -639,9 +760,18 @@ export default function App() {
 
           {/* STT Live Transcript Box */}
           <div style={{ flex: '1.2', padding: 'var(--density-padding)', display: 'flex', flexDirection: 'column', borderBottom: 'var(--border-width) solid var(--hairline)' }}>
-            <label style={{ fontSize: '11px', color: 'var(--ink-muted)', marginBottom: '4px' }}>
-              실시간 전사 자막 (1000ms 디바운스 자동 추론)
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
+                실시간 전사 자막 (1000ms 디바운스 자동 추론)
+              </label>
+              <button 
+                onClick={() => setIsMicTestOpen(true)}
+                style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
+              >
+                마이크 소리가 안 들리시나요? [테스트]
+              </button>
+            </div>
+            
             <div style={{ 
               flex: 1, 
               backgroundColor: 'var(--surface-2)', 
@@ -660,7 +790,7 @@ export default function App() {
                   {isRecording && <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '14px', backgroundColor: 'var(--accent-primary)', marginLeft: '4px', verticalAlign: 'middle' }} />}
                 </span>
               ) : (
-                <span style={{ color: 'var(--ink-subtle)' }}>통화 음성이 인식되면 실시간으로 자막이 표시됩니다...</span>
+                <span style={{ color: 'var(--ink-subtle)' }}>상단 [STT 시작] 버튼을 누르고 말씀하시면 실시간으로 음성이 전사됩니다...</span>
               )}
             </div>
           </div>
@@ -1069,6 +1199,11 @@ export default function App() {
           <span>{toastMessage}</span>
         </div>
       )}
+
+      {/* ========================================================= */}
+      {/* 6. MIC TEST & AUDIO DIAGNOSTIC MODAL                      */}
+      {/* ========================================================= */}
+      <MicTestModal isOpen={isMicTestOpen} onClose={() => setIsMicTestOpen(false)} />
 
     </div>
   );
