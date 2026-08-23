@@ -248,6 +248,43 @@ export default function App() {
     }
   }, [setRecording]);
 
+  const processAudioWithActiveEngine = useCallback(async (file: File) => {
+    resetSessionForNewAudio();
+    setActiveAudioFile(file);
+    setIsAudioPlaying(true);
+
+    if (sttEngine === 'whisper_large_v3') {
+      showToast(`[Faster-Whisper GPU] '${file.name}' 로컬 GPU 전사 요청 중...`);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const response = await fetch('http://localhost:8000/api/v1/stt/transcribe', {
+          method: 'POST',
+          body: formData
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.segments && data.segments.length > 0) {
+            data.segments.forEach((seg: any) => {
+              appendFinalParagraph(seg.text, seg.text, []);
+              evaluateUtteranceRules(seg.text);
+            });
+            showToast(`[Faster-Whisper GPU] ${data.segments.length}개 세그먼트 고품질 전사 완료!`);
+            setTimeout(() => clearToast(), 3500);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Local Faster-Whisper agent offline, fallback to Web Speech audio stream:", err);
+      }
+    }
+
+    startSttStreaming();
+    showToast(`[${file.name}] 음성 파일 재생 및 실시간 STT 수신 시작`);
+    setTimeout(() => clearToast(), 3500);
+  }, [sttEngine, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, appendFinalParagraph, showToast, clearToast]);
+
   // GLOBAL WINDOW DRAG & DROP & PASTE INTERCEPTOR
   useEffect(() => {
     const handleGlobalDragOver = (e: DragEvent) => {
@@ -279,14 +316,9 @@ export default function App() {
           return;
         }
 
-        // 2. If Audio file is dropped -> Play audio and start real STT listening
+        // 2. If Audio file is dropped -> Process with active STT engine (Faster-Whisper GPU or Web Speech)
         if (file.name.match(/\.(m4a|mp3|wav|ogg|aac|flac)$/i)) {
-          resetSessionForNewAudio();
-          setActiveAudioFile(file);
-          setIsAudioPlaying(true);
-          startSttStreaming();
-          showToast(`[${file.name}] 음성 파일 재생 및 실시간 STT 수신 시작`);
-          setTimeout(() => clearToast(), 3500);
+          processAudioWithActiveEngine(file);
         }
       }
     };
@@ -310,7 +342,7 @@ export default function App() {
       window.removeEventListener('drop', handleGlobalDrop);
       window.removeEventListener('paste', handleGlobalPaste);
     };
-  }, [resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, showToast, clearToast]);
+  }, [processAudioWithActiveEngine]);
 
   // Background Audio Controller Sync
   useEffect(() => {
@@ -332,12 +364,7 @@ export default function App() {
   const handleManualFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      resetSessionForNewAudio();
-      setActiveAudioFile(file);
-      setIsAudioPlaying(true);
-      startSttStreaming();
-      showToast(`[${file.name}] 음성 파일 재생 및 실시간 STT 수신 시작`);
-      setTimeout(() => clearToast(), 3500);
+      processAudioWithActiveEngine(file);
     }
   };
 
