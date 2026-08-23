@@ -1,13 +1,48 @@
+﻿# ?섍꼍蹂??(?덈? 而ㅻ컠 湲덉?)
+.env
+.env.local
+.env.production
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
-*.pyd
-.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Node.js / Frontend
+node_modules/
+frontend/packages/desktop/dist/
+frontend/packages/mobile/dist/
+frontend/packages/common/dist/
+*.local
+
+# Ollama 紐⑤뜽
+*.gguf
+*.bin
+ollama_data/
+
+# DB / ?곗씠???뚯씪
+*.sqlite
+*.db
+*.csv
+*.xlsx
+
+# 濡쒓렇
+*.log
+crash_dump.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
 .vscode/
 .idea/
-*.log
-result_output/
-stt_texts/
-result_json/
-completed_audio/
-core/config.json
+*.swp
+
+# Docker
+docker-compose.override.yml

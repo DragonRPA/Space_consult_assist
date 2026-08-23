@@ -1,71 +1,13 @@
-# ConsultParser2 개발 임시 요구사항 및 완료 이력
+﻿# Space Advisor ??媛쒕컻 ?꾩떆 湲곕줉
 
-## 📌 현재 반영 완료된 요구사항 (v2.7.0.Build.3)
-- [x] TextPreviewSkipDialog 5초 자동 카운트다운 타이머 전격 제거 (사용자 명시적 클릭 100% 대기)
-- [x] 스킵 버튼 클릭 시 0.00초 만에 다음 순서 파일 팝업 연쇄 즉시 오픈 정립
-- [x] 체크박스 켜짐 시 시스템 임의 건너뛰기 100% 소거 및 모든 대상 파일 사장님 명시적 팝업 확인
-- [x] 수동/자동 스킵 시 디스크 상의 원본 .txt 및 .m4a 파일명에 _파싱실패 태그 예외없이 100% 부여 연동
-- [x] 스킵 팝업 0초 즉시 반응성 유지하며 디스크 상 _파싱실패 파일명 식별 정합성 완벽 결합
-- [x] [헌장 V 5.4 이행] 파싱 불가 스킵 프로세스 원칙론적 전면 재설계 개편 완결
-- [x] 파일명에 _파싱실패 태그가 포함된 파일 2단계 분석 대상(txt_targets)에서 100% 무조건 스킵 제외
-- [x] 결과 JSON에 skipped_user, skipped_empty, parse_error, timeout_error 상태가 기록된 파일 2단계 대상 제외 완결
-- [x] 수동 스킵 팝업 버튼 클릭 시 0.01초 지연도 없이 즉시 다음 파일 팝업 전환 (deleteLater + QApplication.processEvents)
-- [x] 수동 스킵 처리 시 UI 2단계 [스킵] 통계 카드 수치 실시간 +1 갱신 연동
-- [x] 2단계 txt >> Json LLM 추론 직전 대화록 미리보기 & 1초 수동 스킵 모달 (TextPreviewSkipDialog) 탑재
-- [x] [🚫 파싱 불가 / 스킵 (0초)] 클릭 시 LLM 35초 대기 없이 즉시 skipped_user 결과 JSON 보존 및 0초 스킵
-- [x] 통화연결음 및 15자 이하 내용 미비 대화록 노란색 경고 뱃지 자동 표출
-- [x] UI 상단 `👁️ 2단계 대화록 실시간 미리보기 & 1초 수동 판정 (스킵/분석 선택)` 체크박스 옵션 신설 및 설정 보존
-- [x] [Fix] ui/tab_process.py PyQt5.QtWidgets QComboBox import 누락 NameError 즉시 소거
-- [x] 파일 처리 정렬 순서 선택 신설 (⚖️ 용량 오름차순 - 0B/소용량 우선 추천 vs ⏰ 타임스탬프 오름차순)
-- [x] UI 상단 📊 처리 정렬 순서 QComboBox 드롭다운 배치 및 설정 자동 보존
-- [x] 35초 시간 초과(Timeout) 건 timeout_error 결과 JSON 보존 및 _파싱실패 태그 자동 연동 부과
-- [x] ProcessTab._refresh_file_stats 내 timeout_error 상태 오류 카드 카운트 합산 적용
-- [x] 0B / 내용 없음 txt 파일 스킵 시 skipped_empty 상태의 JSON 결과 자동 기록으로 재시작 2단계 분석 목록에서 영구 차단
-- [x] scan_folder 내 0B 파일 skipped_small 플래그 정확 연동으로 2단계 스킵 통계 카드 정상 집계
-- [x] 앱 재시작 시 2단계 오류(242개) 수치 고정 원인 분석 및 3단계 재분석 성공 시 실시간 감소 메커니즘 투명 정리
-- [x] 동일 타임스탬프 중복 통화 핑퐁 카운터(_1.m4a -> _2.m4a) 무한 반복 버그 영구 소거 (3차 실행 시 Run 3: Done 0 / Total 0 완결)
-- [x] 파일명 상의 모든 공백(Space) 언더바(_) 전격 정제 표준 적용 (20230821_102549_더랜드시티_사용자_S5.m4a)
-- [x] 3단 연속 날짜/숫자 조합 (`YYMMDD_YYMMDD_HHMMSS`) 유니버설 슬라이딩 매처 전격 탑재
-- [x] 통화 녹음 방배그랑자이 S7P 사용자 220922_230518_142211.m4a ➔ 20230518_142211_방배그랑자이_S7P.m4a 100% 동기화 완결
-- [x] [헌장 V 5.4 이행 완료] SSOT 타임스탬프 기반 1:1 결정론적 파일명 정형화 엔진 전면 완결
-- [x] 디스크 상의 6,810개 전수 오디오/JSON 파일 자가 정합성 검증 완료 (Mismatched Count = 0)
-- [x] 엄격 시분초 정규식 (STRICT_TS_PATTERN, 00~23시/00~59분/00~59초) 구축
-- [x] 후보군 매칭 검증 알고리즘 적용 (txt_ts_map 매칭 우선 채택)
-- [x] 통화 녹음 힐스테이트클래시안J800AD 260313_260521_092834.m4a ➔ 20260521_092834_힐스테이트클래시안J800AD.m4a 100% 동기화 완결
-- [x] completed_audio/ 및 json 잔여 1,078개 복합 날짜 파일 전수 리네임 집행 완료
-- [x] 전화번호 포함 파일명 타임스탬프 오인 버그 완전 해결 (PRECISE_TS_PATTERN 적용)
-- [x] 통화 녹음 0222914256_190430_091758.m4a ➔ 20190430_091758_0222914256.m4a 100% 동기화 완결
-- [x] completed_audio/ 및 json 잔여 4,128개 파일 전수 리네임 집행 완료
-- [x] completed_audio/ 폴더 내 m4a 음성 파일 6,810개 전수 txt 기준 1:1 정형화 파일명 리네임 완성
-- [x] 6자리(YYMMDD_HHMMSS) vs 8자리(YYYYMMDD_HHMMSS) 타임스탬프 상호 호환 정규화 (`norm_ts`)
-- [x] LLM 타임아웃 300초 ➔ 35초 대폭 축소 & num_predict 768 토큰 제한 (90초 헛생성 대기 100% 방지)
-- [x] JSON 파싱 실패 건 `_파싱실패` 파일명 태그 부여 (원본 txt 및 m4a 연동 리네임)
-- [x] 동일 엔진 구동 시 `_파싱실패` 파일 자동 스킵 (90초 무한낭비 지연 완전 차단)
-- [x] 타 엔진 전환 시 `_파싱실패` 건 재분석 시도 허용 및 성공 시 `_파싱실패` 태그 제거 원복
-- [x] 명시적 '🛠️ 파일명 점검 및 수정' 버튼 신설 & 백그라운드 자동 조작 차단 (`sync_filenames_by_timestamp` 분리)
-- [x] 명시적 클릭 지시 시 1건 단위 프로그레스 바 수치 및 % 실시간 시각화
-- [x] 구글 Gemini 서비스 모델 목록 영구 저장 & 시작 시 자동 로드 구축 (`gemini_model_list` 영구 저장 및 재시작 시 자동 로딩)
-- [x] 파일명 1:1 동기화 리네임 실시간 진행률 1건 단위 표출 (renamed_audio_count / renamed_json_count 실시간 카운터 리포팅)
-- [x] 실시간 작업 진행 상태 모니터링 시스템 구축 (api_status_label 및 processEvents 촘촘히 전격 배치)
-- [x] m4a ➔ txt 타임스탬프 기준 1:1 파일명 및 매핑 동기화 (미변환 음성 잔량 6811개 ➔ 0개 완벽 정돈)
-- [x] 구글 Gemini API 실시간 서비스 모델 자동 동기화 (`list_models()` 및 `✨ 최신 Gemini 모델 조회` 버튼)
-- [x] Google Gemini 3.7 Flash (`gemini-3.7-flash`), 2.5 Flash 최신 모델 라인업 전격 탑재 및 자유 직접 입력 Editable 드롭다운 지원
-- [x] 분석 시작 시 멈춤(Silent Freeze) 버그 완전 해결 (사전 검증 팝업 및 순수 모델명 파싱)
-- [x] 1단계 STT 미변환 잔량 0건 시 Whisper STTEngine 지연 로딩 최적화
-- [x] 2단계/3단계 단일 통합 전사 표준 분석 프롬프트 (call_type 상향 포함) 전격 적용
-- [x] 분석 프롬프트 접이식(Collapsible Accordion) UI 개편 (보고 싶을 때만 펼쳐보기)
-- [x] 3단계 재분석 전용 프롬프트 정립 및 편집기 신설 (call_type REPAIR/INQUIRY/IRRELEVANT 전용 판별)
-- [x] Implementation Plan 4단계 완전 집행 완료 (4,107개 전수 call_type 백필, merged_consults.json, supabase_export.json, supabase_seed.sql 4,388건 디테일 생성)
-- [x] Implementation Plan 3단계 미검출 분석 조사 완료 (1,976건 미검출 대상 추출)
-- [x] 타임스탬프 일치 시 txt 파일명 기준으로 JSON 파일명 1:1 자동 변경 동기화 임시 로직
-- [x] 사용자 중간 중지 시 PC 자동 종료 100% 차단 로직 (is_user_stopped 감지 및 shutdown /a 자동실행)
-- [x] PC 자동 종료 즉시 무력화 버튼 신설 (`🛑 종료 예약 취소 (shutdown /a)`)
-- [x] Gemini 사용량 및 쿼터 관리 대시보드 링크 연결
-- [x] STT_sample 핵심 파서 포팅: 전화번호 100% 보존 토큰 격리 정규식 파서
-- [x] m4a 음성 파일 수십 연도 재귀 폴더 탐색 (scan_folder) 및 completed_audio 이관
-- [x] 1단계(음성STT) / 2단계(LLM JSON) 파이프라인 모드 분리
-- [x] 작업 처리 중인 파일 용량(MB/KB) 실시간 표시
-- [x] 2줄 독립 분리 통계 카드 패널 (1단계/2단계 카운터 분리)
-- [x] 라디오 버튼 라벨 간결화 (글자 잘림 완전 해소)
-- [x] PC 작업 완료 시 자동 종료 체크박스 (shutdown /s /t 60)
-- [x] Google Gemma 3 (`gemma3:12b`, `gemma3:4b`, `gemma3:27b`) 추천 모델 탑재
+## 吏꾪뻾以묒씤 ?붽뎄?ы빆
+
+| # | ?붽뎄?ы빆 | ?곹깭 | ???Phase |
+|---|---|---|---|
+| 1 | Supabase ?꾨줈?앺듃 ?앹꽦 諛?珥덇린 ?ㅽ궎留?留덉씠洹몃젅?댁뀡 | ?봽 吏꾪뻾以?| P0 |
+| 2 | part_codes 18媛?留덉뒪??INSERT | 燧??湲?| P0 |
+| 3 | action_script 90媛??쒕옒?꾪듃 ?묒꽦 | 燧??湲?| P0 |
+| 4 | Ollama 紐⑤뜽 ?좏깮 諛??ㅼ튂 | 燧??湲?| P0 |
+| 5 | Q4 踰뺤쟻 梨낆엫 臾멸뎄 ??CEO 踰뺣Т??寃곌낵 ?湲?| 燧??좊낫 | P2 ??|
+| 6 | Q5/Q10 移댁뭅???뚮┝??CEO 寃곗옱 | 燧??좊낫 | P3 以?|
+| 7 | Q12 ?듯솕 STT 怨좎? 硫섑듃 踰뺣Т 寃??| 燧??좊낫 | P4 ??|
