@@ -55,6 +55,8 @@ export default function App() {
     isAudioPlaying,
     audioCurrentTime,
     audioDuration,
+    sttEngine,
+    setSttEngine,
     setActiveAudioFile,
     clearAudioFile,
     setIsAudioPlaying,
@@ -803,6 +805,50 @@ export default function App() {
         {/* Live Audio & STT Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           
+          {/* Dual STT Engine Selection Switcher */}
+          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--surface-2)', padding: '2px', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
+            <button
+              onClick={() => {
+                setSttEngine('whisper_large_v3');
+                showToast("[STT 엔진 전환] Faster-Whisper Large-v3 (RTX 5080 GPU 가속) 활성화");
+                setTimeout(() => clearToast(), 3000);
+              }}
+              style={{
+                padding: '4px 9px',
+                fontSize: '11px',
+                fontWeight: 700,
+                borderRadius: '4px',
+                border: 'none',
+                backgroundColor: sttEngine === 'whisper_large_v3' ? 'var(--accent-primary)' : 'transparent',
+                color: sttEngine === 'whisper_large_v3' ? '#fff' : 'var(--ink-muted)',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Faster-Whisper (GPU)
+            </button>
+            <button
+              onClick={() => {
+                setSttEngine('web_speech');
+                showToast("[STT 엔진 전환] Web Speech (브라우저 기본) 활성화");
+                setTimeout(() => clearToast(), 3000);
+              }}
+              style={{
+                padding: '4px 9px',
+                fontSize: '11px',
+                fontWeight: 700,
+                borderRadius: '4px',
+                border: 'none',
+                backgroundColor: sttEngine === 'web_speech' ? 'var(--accent-warning)' : 'transparent',
+                color: sttEngine === 'web_speech' ? '#000' : 'var(--ink-muted)',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Web Speech (브라우저)
+            </button>
+          </div>
+
           {/* Dedicated Mic Test Button */}
           <button
             onClick={() => setIsMicTestOpen(true)}
@@ -1043,9 +1089,22 @@ export default function App() {
           {/* Panel Header & Live Activity */}
           <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                전사 자막 및 개체 감지
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
+                  전사 자막 및 개체 감지
+                </span>
+                <span style={{ 
+                  fontSize: '10px', 
+                  fontWeight: 700, 
+                  padding: '1px 6px', 
+                  borderRadius: '3px', 
+                  backgroundColor: sttEngine === 'whisper_large_v3' ? 'rgba(37, 99, 235, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                  color: sttEngine === 'whisper_large_v3' ? '#93c5fd' : '#fde68a',
+                  border: `1px solid ${sttEngine === 'whisper_large_v3' ? 'rgba(37, 99, 235, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`
+                }}>
+                  {sttEngine === 'whisper_large_v3' ? 'Faster-Whisper (GPU)' : 'Web Speech (브라우저)'}
+                </span>
+              </div>
               
               {/* Dynamic Mic Activity Indicator */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

@@ -53,6 +53,10 @@ interface CounselWorkstationState {
   setAudioTime: (current: number, duration: number) => void;
   resetSessionForNewAudio: () => void;
 
+  // A/B Dual STT Engine Selection
+  sttEngine: 'whisper_large_v3' | 'web_speech';
+  setSttEngine: (engine: 'whisper_large_v3' | 'web_speech') => void;
+
   // Contextual STT Semantic Correction Engine
   isContextCorrectionEnabled: boolean;
   correctionHistory: CorrectionEvent[];
@@ -200,6 +204,9 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
     actionChecklist: [],
     manualOverrideKeyword: ''
   }),
+
+  sttEngine: 'whisper_large_v3',
+  setSttEngine: (engine) => set({ sttEngine: engine }),
 
   isContextCorrectionEnabled: true,
   correctionHistory: [],
