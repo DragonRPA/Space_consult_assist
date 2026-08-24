@@ -2,6 +2,45 @@
 
 ---
 
+## v1.1.0.Build.4 — 2026-08-24 14:49
+
+### 🐛 버그패치
+
+| 파일 | 수정 내용 |
+|------|---------|
+| `frontend/apps/desktop/src/App.tsx` | 파일 재생 시 전체 통화내용이 한번에 출력되던 문제 수정 — GPU 모드에서 `transcribe-file` 전체 전송 블록 완전 제거 |
+| `frontend/apps/desktop/src/App.tsx` | GPU 모드: 파일 재생 → 스피커 출력 → WASAPI 루프백 실시간 수신 흐름으로 단일화 |
+| `frontend/apps/desktop/src/App.tsx` | Web Speech 모드에서만 `startSttStreaming()` 호출하도록 분기 정리 |
+| `frontend/apps/desktop/src/App.tsx` | `processAudioWithActiveEngine` useCallback deps에서 미사용 `gpuServerOnline` 제거 |
+
+---
+
+## v1.1.0.Build.3 — 2026-08-24 14:41
+
+### ✨ 신규 기능
+
+| 파일 | 수정 내용 |
+|------|---------|
+| `backend/app/services/wasapi_loopback_service.py` | `_silence_threshold_chunks`, `_max_speech_chunks` 인스턴스 변수화 — 런타임 동적 변경 지원 |
+| `backend/app/services/wasapi_loopback_service.py` | `set_chunk_params(silence_s, max_s)` 메서드 추가 — 서버 재시작 없이 청크 파라미터 변경 |
+| `backend/app/api/v1/endpoints/stt.py` | WebSocket `set_chunk` 액션 핸들러 추가 |
+| `frontend/apps/desktop/src/App.tsx` | Whisper 청크 설정 UI — 무음 감지(0.1~1.5s) + 최대 청크(0.5~5.0s) select 드롭다운 |
+| `frontend/apps/desktop/src/App.tsx` | Web Speech 커밋 지연 UI — 0.5~3.0s select 드롭다운 |
+| `frontend/apps/desktop/src/App.tsx` | Whisper 청크 변경 시 WebSocket `set_chunk` 자동 전송 useEffect |
+| `frontend/apps/desktop/src/App.tsx` | Web Speech 인터림 자동 커밋 타이머 — 침묵 감지 후 `webSpeechSilenceSecRef.current` 초 뒤 강제 커밋 |
+
+### 🐛 버그패치
+
+| 파일 | 수정 내용 |
+|------|---------|
+| `backend/.env` | `REQUIRE_AUTH=false` 추가 (미설정 시 기본값 `true`로 403 반환되던 로컬 개발 이슈 수정) |
+| `backend/app/main.py` | CORS regex에 `*.vercel.app` 추가 — Vercel HTTPS 환경에서 GPU 서버 감지 CORS 오류 수정 |
+| `backend/app/api/v1/endpoints/stt.py` | 할루시네이션 필터 + 연속 중복 문장 필터 추가 |
+| `backend/app/services/wasapi_loopback_service.py` | 실시간 루프백 STT 할루시네이션/no_speech_prob 필터 추가 |
+| `frontend/apps/desktop/src/App.tsx` | Web Speech API 경쟁 조건 수정 — `isRecording` 변화 감시 useEffect 추가로 `recognition.start()` 타이밍 보장 |
+
+---
+
 ## v1.1.0.Build.2 — 2026-08-24 14:01
 
 ### 🐛 버그패치 / UI 미세조정
