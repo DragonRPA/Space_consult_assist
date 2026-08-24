@@ -2700,19 +2700,15 @@ export default function App() {
               </button>
             </div>
 
-            <div style={{ fontSize: '13px', color: 'var(--ink-muted)', marginBottom: '16px', lineHeight: 1.6 }}>
-              로컬 GPU(RTX 5080)에서 무소음 40배속 고속 STT를 구동하려면 로컬 백엔드 에이전트가 켜져 있어야 합니다.
-            </div>
-
             <div style={{ backgroundColor: 'var(--surface-2)', padding: '14px', borderRadius: '6px', border: '1px solid var(--hairline)', marginBottom: '16px' }}>
               <div style={{ fontSize: '11px', color: 'var(--ink-muted)', marginBottom: '6px', fontWeight: 600 }}>
-                백엔드 STT 실행 스크립트
+                1-클릭 실행 배치 파일 경로:
               </div>
               <div style={{ fontSize: '12px', fontFamily: 'monospace', color: 'var(--accent-primary)', backgroundColor: 'var(--surface-3)', padding: '8px 10px', borderRadius: '4px', wordBreak: 'break-all', marginBottom: '10px' }}>
-                start_backend_stt.bat
+                D:\GoogleDrive\RPA_dev\01.AntiGravity\Space_consult_assist\start_backend_stt.bat
               </div>
               <div style={{ fontSize: '12px', color: 'var(--ink)' }}>
-                루트 디렉터리의 <code>start_backend_stt.bat</code> 실행 시 포트 8000에서 STT 서버가 구동됩니다.
+                이 파일을 <strong>더블클릭</strong>하여 실행하면 로컬 GPU 서버가 <code>localhost:8000</code>에서 즉시 켜집니다.
               </div>
             </div>
 
@@ -2745,8 +2741,8 @@ export default function App() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText("start_backend_stt.bat");
-                  showToast("실행 파일명이 클립보드에 복사되었습니다.");
+                  navigator.clipboard.writeText("D:\\GoogleDrive\\RPA_dev\\01.AntiGravity\\Space_consult_assist\\start_backend_stt.bat");
+                  showToast("배치 파일 경로가 클립보드에 복사되었습니다.");
                   setTimeout(() => clearToast(), 3000);
                 }}
                 style={{

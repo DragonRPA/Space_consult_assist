@@ -2,6 +2,19 @@
 
 ---
 
+## v1.1.0.Build.2 — 2026-08-24 14:01
+
+### 🐛 버그패치 / UI 미세조정
+
+| 파일 | 수정 내용 |
+|------|---------|
+| `backend/app/api/v1/endpoints/counsel.py` | `from pydantic import BaseModel` → `BaseModel, Field` 추가 (서버 기동 불가 NameError 핫픽스) |
+| `frontend/apps/desktop/src/App.tsx` | GPU 에이전트 모달 — 파일명만 표시되던 경로를 절대경로(`D:\...\start_backend_stt.bat`)로 복원 |
+| `frontend/apps/desktop/src/App.tsx` | GPU 에이전트 모달 — 상단 설명 문구("로컬 GPU(RTX 5080)에서 무소음 40배속...") 제거 |
+| `frontend/apps/desktop/src/App.tsx` | 클립보드 복사 버튼 — 파일명만 복사 → 절대경로 복사로 복원, 토스트 메시지 일치 수정 |
+
+---
+
 ## v1.1.0.Build.1 — 2026-08-24 03:35
 
 > **Gemini 4차 + GPT 2차 + Claude 2차 취약점 발굴 대회 전체 수정 완료판**
