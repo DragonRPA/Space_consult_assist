@@ -451,48 +451,21 @@ export default function App() {
     setActiveAudioFile(file);
     setIsAudioPlaying(true);
 
-    // 백엔드 루프백 버퍼 클리어 요청
+    // 백엔드 루프백 버퍼 클리어 요청 (GPU 모드: WASAPI 루프백이 스피커 출력을 실시간 수신)
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
       try {
         loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' }));
       } catch (_) {}
     }
 
-    // 1. Faster-Whisper GPU 모드: 파일을 백엔드 GPU로 직접 전송하여 100% 무누락 고속 전사 수행
-    if (sttEngine === 'whisper_large_v3' && gpuServerOnline) {
-      showToast(`⚡ [${file.name}] RTX 5080 고속 STT 분석 중...`);
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        const res = await fetch('http://127.0.0.1:8000/api/v1/stt/transcribe-file', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data.segments) && data.segments.length > 0) {
-            data.segments.forEach((seg: { full_line: string }) => {
-              processIncomingSpeechUtterance(seg.full_line);
-            });
-            showToast(`✅ [${file.name}] Faster-Whisper GPU 분석 완료: ${data.count}개 문장 전사됨`);
-            setTimeout(() => clearToast(), 3500);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn('Direct file transcription fallback:', err);
-      }
-      showToast(`[${file.name}] 스피커 출력 실시간 STT 모드로 수신합니다.`);
-      setTimeout(() => clearToast(), 2500);
-      return;
+    // Web Speech API 모드인 경우에만 브라우저 마이크 스트리밍 가동
+    // GPU 모드는 파일 재생 → 스피커 출력 → WASAPI 루프백 실시간 수신으로 처리 (파일 전송 없음)
+    if (sttEngine === 'web_speech') {
+      startSttStreaming();
+      showToast(`[${file.name}] Web Speech STT 수신 시작`);
+      setTimeout(() => clearToast(), 3500);
     }
-
-    // 2. Web Speech API 모드인 경우 브라우저 마이크 스트리밍 가동
-    startSttStreaming();
-    showToast(`[${file.name}] 음성 파일 재생 및 Web Speech STT 수신 시작`);
-    setTimeout(() => clearToast(), 3500);
-  }, [sttEngine, gpuServerOnline, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, showToast, clearToast]);
+  }, [sttEngine, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, showToast, clearToast]);
 
 
 
