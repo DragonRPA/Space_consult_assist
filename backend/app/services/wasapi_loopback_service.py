@@ -5,12 +5,14 @@ Faster-Whisper Large-v3-Turbo로 실시간 전사합니다.
 """
 
 import os
+import re
 import sys
 import time
 import threading
 import queue
 import logging
 import numpy as np
+from collections import Counter
 from typing import Callable, Optional
 from math import gcd
 
@@ -122,6 +124,9 @@ class LoopbackSTTService:
         self._capture_reset_event: threading.Event = threading.Event()
         self._worker_reset_event: threading.Event = threading.Event()
         self._audio_queue: queue.Queue = queue.Queue(maxsize=1000)
+        # ── 청크 파라미터 (런타임 동적 변경 가능) ─────────────────────────────
+        self._silence_threshold_chunks: int = 2   # 0.1s 단위; 2 = 0.2s 무음 시 전사
+        self._max_speech_chunks: int = 12          # 0.1s 단위; 12 = 1.2s 최대 연속 발화
         # ── 녹음 버퍼 (메모리 상한선 & 스레드 락 보호) ───────────────────────────
         self._chunks_lock: threading.Lock = threading.Lock()
         self._max_recording_chunks: int = 18000  # 최대 30분 분량 (메모리 누수 방어)
@@ -149,6 +154,12 @@ class LoopbackSTTService:
             except queue.Empty:
                 break
         logger.info("🧹 [LoopbackSTT] 버퍼 및 큐 클리어 완료")
+
+    def set_chunk_params(self, silence_seconds: float, max_seconds: float):
+        """청크 파라미터 런타임 변경 (재시작 불필요). GIL 보호로 스레드 안전."""
+        self._silence_threshold_chunks = max(1, round(silence_seconds / 0.1))
+        self._max_speech_chunks = max(3, round(max_seconds / 0.1))
+        logger.info(f"⚙️ [LoopbackSTT] 청크 파라미터 변경: 무음={self._silence_threshold_chunks}청크({silence_seconds:.1f}s), 최대={self._max_speech_chunks}청크({max_seconds:.1f}s)")
 
     def start(
         self,
@@ -328,8 +339,6 @@ class LoopbackSTTService:
             speech_start_sample = 0
             silence_strikes = 0
             is_speech_active = False
-            consecutive_silence_threshold = 2  # 0.1초 청크 기준 2개 = 0.2초 무음 시 즉시 발화 전사 (초고속 반응)
-            max_speech_buffer_chunks = 12      # 연속 발화 시 1.2초마다 즉시 전사하여 1초 실시간 대화 완벽 대응
             noise_floor = 0.0008               # 적응형 노이즈 플로어 초기값
 
             while not self._stop_event.is_set():
@@ -375,15 +384,14 @@ class LoopbackSTTService:
                             segment_callback({"type": "stream_state", "streaming": False})
 
                 # 초저지연 전사 트리거 조건:
-                # 1. 0.2초(2청크)만 말이 쉬어도 즉시 전사!
-                # 2. 연속 발화 시에도 1.2초(12청크)마다 즉각즉각 분할 전사!
+                # 무음 트리거 및 최대 청크 (set_chunk_params()로 런타임 변경 가능)
                 trigger_stt = False
                 is_forced_split = False
 
-                if is_speech_active and silence_strikes >= consecutive_silence_threshold and len(speech_buffer) > 0:
+                if is_speech_active and silence_strikes >= self._silence_threshold_chunks and len(speech_buffer) > 0:
                     trigger_stt = True
                     is_forced_split = False
-                elif is_speech_active and len(speech_buffer) >= max_speech_buffer_chunks:
+                elif is_speech_active and len(speech_buffer) >= self._max_speech_chunks:
                     trigger_stt = True
                     is_forced_split = True
 
@@ -427,18 +435,31 @@ class LoopbackSTTService:
 
                         for seg in segments:
                             text = seg.text.strip()
-                            if text:
-                                seg_start_sec = chunk_base_sec + seg.start
-                                m = int(seg_start_sec // 60)
-                                s = int(seg_start_sec % 60)
-                                timestamp_str = f"[{m:02d}:{s:02d}]"
-                                segment_callback({
-                                    "text": text,
-                                    "timestamp": timestamp_str,
-                                    "full_line": f"{timestamp_str} {text}",
-                                    "start": round(seg_start_sec, 2),
-                                    "end": round(chunk_base_sec + seg.end, 2),
-                                })
+                            if not text:
+                                continue
+                            # 1) 할루시네이션 필터 (oooo... 단일 문자 반복)
+                            counts = Counter(text)
+                            top_char, top_count = counts.most_common(1)[0]
+                            if len(text) > 5 and top_count / len(text) > 0.70:
+                                continue
+                            if re.search(r'(.)\1{4,}', text):
+                                continue
+                            # 2) no_speech_prob 필터
+                            if hasattr(seg, 'no_speech_prob') and seg.no_speech_prob > 0.65:
+                                continue
+
+                            seg_start_sec = chunk_base_sec + seg.start
+                            m = int(seg_start_sec // 60)
+                            s = int(seg_start_sec % 60)
+                            timestamp_str = f"[{m:02d}:{s:02d}]"
+                            segment_callback({
+                                "text": text,
+                                "timestamp": timestamp_str,
+                                "full_line": f"{timestamp_str} {text}",
+                                "start": round(seg_start_sec, 2),
+                                "end": round(chunk_base_sec + seg.end, 2),
+                            })
+
                     except Exception as infer_err:
                         logger.error(f"Whisper inference error: {infer_err}", exc_info=True)
 

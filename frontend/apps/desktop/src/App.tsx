@@ -124,6 +124,12 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
+  // ── STT 청크 시간 설정 ─────────────────────────────────────────────────────
+  const [whisperMaxChunkSec, setWhisperMaxChunkSec] = useState(1.2);   // Whisper 최대 세그먼트 (초)
+  const [whisperSilenceSec, setWhisperSilenceSec] = useState(0.2);     // Whisper 무음 감지 (초)
+  const [webSpeechSilenceSec, setWebSpeechSilenceSec] = useState(1.0); // Web Speech 커밋 지연 (초)
+  const webSpeechSilenceSecRef = useRef(1.0);
+  const webSpeechCommitTimerRef = useRef<number | null>(null);
 
   // Periodic Local GPU Server Heartbeat Monitor (Every 3 seconds)
   useEffect(() => {
@@ -152,6 +158,21 @@ export default function App() {
     return () => { isMounted = false; clearInterval(interval); };
   }, []);
 
+  // Web Speech 침묵 타임아웃을 ref에 동기화 (useEffect 재실행 없이 최신값 반영)
+  useEffect(() => { webSpeechSilenceSecRef.current = webSpeechSilenceSec; }, [webSpeechSilenceSec]);
+
+  // Whisper 청크 파라미터 변경 시 WebSocket으로 즉시 전송 (서버 재시작 불필요)
+  useEffect(() => {
+    if (sttEngine !== 'whisper_large_v3') return;
+    if (!loopbackWsRef.current || loopbackWsRef.current.readyState !== WebSocket.OPEN) return;
+    try {
+      loopbackWsRef.current.send(JSON.stringify({
+        action: 'set_chunk',
+        silence_seconds: whisperSilenceSec,
+        max_seconds: whisperMaxChunkSec
+      }));
+    } catch (_) {}
+  }, [whisperMaxChunkSec, whisperSilenceSec, sttEngine]);
 
   const globalAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -734,13 +755,30 @@ export default function App() {
         }
       }
 
-      // Natural STT stream processing (No artificial line-break interruption)
+      // Natural STT stream processing with silence-based auto-commit
       if (final.trim()) {
+        // final 결과 → 커밋 타이머 취소 후 즉시 처리
+        if (webSpeechCommitTimerRef.current) {
+          clearTimeout(webSpeechCommitTimerRef.current);
+          webSpeechCommitTimerRef.current = null;
+        }
         const rawSentence = final.trim();
         processIncomingSpeechUtterance(rawSentence);
         setInterimSttText('');
       } else if (interim) {
         setInterimSttText(interim);
+        // 침묵 감지 후 자동 커밋 (webSpeechSilenceSecRef로 최신값 참조)
+        if (webSpeechCommitTimerRef.current) {
+          clearTimeout(webSpeechCommitTimerRef.current);
+        }
+        const capturedInterim = interim.trim();
+        webSpeechCommitTimerRef.current = window.setTimeout(() => {
+          if (capturedInterim) {
+            processIncomingSpeechUtterance(capturedInterim);
+            setInterimSttText('');
+          }
+          webSpeechCommitTimerRef.current = null;
+        }, webSpeechSilenceSecRef.current * 1000);
       }
 
       // Real-time Multi-Entity Detection (Customer, Site, Symptom, Action)
@@ -837,6 +875,25 @@ export default function App() {
       } catch (_) {}
     };
   }, [sttEngine, appendFinalParagraph, setInterimSttText, isContextCorrectionEnabled, setRecording, activeKeywordEntity, setActiveKeywordEntity, selectedCustomer, customerList, selectCustomer, actionChecklist, toggleChecklist, showToast, clearToast]);
+
+  // Web Speech API 녹음 상태 동기화 — isRecording이 true가 되는 시점에 recognition.start() 보장
+  // (useEffect 비동기 특성으로 recognitionRef가 null인 경쟁 조건 방지)
+  useEffect(() => {
+    if (sttEngine !== 'web_speech') return;
+    if (isRecording && recognitionRef.current) {
+      try {
+        recognitionRef.current.start();
+      } catch (e: any) {
+        if (e.name !== 'InvalidStateError') {
+          console.warn('Web Speech delayed start:', e);
+        }
+      }
+    } else if (!isRecording && recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (_) {}
+    }
+  }, [isRecording, sttEngine]);
 
 
   const handleKeywordSelect = (entity: KeywordEntity) => {
@@ -1157,6 +1214,49 @@ export default function App() {
               Web Speech (브라우저)
             </button>
           </div>
+
+          {/* STT 청크 시간 설정 */}
+          {sttEngine === 'whisper_large_v3' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{ fontSize: '9px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>무음 감지</span>
+                <select
+                  value={whisperSilenceSec}
+                  onChange={e => setWhisperSilenceSec(parseFloat(e.target.value))}
+                  style={{ fontSize: '10px', padding: '2px 4px', borderRadius: '4px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', color: 'var(--ink)', cursor: 'pointer' }}
+                >
+                  {[0.1, 0.2, 0.3, 0.5, 1.0, 1.5].map(v => (
+                    <option key={v} value={v}>{v}s</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{ fontSize: '9px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>최대 청크</span>
+                <select
+                  value={whisperMaxChunkSec}
+                  onChange={e => setWhisperMaxChunkSec(parseFloat(e.target.value))}
+                  style={{ fontSize: '10px', padding: '2px 4px', borderRadius: '4px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', color: 'var(--ink)', cursor: 'pointer' }}
+                >
+                  {[0.5, 1.0, 1.2, 2.0, 3.0, 5.0].map(v => (
+                    <option key={v} value={v}>{v}s</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <span style={{ fontSize: '9px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>커밋 지연</span>
+              <select
+                value={webSpeechSilenceSec}
+                onChange={e => setWebSpeechSilenceSec(parseFloat(e.target.value))}
+                style={{ fontSize: '10px', padding: '2px 4px', borderRadius: '4px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', color: 'var(--ink)', cursor: 'pointer' }}
+              >
+                {[0.5, 1.0, 1.5, 2.0, 3.0].map(v => (
+                  <option key={v} value={v}>{v}s</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Local Whisper Live State Indicator + Loopback STT Controls */}
           {sttEngine === 'whisper_large_v3' && (

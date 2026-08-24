@@ -88,6 +88,30 @@ async def reset_stt_session():
     return {"status": "cleared"}
 
 
+import re as _re
+from collections import Counter as _Counter
+
+def _is_hallucination(text: str) -> bool:
+    """
+    Whisper 할루시네이션 패턴 감지:
+    - oooo... 처럼 단일 문자 반복 (전체의 70% 이상)
+    - 동일 문자 5회 이상 연속 (예: oooooo, 하하하하하)
+    - 빈 문자열 또는 공백만
+    """
+    cleaned = text.strip()
+    if not cleaned:
+        return True
+    # 단일 문자가 70% 이상인 경우
+    counts = _Counter(cleaned)
+    top_char, top_count = counts.most_common(1)[0]
+    if len(cleaned) > 5 and top_count / len(cleaned) > 0.70:
+        return True
+    # 동일 문자 5회 이상 연속 반복
+    if _re.search(r'(.)\1{4,}', cleaned):
+        return True
+    return False
+
+
 def _sync_transcribe_file(model, audio_path: str):
     """별도 워커 스레드에서 실행되는 CTranslate2 동기 추론 함수 (이벤트 루프 차단 방지)"""
     segments, info = model.transcribe(
@@ -103,22 +127,37 @@ def _sync_transcribe_file(model, audio_path: str):
     
     result_segments = []
     full_lines = []
+    last_text = None  # 연속 중복 감지용
+
     for seg in segments:
         text = seg.text.strip()
-        if text:
-            m = int(seg.start // 60)
-            s = int(seg.start % 60)
-            ts = f"[{m:02d}:{s:02d}]"
-            line = f"{ts} {text}"
-            full_lines.append(line)
-            result_segments.append({
-                "start": round(seg.start, 2),
-                "end": round(seg.end, 2),
-                "timestamp": ts,
-                "text": text,
-                "full_line": line
-            })
+        if not text:
+            continue
+        # 1) 할루시네이션 필터 (oooo... 패턴)
+        if _is_hallucination(text):
+            continue
+        # 2) no_speech_prob 필터 (잡음 구간)
+        if hasattr(seg, 'no_speech_prob') and seg.no_speech_prob > 0.70:
+            continue
+        # 3) 연속 중복 필터 ("감사합니다" x4 방지)
+        if text == last_text:
+            continue
+        last_text = text
+
+        m = int(seg.start // 60)
+        s = int(seg.start % 60)
+        ts = f"[{m:02d}:{s:02d}]"
+        line = f"{ts} {text}"
+        full_lines.append(line)
+        result_segments.append({
+            "start": round(seg.start, 2),
+            "end": round(seg.end, 2),
+            "timestamp": ts,
+            "text": text,
+            "full_line": line
+        })
     return result_segments, full_lines, info
+
 
 
 @router.post("/transcribe-file", dependencies=[Depends(check_stt_rate_limit)])
@@ -237,6 +276,18 @@ async def stt_loopback_websocket(websocket: WebSocket):
                 logger.info("🧹 [STT-WS] Loopback 버퍼 클리어 요청")
                 loopback_svc.clear_buffer()
                 await websocket.send_json({"status": "buffer_cleared"})
+
+            elif action == "set_chunk":
+                silence_s = float(msg.get("silence_seconds", 0.2))
+                max_s = float(msg.get("max_seconds", 1.2))
+                silence_s = max(0.1, min(silence_s, 5.0))
+                max_s = max(0.3, min(max_s, 10.0))
+                loopback_svc.set_chunk_params(silence_s, max_s)
+                await websocket.send_json({
+                    "status": "chunk_updated",
+                    "silence_seconds": silence_s,
+                    "max_seconds": max_s
+                })
 
             elif action == "stop":
                 logger.info("⏹ [STT-WS] Loopback STT 중지 + 녹음 저장")
