@@ -161,3 +161,19 @@ export async function fetchTransferCenters(): Promise<TransferCenter[]> {
   if (error) throw new Error(error.message);
   return data as TransferCenter[];
 }
+
+// ─── 임직원 ──────────────────────────────────────────────────────────────────
+
+export interface Employee {
+  id: string;
+  name: string;
+  role: string;
+  active: boolean;
+}
+
+export async function fetchEmployees(): Promise<Employee[]> {
+  const { data, error } = await supabase.from('employees').select('*').order('name');
+  if (error) throw new Error(error.message);
+  return data as Employee[];
+}
+

@@ -12,8 +12,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Plus, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import {
-  fetchEvents, fetchCategories, createEvent, updateEvent, deleteEvent,
-  type ScheduleEvent, type CategoryMeta, type ScheduleEventCreate,
+  fetchEvents, fetchCategories, createEvent, updateEvent, deleteEvent, fetchEmployees,
+  type ScheduleEvent, type CategoryMeta, type ScheduleEventCreate, type Employee
 } from './scheduleApi';
 import { EventFormModal } from './EventFormModal';
 import { EventDetailModal } from './EventDetailModal';
@@ -337,20 +337,99 @@ function DayView({ date, events, cats, onClickEvent, onNewEvent }: DayViewProps)
   );
 }
 
+// ─── 목록 뷰 ─────────────────────────────────────────────────────────────────
+
+interface ListViewProps {
+  events: ScheduleEvent[];
+  cats: CategoryMeta[];
+  onClickEvent: (ev: ScheduleEvent) => void;
+}
+
+function ListView({ events, cats, onClickEvent }: ListViewProps) {
+  // 그룹화 및 정렬
+  const grouped = useMemo(() => {
+    const map: Record<string, ScheduleEvent[]> = {};
+    events.forEach(ev => {
+      const k = ev.start_at.slice(0, 10);
+      if (!map[k]) map[k] = [];
+      map[k].push(ev);
+    });
+    // 날짜 오름차순 정렬
+    const sortedKeys = Object.keys(map).sort();
+    return sortedKeys.map(date => ({
+      date,
+      events: map[date].sort((a, b) => a.display_order - b.display_order || a.start_at.localeCompare(b.start_at))
+    }));
+  }, [events]);
+
+  const DOW = ['일','월','화','수','목','금','토'];
+  
+  if (grouped.length === 0) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280', background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb' }}>
+        표시할 일정이 없습니다.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 24px', overflowY: 'auto', minHeight: 400 }}>
+      {grouped.map(({ date, events: dayEvs }) => {
+        const dObj = new Date(date);
+        const dateLabel = `${date.replace(/-/g, '.')} (${DOW[dObj.getDay()]})`;
+        return (
+          <div key={date} style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid #f3f4f6' }}>
+              {dateLabel}
+            </div>
+            <div>
+              {dayEvs.map(ev => {
+                const cat = cats.find(c => c.key === ev.category);
+                const color = cat?.color ?? CAT_COLOR[ev.category] ?? '#555';
+                return (
+                  <div key={ev.id} onClick={() => onClickEvent(ev)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0',
+                      cursor: 'pointer', borderBottom: '1px dashed #f3f4f6'
+                    }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                    <div style={{ flex: '0 0 40px', fontSize: 13, color: '#6b7280' }}>
+                      {ev.is_allday ? '종일' : ev.start_at.slice(11, 16)}
+                    </div>
+                    <div style={{
+                      flex: 1, fontSize: 14, color: ev.is_done ? '#9ca3af' : '#111827',
+                      textDecoration: ev.is_done ? 'line-through' : 'none'
+                    }}>
+                      {ev.is_important && <span style={{ color: '#f59e0b', marginRight: 4 }}>★</span>}
+                      {ev.title || cat?.label || ev.category}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── 메인 페이지 ─────────────────────────────────────────────────────────────
 
 export default function SchedulePage() {
-  const [view, setView] = useState<'month' | 'week' | 'day'>('month');
+  const [view, setView] = useState<'month' | 'week' | 'day' | 'list'>('month');
   const [baseDate, setBaseDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [cats, setCats] = useState<CategoryMeta[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 카테고리 필터 (key → 보임 여부)
+  // 필터
   const [catFilter, setCatFilter] = useState<Record<string, boolean>>({});
+  const [selectedEmp, setSelectedEmp] = useState<string>('all'); // 담당자 전체
 
   // 모달 상태
   const [formOpen, setFormOpen] = useState(false);
@@ -358,13 +437,17 @@ export default function SchedulePage() {
   const [detailEvent, setDetailEvent] = useState<ScheduleEvent | null>(null);
   const [defaultDate, setDefaultDate] = useState<string | undefined>(undefined);
 
-  // ─ 카테고리 로드
+  // ─ 초기 데이터 로드 (카테고리, 임직원)
   useEffect(() => {
     fetchCategories().then(cs => {
       setCats(cs);
       const initial: Record<string, boolean> = {};
       cs.forEach(c => { initial[c.key] = true; });
       setCatFilter(initial);
+    }).catch(() => {});
+
+    fetchEmployees().then(emps => {
+      setEmployees(emps);
     }).catch(() => {});
   }, []);
 
@@ -374,10 +457,9 @@ export default function SchedulePage() {
     setError(null);
     try {
       let start: string, end: string;
-      if (view === 'month') {
+      if (view === 'month' || view === 'list') {
         const sm = startOfMonth(baseDate);
         const em = endOfMonth(baseDate);
-        // 이전/다음달 패딩 포함
         start = ymd(addDays(sm, -sm.getDay()));
         const em2 = addDays(em, 6 - em.getDay());
         end = ymd(em2);
@@ -389,7 +471,7 @@ export default function SchedulePage() {
         start = ymd(selectedDate);
         end = ymd(selectedDate);
       }
-      const data = await fetchEvents({ start, end, limit: 500 });
+      const data = await fetchEvents({ start, end, limit: 1000 });
       setEvents(data);
     } catch (e) {
       setError((e as Error).message);
@@ -402,8 +484,23 @@ export default function SchedulePage() {
 
   // ─ 필터된 이벤트
   const filteredEvents = useMemo(() =>
-    events.filter(ev => catFilter[ev.category] !== false),
-    [events, catFilter]
+    events.filter(ev => {
+      // 1. 카테고리 필터
+      if (catFilter[ev.category] === false) return false;
+      
+      // 2. 담당자 필터
+      if (selectedEmp !== 'all') {
+        const pStaff = ev.process_staff || [];
+        const rStaff = ev.receive_staff || '';
+        const sMng = ev.site_managers || [];
+        // 처리직원, 접수직원, 현장담당자 중 하나라도 포함되면 표시
+        const hasEmp = pStaff.includes(selectedEmp) || rStaff === selectedEmp || sMng.some(s => s.includes(selectedEmp));
+        if (!hasEmp) return false;
+      }
+
+      return true;
+    }),
+    [events, catFilter, selectedEmp]
   );
 
   // ─ 이벤트 저장
@@ -574,15 +671,15 @@ export default function SchedulePage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button onClick={() => { const d = new Date(); setBaseDate(d); setSelectedDate(d); }}
-              style={{ background: '#ffffff', border: '1px solid #23334d', borderRadius: 6, padding: '6px 12px', fontSize: 13, color: '#4b5563', cursor: 'pointer' }}>
+              style={{ background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 12px', fontSize: 13, color: '#4b5563', cursor: 'pointer' }}>
               오늘
             </button>
             <button onClick={() => navigate(-1)}
-              style={{ background: '#ffffff', border: '1px solid #23334d', borderRadius: 6, padding: '6px 11px', color: '#4b5563', cursor: 'pointer' }}>
+              style={{ background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 11px', color: '#4b5563', cursor: 'pointer' }}>
               <ChevronLeft size={14} />
             </button>
             <button onClick={() => navigate(1)}
-              style={{ background: '#ffffff', border: '1px solid #23334d', borderRadius: 6, padding: '6px 11px', color: '#4b5563', cursor: 'pointer' }}>
+              style={{ background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 11px', color: '#4b5563', cursor: 'pointer' }}>
               <ChevronRight size={14} />
             </button>
             <h2 style={{ margin: '0 0 0 6px', fontSize: 18, color: '#111827' }}>{periodLabel}</h2>
@@ -590,16 +687,36 @@ export default function SchedulePage() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             {loading && <RotateCcw size={14} style={{ color: '#64748b', animation: 'spin 1s linear infinite' }} />}
+            
+            {/* 담당자 필터 (Image 모방) */}
+            <select
+              value={selectedEmp}
+              onChange={e => setSelectedEmp(e.target.value)}
+              style={{
+                background: '#ffffff', border: '1px solid #d1d5db', color: '#111827',
+                padding: '6px 28px 6px 12px', borderRadius: 20, fontSize: 13, fontWeight: 500,
+                outline: 'none', cursor: 'pointer', appearance: 'none',
+                backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23111827\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'/%3E%3C/svg%3E")',
+                backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center'
+              }}
+            >
+              <option value="all">담당자 전체</option>
+              {employees.map(emp => (
+                <option key={emp.id} value={emp.name}>{emp.name}</option>
+              ))}
+            </select>
+
             {/* 뷰 전환 탭 */}
-            <div style={{ display: 'flex', gap: 4, background: '#ffffff', border: '1px solid #23334d', borderRadius: 7, padding: 3 }}>
-              {(['month', 'week', 'day'] as const).map(v => (
+            <div style={{ display: 'flex', gap: 4 }}>
+              {(['day', 'week', 'month', 'list'] as const).map(v => (
                 <button key={v} onClick={() => setView(v)}
                   style={{
-                    border: 'none', padding: '6px 12px', borderRadius: 5, fontSize: 13, cursor: 'pointer',
-                    background: view === v ? '#2563eb' : 'transparent',
-                    color: view === v ? '#fff' : '#4b5563',
+                    border: view === v ? '1px solid #2563eb' : '1px solid #d1d5db',
+                    padding: '6px 12px', borderRadius: 20, fontSize: 13, cursor: 'pointer', fontWeight: 500,
+                    background: view === v ? '#2563eb' : '#ffffff',
+                    color: view === v ? '#ffffff' : '#4b5563',
                   }}>
-                  {v === 'month' ? '월' : v === 'week' ? '주' : '일'}
+                  {v === 'day' ? '일간' : v === 'week' ? '주간' : v === 'month' ? '월간' : '목록'}
                 </button>
               ))}
             </div>
@@ -642,7 +759,7 @@ export default function SchedulePage() {
               const isToday = sameDay(d, new Date());
               const dow = i;
               return (
-                <div key={i} style={{ background: '#ffffff', border: '1px solid #23334d', borderRadius: 8, padding: 6, minHeight: 300 }}>
+                <div key={i} style={{ background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 8, padding: 6, minHeight: 300 }}>
                   <div style={{
                     textAlign: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6,
                     color: isToday ? '#2563eb' : dow === 0 ? '#ef4444' : dow === 6 ? '#60a5fa' : '#4b5563',
@@ -657,6 +774,13 @@ export default function SchedulePage() {
               );
             })}
           </div>
+        )}
+        {view === 'list' && (
+          <ListView
+            events={filteredEvents}
+            cats={cats}
+            onClickEvent={setDetailEvent}
+          />
         )}
       </main>
 
