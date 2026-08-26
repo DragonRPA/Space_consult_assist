@@ -139,8 +139,8 @@ export const CATEGORY_SCHEMAS: Record<string, CategorySchema> = {
         ],
       },
       {
-        key: 'post', label: '렌탈 종료 후', carryFrom: { 'extraParts': 'returnParts' }, fields: [
-          f.number('endUsage', '반납 시간', 'h', { perEquip: true }),
+        key: 'post', label: '렌탈 종료 후(회수)', carryFrom: { 'extraParts': 'returnParts' }, fields: [
+          f.number('endUsage', '반납 사용 시간', 'h', { perEquip: true }),
           f.date('returnDate', '실제 반납일', { perEquip: true }),
           f.toggle('cleanStatus', '세척여부', '세척완료', '미세척', { perEquip: true }),
           f.photostatus('photoStatus', '사진촬영', ['사진촬영', '캘린더', '클라우드']),
