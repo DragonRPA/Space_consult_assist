@@ -206,6 +206,13 @@ export const CATEGORY_SCHEMAS: Record<string, CategorySchema> = {
       },
     ],
   },
+
+  'other': {
+    fields: [
+      f.textarea('description', '업무 내용'),
+      f.textarea('memo', '기타 메모'),
+    ],
+  },
 };
 
 // ─── 유틸 ────────────────────────────────────────────────────────────────────

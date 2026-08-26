@@ -64,6 +64,7 @@ const CAT_COLOR: Record<string, string> = {
   'as-service':     '#dc2626',
   'purchase-check': '#d97706',
   'maintenance':    '#0d9488',
+  'other':          '#64748b',
 };
 
 // ─── 미니 캘린더 ──────────────────────────────────────────────────────────────

@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 VALID_CATEGORIES = {
     'sales-demo', 'equip-ship', 'part-ship',
-    'rental-ship', 'as-service', 'purchase-check', 'maintenance'
+    'rental-ship', 'as-service', 'purchase-check', 'maintenance',
+    'other'
 }
 
 
@@ -414,4 +415,5 @@ async def list_categories():
         {"key": "as-service",     "label": "A/S접수",    "color": "#dc2626"},
         {"key": "purchase-check", "label": "매입실사",    "color": "#d97706"},
         {"key": "maintenance",    "label": "유지보수",    "color": "#0d9488"},
+        {"key": "other",          "label": "기타",        "color": "#64748b"},
     ]

@@ -7,7 +7,8 @@ const BASE = 'http://127.0.0.1:8000/api/v1';
 
 export type Category =
   | 'sales-demo' | 'equip-ship' | 'part-ship'
-  | 'rental-ship' | 'as-service' | 'purchase-check' | 'maintenance';
+  | 'rental-ship' | 'as-service' | 'purchase-check'
+  | 'maintenance' | 'other';
 
 export interface ScheduleEvent {
   id: string;
