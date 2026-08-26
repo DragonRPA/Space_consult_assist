@@ -5,10 +5,10 @@
  * - space-dust의 category별 extra 필드를 JSONB로 저장
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import type { ScheduleEvent, ScheduleEventCreate, CategoryMeta } from './scheduleApi';
-import { CATEGORY_SCHEMAS } from './CategorySchema';
+import { CATEGORY_SCHEMAS, WORKTYPE_OPTIONS } from './CategorySchema';
 import type { FieldDef, TabDef } from './CategorySchema';
 
 interface Props {
@@ -258,14 +258,14 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
     : event?.start_at?.slice(0, 16) ?? today;
 
   const [category, setCategory] = useState(event?.category ?? 'as-service');
+  
+  // Worktype 초기화
   const [worktype, setWorktype] = useState(() => {
     if (event?.worktype) return event.worktype;
-    const tabs = CATEGORY_SCHEMAS[event?.category ?? 'as-service']?.tabs;
-    if (tabs && tabs.length > 0) return tabs[0].label;
-    const c = cats.find(c => c.key === (event?.category ?? 'as-service'));
-    return c ? c.label : '';
+    const opts = WORKTYPE_OPTIONS[event?.category ?? 'as-service'];
+    return opts && opts.length > 0 ? opts[0] : '';
   });
-  
+
   const [useCompany, setUseCompany] = useState(event?.use_company ?? '');
   const [contractCompany, setContractCompany] = useState(event?.contract_company ?? '');
   const [location, setLocation] = useState(event?.location ?? '');
@@ -283,15 +283,44 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
   );
 
   const schema = CATEGORY_SCHEMAS[category];
-  
+  const activeTabs: TabDef[] = schema?.tabs ?? [];
+  const flatFields: FieldDef[] = schema?.fields ?? [];
+
+  // 자동 탭 결정 함수
+  const getAutoTab = (cat: string, wt: string, tabs: TabDef[]) => {
+    if (!tabs || tabs.length === 0) return '';
+    if (cat === 'sales-demo') return wt === '시연' ? 'post' : 'receive';
+    if (cat === 'rental-ship') return (wt.includes('종료') || wt.includes('회수')) ? 'post' : 'pre';
+    if (cat === 'as-service') return (wt === '수리입/출고' || wt === '수리입고') ? 'receive' : 'post';
+    return tabs[0].key; // default
+  };
+
+  const [activeTab, setActiveTab] = useState(() => {
+    if (event?.category && event?.worktype) {
+      return getAutoTab(event.category, event.worktype, CATEGORY_SCHEMAS[event.category]?.tabs ?? []);
+    }
+    return activeTabs?.[0]?.key ?? '';
+  });
+
+  // 업무 변경 시 탭 자동 변경
+  useEffect(() => {
+    const nextTab = getAutoTab(category, worktype, activeTabs);
+    if (nextTab && nextTab !== activeTab) {
+      setActiveTab(nextTab);
+    }
+  }, [worktype, category]);
+
   function handleCategoryChange(newCat: string) {
     setCategory(newCat as ScheduleEventCreate['category']);
-    const tabs = CATEGORY_SCHEMAS[newCat]?.tabs;
-    if (tabs && tabs.length > 0) {
-      setWorktype(tabs[0].label);
+    const opts = WORKTYPE_OPTIONS[newCat];
+    const newWt = opts && opts.length > 0 ? opts[0] : '';
+    setWorktype(newWt);
+    
+    const tabs = CATEGORY_SCHEMAS[newCat]?.tabs ?? [];
+    if (tabs.length > 0) {
+      setActiveTab(getAutoTab(newCat, newWt, tabs));
     } else {
-      const c = cats.find(c => c.key === newCat);
-      setWorktype(c ? c.label : '');
+      setActiveTab('');
     }
   }
 
@@ -299,10 +328,7 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
     setExtra(prev => ({ ...prev, [key]: val }));
   }
 
-  const activeTabs: TabDef[] = schema?.tabs ?? [];
-  const flatFields: FieldDef[] = schema?.fields ?? [];
-  const currentTab = activeTabs.find(t => t.label === worktype);
-  const currentTabFields: FieldDef[] = currentTab ? currentTab.fields : flatFields;
+  const currentTabFields: FieldDef[] = activeTabs.find(t => t.key === activeTab)?.fields ?? flatFields;
 
   async function handleSubmit() {
     if (!startAt) { alert('처리일시(시작)을 입력해주세요.'); return; }
@@ -364,11 +390,10 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
                   border: '1px solid #334155', color: '#111827', borderRadius: 6, fontSize: 13,
                 }}
               >
-                {activeTabs.length > 0 ? (
-                  activeTabs.map(t => <option key={t.label} value={t.label}>{t.label}</option>)
-                ) : (
-                  <option value={worktype}>{worktype || '단일 업무'}</option>
-                )}
+                <option value="">업무를 선택하세요</option>
+                {WORKTYPE_OPTIONS[category]?.map(o => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
               </select>
             </div>
 
@@ -459,6 +484,23 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
 
           {/* ─ 카테고리/업무별 동적 필드 ─ */}
           <div style={{ marginTop: 16 }}>
+            {/* 탭 버튼 */}
+            {activeTabs.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14, borderBottom: '2px solid #23334d' }}>
+                {activeTabs.map(t => (
+                  <button key={t.key} type="button" onClick={() => setActiveTab(t.key)}
+                    style={{
+                      background: activeTab === t.key ? '#ffffff' : 'transparent',
+                      border: '1px solid #23334d', borderBottom: 'none',
+                      borderRadius: '8px 8px 0 0', padding: '8px 16px', marginBottom: -2,
+                      fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+                      color: activeTab === t.key ? '#2563eb' : '#64748b',
+                    }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* 현재 탭(또는 단일 필드셋)의 필드들 */}
             {currentTabFields.map(fld => (
