@@ -430,6 +430,10 @@ export default function SchedulePage() {
   // 필터
   const [catFilter, setCatFilter] = useState<Record<string, boolean>>({});
   const [selectedEmp, setSelectedEmp] = useState<string>('all'); // 담당자 전체
+  
+  // 일정검색
+  const [searchDate, setSearchDate] = useState('');
+  const [searchKeyword, setSearchKeyword] = useState('');
 
   // 모달 상태
   const [formOpen, setFormOpen] = useState(false);
@@ -497,10 +501,25 @@ export default function SchedulePage() {
         const hasEmp = pStaff.includes(selectedEmp) || rStaff === selectedEmp || sMng.some(s => s.includes(selectedEmp));
         if (!hasEmp) return false;
       }
+      
+      // 3. 날짜 검색 필터 (연-월-일)
+      if (searchDate) {
+        if (!ev.start_at.includes(searchDate)) return false;
+      }
+      
+      // 4. 키워드 검색 필터 (제목/장소/거래처 등)
+      if (searchKeyword) {
+        const kw = searchKeyword.toLowerCase();
+        const textToSearch = [
+          ev.title, ev.location, ev.use_company, ev.contract_company,
+          ev.worktype, ev.category
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!textToSearch.includes(kw)) return false;
+      }
 
       return true;
     }),
-    [events, catFilter, selectedEmp]
+    [events, catFilter, selectedEmp, searchDate, searchKeyword]
   );
 
   // ─ 이벤트 저장
@@ -637,6 +656,33 @@ export default function SchedulePage() {
           onSelect={handleSelectDate}
           eventsByDate={eventsByDate}
         />
+
+        {/* 일정 검색 (Image 모방) */}
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px', marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#4b5563', marginBottom: 8 }}>
+            일정검색
+          </div>
+          <input
+            type="text"
+            placeholder="연-월-일"
+            value={searchDate}
+            onChange={e => setSearchDate(e.target.value)}
+            style={{
+              width: '100%', padding: '6px 10px', fontSize: 13, border: '1px solid #d1d5db', borderRadius: 6,
+              marginBottom: 6, outline: 'none', color: '#111827'
+            }}
+          />
+          <input
+            type="text"
+            placeholder="제목/장소/거래처 등"
+            value={searchKeyword}
+            onChange={e => setSearchKeyword(e.target.value)}
+            style={{
+              width: '100%', padding: '6px 10px', fontSize: 13, border: '1px solid #d1d5db', borderRadius: 6,
+              outline: 'none', color: '#111827'
+            }}
+          />
+        </div>
 
         {/* 카테고리 필터 */}
         <div>
