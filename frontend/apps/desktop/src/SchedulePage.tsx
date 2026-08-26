@@ -493,11 +493,22 @@ export default function SchedulePage() {
         <button
           onClick={() => { setEditingEvent(null); setDefaultDate(ymd(selectedDate)); setFormOpen(true); }}
           style={{
-            width: '100%', marginBottom: 14, background: '#2563eb', color: '#fff', border: 'none',
+            width: '100%', marginBottom: 8, background: '#2563eb', color: '#fff', border: 'none',
             padding: '10px 14px', borderRadius: 7, fontWeight: 600, fontSize: 13.5, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 6,
           }}>
           <Plus size={16} /> 업무 등록
+        </button>
+
+        {/* 관제 복귀 버튼 */}
+        <button
+          onClick={() => window.location.href = '/'}
+          style={{
+            width: '100%', marginBottom: 14, background: '#1e293b', color: '#94a3b8', border: '1px solid #334155',
+            padding: '8px 14px', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+          <span style={{ transform: 'scaleX(-1)' }}>↗</span> 상담 관제로 복귀
         </button>
 
         {/* 미니 캘린더 */}

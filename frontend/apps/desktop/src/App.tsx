@@ -20,6 +20,7 @@ import {
   FileAudio, 
   FileText,
   ClipboardList,
+  Calendar,
   Edit3,
   Eye,
   Loader2,
@@ -1096,6 +1097,28 @@ export default function App() {
           <span style={{ fontSize: '13px', color: 'var(--ink-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
             상담원: <strong style={{ color: 'var(--ink)', fontWeight: 600 }}>{counselorName}</strong>
           </span>
+
+          <div style={{ height: '16px', width: '1px', backgroundColor: 'var(--hairline)' }} />
+
+          <button
+            onClick={() => window.location.href = '/schedule'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '5px 12px',
+              borderRadius: '6px',
+              backgroundColor: 'var(--accent-primary)',
+              color: '#fff',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            <Calendar size={14} />
+            <span>업무 일정 ↗</span>
+          </button>
         </div>
 
         {/* Semantic Contextual STT Correction Toggle */}
