@@ -172,7 +172,7 @@ export interface Employee {
 }
 
 export async function fetchEmployees(): Promise<Employee[]> {
-  const { data, error } = await supabase.from('employees').select('*').order('name');
+  const { data, error } = await supabase.from('employees').select('*').eq('is_active', true).order('display_order');
   if (error) throw new Error(error.message);
   return data as Employee[];
 }
