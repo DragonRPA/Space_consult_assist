@@ -2,6 +2,17 @@
 
 ---
 
+## v1.2.0.Build.4 — 2026-08-26 13:08
+
+### ✨ Serverless 아키텍처 전환 (캘린더)
+
+| 파일 / 작업 | 수정 내용 |
+|---|---|
+| `frontend/.../src/scheduleApi.ts` | Vercel 배포 시 Mixed Content(HTTPS -> HTTP) 통신 에러 해결을 위해, 프론트엔드에서 로컬 FastAPI 백엔드(`127.0.0.1:8000`)를 거치지 않고 **Supabase DB와 직통(Direct) 통신**하도록 `@supabase/supabase-js` 연동 기반으로 100% 재작성. |
+| `DB Migration` | `schedule_events`, `transfer_centers`, `employees` 테이블의 Row Level Security(RLS) 정책을 개편하여 프론트엔드(Anon 롤)에서 조회 및 쓰기가 즉각 허용되도록 설정 완료. |
+
+---
+
 ## v1.2.0.Build.3 — 2026-08-26 12:38
 
 ### ✨ UI 미세조정 및 네비게이션 개선

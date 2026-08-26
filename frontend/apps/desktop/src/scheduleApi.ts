@@ -1,9 +1,18 @@
 /**
  * scheduleApi.ts
- * 업무 일정 관리 API 클라이언트 (space-dust 캘린더 → 우리 FastAPI 이관)
+ * 업무 일정 관리 API 클라이언트 (Serverless - Supabase Direct 연동)
  */
 
-const BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error("VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set in .env");
+}
+
+export const supabase = createClient(SUPABASE_URL || '', SUPABASE_KEY || '');
 
 export type Category =
   | 'sales-demo' | 'equip-ship' | 'part-ship'
@@ -58,80 +67,89 @@ export interface CategoryMeta {
   color: string;
 }
 
-export type ScheduleEventCreate = Omit<ScheduleEvent,
-  'id' | 'created_at' | 'updated_at' | 'created_by'
-> & { created_by_name?: string };
-
+export type ScheduleEventCreate = Omit<ScheduleEvent, 'id' | 'created_at' | 'updated_at' | 'created_by'> & { created_by_name?: string };
 export type ScheduleEventUpdate = Partial<ScheduleEventCreate>;
 
 // ─── 카테고리 ───────────────────────────────────────────────────────────────
 
+const STATIC_CATEGORIES: CategoryMeta[] = [
+    { key: "sales-demo", label: "영업시연", color: "#8b5cf6" },
+    { key: "equip-ship", label: "장비출고", color: "#3b82f6" },
+    { key: "part-ship", label: "부품출고", color: "#2563eb" },
+    { key: "rental-ship", label: "렌탈출고", color: "#0ea5e9" },
+    { key: "as-service", label: "A/S접수", color: "#ef4444" },
+    { key: "purchase-check", label: "매입실사", color: "#f59e0b" },
+    { key: "maintenance", label: "유지보수", color: "#10b981" },
+    { key: "other", label: "기타", color: "#64748b" }
+];
+
 export async function fetchCategories(): Promise<CategoryMeta[]> {
-  const res = await fetch(`${BASE}/schedule/categories`);
-  if (!res.ok) throw new Error('카테고리 조회 실패');
-  return res.json();
+  return STATIC_CATEGORIES;
 }
 
 // ─── 일정 CRUD ───────────────────────────────────────────────────────────────
 
 export interface FetchEventsParams {
-  start?: string;   // YYYY-MM-DD
-  end?: string;     // YYYY-MM-DD
-  category?: string; // 콤마 구분
+  start?: string;
+  end?: string;
+  category?: string;
   is_done?: boolean;
   limit?: number;
   offset?: number;
 }
 
 export async function fetchEvents(params: FetchEventsParams = {}): Promise<ScheduleEvent[]> {
-  const q = new URLSearchParams();
-  if (params.start)    q.set('start', params.start);
-  if (params.end)      q.set('end', params.end);
-  if (params.category) q.set('category', params.category);
-  if (params.is_done !== undefined) q.set('is_done', String(params.is_done));
-  if (params.limit)    q.set('limit', String(params.limit));
-  if (params.offset)   q.set('offset', String(params.offset));
-  const res = await fetch(`${BASE}/schedule/events?${q.toString()}`);
-  if (!res.ok) throw new Error('일정 조회 실패');
-  return res.json();
+  let query = supabase.from('schedule_events').select('*');
+
+  if (params.start) {
+    query = query.gte('start_at', params.start);
+  }
+  if (params.end) {
+    // start_at <= end+1day or something similar.
+    query = query.lte('start_at', params.end + 'T23:59:59');
+  }
+  if (params.category) {
+    const cats = params.category.split(',');
+    query = query.in('category', cats);
+  }
+  if (params.is_done !== undefined) {
+    query = query.eq('is_done', params.is_done);
+  }
+  
+  // order by start_at
+  query = query.order('start_at', { ascending: true });
+
+  if (params.limit) {
+    query = query.limit(params.limit);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  
+  return data as ScheduleEvent[];
 }
 
 export async function fetchEvent(id: string): Promise<ScheduleEvent> {
-  const res = await fetch(`${BASE}/schedule/events/${id}`);
-  if (!res.ok) throw new Error('일정 조회 실패');
-  return res.json();
+  const { data, error } = await supabase.from('schedule_events').select('*').eq('id', id).single();
+  if (error) throw new Error(error.message);
+  return data as ScheduleEvent;
 }
 
 export async function createEvent(data: ScheduleEventCreate): Promise<ScheduleEvent> {
-  const res = await fetch(`${BASE}/schedule/events`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { detail?: string }).detail || '일정 생성 실패');
-  }
-  return res.json();
+  const { data: created, error } = await supabase.from('schedule_events').insert([data]).select().single();
+  if (error) throw new Error(error.message);
+  return created as ScheduleEvent;
 }
 
 export async function updateEvent(id: string, data: ScheduleEventUpdate): Promise<ScheduleEvent> {
-  const res = await fetch(`${BASE}/schedule/events/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { detail?: string }).detail || '일정 수정 실패');
-  }
-  return res.json();
+  const { data: updated, error } = await supabase.from('schedule_events').update(data).eq('id', id).select().single();
+  if (error) throw new Error(error.message);
+  return updated as ScheduleEvent;
 }
 
-export async function deleteEvent(id: string, deletedByName?: string): Promise<void> {
-  const q = deletedByName ? `?deleted_by_name=${encodeURIComponent(deletedByName)}` : '';
-  const res = await fetch(`${BASE}/schedule/events/${id}${q}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('일정 삭제 실패');
+export async function deleteEvent(id: string, _deletedByName?: string): Promise<void> {
+  const { error } = await supabase.from('schedule_events').delete().eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 // ─── 이관센터 ────────────────────────────────────────────────────────────────
@@ -139,7 +157,7 @@ export async function deleteEvent(id: string, deletedByName?: string): Promise<v
 export interface TransferCenter { id: string; name: string; address?: string; }
 
 export async function fetchTransferCenters(): Promise<TransferCenter[]> {
-  const res = await fetch(`${BASE}/transfer-centers/`);
-  if (!res.ok) throw new Error('이관센터 조회 실패');
-  return res.json();
+  const { data, error } = await supabase.from('transfer_centers').select('*');
+  if (error) throw new Error(error.message);
+  return data as TransferCenter[];
 }
