@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Plus, ChevronLeft, ChevronRight, Calendar, List, RotateCcw } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import {
   fetchEvents, fetchCategories, createEvent, updateEvent, deleteEvent,
   type ScheduleEvent, type CategoryMeta, type ScheduleEventCreate,

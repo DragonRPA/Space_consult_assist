@@ -264,7 +264,6 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
   const [location, setLocation] = useState(event?.location ?? '');
   const [receiveStaff, setReceiveStaff] = useState(event?.receive_staff ?? '');
   const [processStaff, setProcessStaff] = useState<string[]>(event?.process_staff ?? ['']);
-  const [siteManagers, setSiteManagers] = useState<string[]>(event?.site_managers ?? ['']);
   const [startAt, setStartAt] = useState(initDate);
   const [endAt, setEndAt] = useState(event?.end_at?.slice(0, 16) ?? '');
   const [title, setTitle] = useState(event?.title ?? '');
@@ -299,7 +298,7 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
       use_company: useCompany || undefined,
       contract_company: contractCompany || undefined,
       location: location || undefined,
-      site_managers: siteManagers.filter(Boolean),
+      site_managers: event?.site_managers ?? [],
       receive_staff: receiveStaff || undefined,
       process_staff: processStaff.filter(Boolean),
       display_order: displayOrder,
@@ -332,7 +331,12 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
             {/* 카테고리 */}
             <div style={FIELD}>
               <label style={LABEL}><span style={{ color: '#ef4444' }}>*</span> 업무카테고리</label>
-              <select value={category} onChange={e => setCategory(e.target.value)} style={{ ...INPUT_STYLE, cursor: 'pointer' }}>
+              <select value={category} onChange={e => setCategory(e.target.value as ScheduleEventCreate['category'])}
+                style={{
+                  width: '100%', padding: '6px 10px', background: '#1e293b',
+                  border: '1px solid #334155', color: '#fff', borderRadius: 6, fontSize: 13,
+                }}
+              >
                 {cats.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
               </select>
             </div>
