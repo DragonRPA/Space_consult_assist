@@ -196,3 +196,52 @@ class VehicleInventory(Base):
     part_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("parts.id"), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# --- Phase 3: 업무 일정 관리 ---
+
+class TransferCenter(Base):
+    """이관센터 마스터"""
+    __tablename__ = "transfer_centers"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    address: Mapped[str] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ScheduleEvent(Base):
+    """업무 일정 (space-dust 캘린더 이관 대상 핵심 테이블)
+
+    카테고리별 동적 필드는 extra JSONB에 통째로 저장.
+    장비 목록(호차별 관리)은 equipment_rows JSONB.
+    첨부파일 URL 목록은 attachments JSONB.
+    """
+    __tablename__ = "schedule_events"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    category: Mapped[str] = mapped_column(String(30), nullable=False)          # 'sales-demo'|'equip-ship'|...
+    worktype: Mapped[str] = mapped_column(String(100), nullable=True)
+    use_company: Mapped[str] = mapped_column(String(100), nullable=True)        # 사용업체
+    contract_company: Mapped[str] = mapped_column(String(100), nullable=True)   # 계약업체
+    location: Mapped[str] = mapped_column(Text, nullable=True)                  # 주소
+    site_managers: Mapped[dict] = mapped_column(ARRAY(String), nullable=True)   # 현장담당자 목록
+    receive_staff: Mapped[str] = mapped_column(String(50), nullable=True)
+    receive_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    process_staff: Mapped[dict] = mapped_column(ARRAY(String), nullable=True)   # 처리직원 목록
+    display_order: Mapped[int] = mapped_column(SmallInteger, default=0)
+    call_done: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_allday: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_done: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_important: Mapped[bool] = mapped_column(Boolean, default=False)
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    title: Mapped[str] = mapped_column(String(300), nullable=True)
+    equipment_rows: Mapped[dict] = mapped_column(Text, nullable=True)           # JSONB (SQLite 호환용 Text)
+    extra: Mapped[dict] = mapped_column(Text, nullable=True)                    # 카테고리별 동적 필드 JSONB
+    attachments: Mapped[dict] = mapped_column(Text, nullable=True)              # [{url, type, name}]
+    # 연결 키
+    consult_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("consult_logs.id"), nullable=True)
+    visit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("visits.id"), nullable=True)
+    customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customers.id"), nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

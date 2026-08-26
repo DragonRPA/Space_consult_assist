@@ -36,6 +36,7 @@ import {
 } from './keywordAssist';
 import type { KeywordEntity, EntityRule } from './keywordAssist';
 import type { CustomerInfo } from './store';
+import SchedulePage from './SchedulePage';
 import './index.css';
 
 declare global {
@@ -46,6 +47,12 @@ declare global {
 }
 
 export default function App() {
+  // ── /schedule 라우트 분기 ───────────────────────────────────────────────────
+  if (window.location.pathname.startsWith('/schedule')) {
+    return <SchedulePage />;
+  }
+
+
   const {
     isRecording,
     callSeconds,

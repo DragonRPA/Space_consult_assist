@@ -2,6 +2,49 @@
 
 ---
 
+## v1.2.0.Build.1 — 2026-08-26 11:30
+
+### ✨ Phase 3 신규 — 업무 일정 관리 (`/schedule`)
+
+space-dust.com 거래처 캘린더 서비스를 우리 Supabase(PostgreSQL) + FastAPI로 완전 이식.
+
+#### DB 스키마 보완 (Alembic `a3f9d2c1e847`)
+
+| 변경 | 내용 |
+|---|---|
+| [NEW] `schedule_events` | 업무 일정 핵심 테이블. 7가지 카테고리, 동적 extra/equipment_rows/attachments JSONB, consult/visit/customer FK |
+| [NEW] `transfer_centers` | 이관센터 마스터 |
+| [MODIFY] `visits` | display_order, process_staff, site_managers, call_done, schedule_event_id 컬럼 추가 |
+| [MODIFY] `customers` | use_company_name 컬럼 추가 (사용업체·계약업체 분리) |
+
+#### 백엔드 API
+
+| 파일 | 내용 |
+|---|---|
+| `backend/app/api/v1/endpoints/schedule.py` | 업무 일정 CRUD (`GET /events`, `POST /events`, `PUT /events/{id}`, `DELETE /events/{id}`, `GET /categories`) |
+| `backend/app/api/v1/endpoints/transfer_centers.py` | 이관센터 CRUD |
+| `backend/app/api/v1/api.py` | schedule, transfer-centers 라우터 등록 |
+| `backend/app/models/domain.py` | `ScheduleEvent`, `TransferCenter` SQLAlchemy 모델 추가 |
+
+#### 프론트엔드
+
+| 파일 | 내용 |
+|---|---|
+| `frontend/.../src/scheduleApi.ts` | 업무 일정 API 클라이언트 (TypeScript) |
+| `frontend/.../src/CategorySchema.ts` | 7개 카테고리 × 탭 × 필드 동적 스키마 (space-dust CATEGORY_SCHEMAS 이식) |
+| `frontend/.../src/SchedulePage.tsx` | 월/주/일 캘린더 뷰, 사이드바, 카테고리 필터 (다크 테마 #0b0f17, Pretendard) |
+| `frontend/.../src/EventFormModal.tsx` | 업무 등록/수정 모달 (동적 extra 필드: chips/toggle/parts/photostatus/select 등) |
+| `frontend/.../src/EventDetailModal.tsx` | 상세보기, 완료처리, 삭제 |
+| `frontend/.../src/App.tsx` | `/schedule` 경로 진입 시 SchedulePage 분기 라우팅 |
+
+#### 아키텍처 결정
+- Firebase 대신 우리 Supabase(PostgreSQL JSONB)로 완전 이관
+- 첨부파일은 Google Drive 대신 Cloudflare R2(drcf 버킷) 연결 예정 (v1.2.0.Build.2)
+- 동선셋팅(카카오맵 경로 최적화)은 v1.2.0.Build.3에서 추가 예정
+- space-dust 고객사와의 통합 방향은 추후 협의
+
+---
+
 ## v1.1.0.Build.4 — 2026-08-24 14:49
 
 ### 🐛 버그패치

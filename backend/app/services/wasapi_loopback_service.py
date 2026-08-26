@@ -444,6 +444,16 @@ class LoopbackSTTService:
                                 continue
                             if re.search(r'(.)\1{4,}', text):
                                 continue
+
+                            # 1-2) 유튜브/Whisper 종특 상용구 블랙리스트 필터
+                            hallucination_blacklist = [
+                                "시청해주셔서 감사합니다", "시청해 주셔서 감사합니다", "구독과 좋아요",
+                                "다음 영상에서 만나요", "자막 제공", "한글 자막", "광고를 포함",
+                                "MBC 뉴스", "KBS", "SBS", "YTN", "연합뉴스"
+                            ]
+                            if any(bad_phrase in text for bad_phrase in hallucination_blacklist):
+                                continue
+
                             # 2) no_speech_prob 필터
                             if hasattr(seg, 'no_speech_prob') and seg.no_speech_prob > 0.65:
                                 continue
