@@ -2,9 +2,29 @@
 
 ---
 
-## v1.2.0.Build.1 — 2026-08-26 11:30
+## v1.2.0.Build.3 — 2026-08-26 12:38
 
-### ✨ Phase 3 신규 — 업무 일정 관리 (`/schedule`)
+### ✨ UI 미세조정 및 네비게이션 개선
+
+| 파일 | 수정 내용 |
+|---|---|
+| `frontend/.../src/App.tsx` | 상담 관제 메인 화면 상단 네비게이션에 `[업무 일정 ↗]` 이동 버튼 추가 (lucide-react Calendar 아이콘 적용) |
+| `frontend/.../src/SchedulePage.tsx` | 캘린더 화면 좌측 사이드바 상단에 `[↖ 상담 관제로 복귀]` 이동 버튼 추가 |
+
+---
+
+## v1.2.0.Build.2 — 2026-08-26 12:17
+
+### ✨ 데이터 이관 완료 및 API 추가
+
+| 파일 / 작업 | 수정 내용 |
+|---|---|
+| `backend/app/api/v1/endpoints/employees.py` | `POST /` (직원 등록) 엔드포인트 신설. (이름 중복 시 기존 레코드 반환 로직 포함) |
+| `DB Migration (Data)` | space-dust Firebase의 기존 임직원(11명) 및 업무 일정(312건)을 추출하여 Supabase PostgreSQL(employees, schedule_events)로 직접 INSERT 완료. 실패율 0%. |
+
+---
+
+## v1.2.0.Build.1 — 2026-08-26 11:30
 
 space-dust.com 거래처 캘린더 서비스를 우리 Supabase(PostgreSQL) + FastAPI로 완전 이식.
 
