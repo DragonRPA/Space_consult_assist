@@ -23,8 +23,8 @@ const OVERLAY: React.CSSProperties = {
 };
 
 const MODAL: React.CSSProperties = {
-  background: '#1e293b', borderRadius: 12, width: '100%', maxWidth: 560,
-  boxShadow: '0 20px 50px rgba(0,0,0,.4)', color: '#f8fafc',
+  background: '#ffffff', borderRadius: 12, width: '100%', maxWidth: 560,
+  boxShadow: '0 20px 50px rgba(0,0,0,.4)', color: '#111827',
   fontFamily: "Pretendard, -apple-system, sans-serif",
 };
 
@@ -33,7 +33,7 @@ const D_ROW: React.CSSProperties = {
 };
 
 const D_LABEL: React.CSSProperties = { flex: '0 0 120px', color: '#64748b', fontWeight: 600 };
-const D_VALUE: React.CSSProperties = { flex: 1, color: '#f8fafc', whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
+const D_VALUE: React.CSSProperties = { flex: 1, color: '#111827', whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
 
 function formatFieldValue(val: unknown, type: string): string {
   if (val === undefined || val === null || val === '') return '';
@@ -82,7 +82,7 @@ export function EventDetailModal({ event: ev, cats, onClose, onEdit, onDelete, o
           {/* 제목 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 4 }}>
             <div style={{ width: 11, height: 11, borderRadius: '50%', background: color, flexShrink: 0 }} />
-            <h3 style={{ margin: 0, fontSize: 17, textDecoration: ev.is_done ? 'line-through' : 'none', color: ev.is_done ? '#64748b' : '#f8fafc' }}>
+            <h3 style={{ margin: 0, fontSize: 17, textDecoration: ev.is_done ? 'line-through' : 'none', color: ev.is_done ? '#64748b' : '#111827' }}>
               {ev.is_important && <span style={{ color: '#f59e0b', marginRight: 4 }}>★</span>}
               {ev.title || cat?.label || ev.category}
             </h3>
@@ -144,7 +144,7 @@ export function EventDetailModal({ event: ev, cats, onClose, onEdit, onDelete, o
         {/* 푸터 */}
         <div style={{ display: 'flex', gap: 8, padding: '14px 20px', borderTop: '1px solid #23334d', alignItems: 'center' }}>
           <button onClick={onToggleDone}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid #23334d', color: '#94a3b8', padding: '8px 14px', borderRadius: 7, fontSize: 13, cursor: 'pointer' }}>
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid #23334d', color: '#4b5563', padding: '8px 14px', borderRadius: 7, fontSize: 13, cursor: 'pointer' }}>
             {ev.is_done
               ? <><Circle size={14} /> 완료취소</>
               : <><CheckCircle2 size={14} /> 완료처리</>}
@@ -155,7 +155,7 @@ export function EventDetailModal({ event: ev, cats, onClose, onEdit, onDelete, o
           </button>
           <div style={{ flex: 1 }} />
           <button onClick={onClose}
-            style={{ background: 'transparent', border: '1px solid #23334d', color: '#94a3b8', padding: '8px 14px', borderRadius: 7, fontSize: 13, cursor: 'pointer' }}>
+            style={{ background: 'transparent', border: '1px solid #23334d', color: '#4b5563', padding: '8px 14px', borderRadius: 7, fontSize: 13, cursor: 'pointer' }}>
             닫기
           </button>
           <button onClick={onEdit}

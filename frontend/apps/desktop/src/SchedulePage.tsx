@@ -93,10 +93,10 @@ function MiniCal({ value, selected, onSelect, eventsByDate }: MiniCalProps) {
     <div style={{ border: '1px solid #23334d', borderRadius: 8, padding: 8, marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
         <button onClick={() => setCur(new Date(cur.getFullYear(), cur.getMonth() - 1, 1))}
-          style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 15 }}>‹</button>
-        <span style={{ color: '#f8fafc' }}>{cur.getFullYear()}년 {cur.getMonth() + 1}월</span>
+          style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', fontSize: 15 }}>‹</button>
+        <span style={{ color: '#111827' }}>{cur.getFullYear()}년 {cur.getMonth() + 1}월</span>
         <button onClick={() => setCur(new Date(cur.getFullYear(), cur.getMonth() + 1, 1))}
-          style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 15 }}>›</button>
+          style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', fontSize: 15 }}>›</button>
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, textAlign: 'center' }}>
         <thead>
@@ -114,13 +114,13 @@ function MiniCal({ value, selected, onSelect, eventsByDate }: MiniCalProps) {
                 const isToday   = sameDay(d, today);
                 const isSel     = sameDay(d, selected);
                 const hasDots   = (eventsByDate[ymd(d)] ?? []).length > 0;
-                const col       = di === 0 ? '#ef4444' : di === 6 ? '#60a5fa' : '#94a3b8';
+                const col       = di === 0 ? '#ef4444' : di === 6 ? '#60a5fa' : '#4b5563';
                 return (
                   <td key={di}
                     onClick={() => onSelect(d)}
                     style={{
                       cursor: 'pointer', borderRadius: '50%', padding: '3px 0',
-                      background: isSel ? '#2563eb' : isToday ? '#1e293b' : 'transparent',
+                      background: isSel ? '#2563eb' : isToday ? '#ffffff' : 'transparent',
                       color: isSel ? '#fff' : isToday ? '#2563eb' : col,
                       fontWeight: (isToday || isSel) ? 700 : 400,
                       position: 'relative',
@@ -162,7 +162,7 @@ function EventBar({ ev, cats, onClick }: EventBarProps) {
         fontSize: 11.5, padding: '2px 5px', borderRadius: 4,
         borderLeft: `3px solid ${color}`,
         background: `${color}22`,
-        color: ev.is_done ? '#64748b' : '#f8fafc',
+        color: ev.is_done ? '#64748b' : '#111827',
         textDecoration: ev.is_done ? 'line-through' : 'none',
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         cursor: 'pointer', marginBottom: 2,
@@ -211,13 +211,13 @@ function MonthView({ baseDate, events, cats, selectedDate, onSelectDate, onClick
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
-      background: '#1e293b', border: '1px solid #23334d', borderRadius: 10, overflow: 'hidden',
+      background: '#ffffff', border: '1px solid #23334d', borderRadius: 10, overflow: 'hidden',
     }}>
       {DOW.map((d, i) => (
         <div key={d} style={{
           textAlign: 'center', fontSize: 12, fontWeight: 700,
           color: i === 0 ? '#ef4444' : i === 6 ? '#60a5fa' : '#64748b',
-          padding: '9px 0', background: '#131b2e', borderBottom: '1px solid #23334d',
+          padding: '9px 0', background: '#ffffff', borderBottom: '1px solid #23334d',
         }}>{d}</div>
       ))}
       {cells.map((cell, idx) => {
@@ -234,7 +234,7 @@ function MonthView({ baseDate, events, cats, selectedDate, onSelectDate, onClick
               minHeight: 100, padding: 6, cursor: 'pointer',
               borderRight: (idx + 1) % 7 === 0 ? 'none' : '1px solid #23334d',
               borderBottom: '1px solid #23334d',
-              background: isToday ? '#1e293b' : 'transparent',
+              background: isToday ? '#ffffff' : 'transparent',
               opacity: isCurrentMonth ? 1 : 0.35,
             }}>
             <div style={{
@@ -283,8 +283,8 @@ function DayView({ date, events, cats, onClickEvent, onNewEvent }: DayViewProps)
   const isToday = sameDay(date, today);
 
   return (
-    <div style={{ background: '#1e293b', border: '1px solid #23334d', borderRadius: 10, minHeight: 400, padding: 16 }}>
-      <div style={{ fontWeight: 700, fontSize: 15, color: isToday ? '#2563eb' : '#f8fafc', marginBottom: 14 }}>
+    <div style={{ background: '#ffffff', border: '1px solid #23334d', borderRadius: 10, minHeight: 400, padding: 16 }}>
+      <div style={{ fontWeight: 700, fontSize: 15, color: isToday ? '#2563eb' : '#111827', marginBottom: 14 }}>
         {date.getFullYear()}년 {date.getMonth() + 1}월 {date.getDate()}일
         {isToday && <span style={{ marginLeft: 8, fontSize: 11, background: '#2563eb22', color: '#2563eb', borderRadius: 4, padding: '2px 7px' }}>오늘</span>}
       </div>
@@ -315,7 +315,7 @@ function DayView({ date, events, cats, onClickEvent, onNewEvent }: DayViewProps)
                 <div style={{ width: 3, borderRadius: 2, background: color, alignSelf: 'stretch', minHeight: 20, flex: 'none' }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 14, color: ev.is_done ? '#64748b' : '#f8fafc',
+                    fontSize: 14, color: ev.is_done ? '#64748b' : '#111827',
                     textDecoration: ev.is_done ? 'line-through' : 'none',
                   }}>
                     {ev.is_important && <span style={{ color: '#f59e0b', marginRight: 4 }}>★</span>}
@@ -485,10 +485,32 @@ export default function SchedulePage() {
 
   // ─── 렌더 ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#0b0f17', color: '#f8fafc', fontFamily: "Pretendard, -apple-system, sans-serif", overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f9fafb', color: '#111827', fontFamily: "Pretendard, -apple-system, sans-serif", overflow: 'hidden' }}>
+      
+      {/* 모방용 상단 헤더 */}
+      <header style={{ height: '48px', background: '#6366f1', display: 'flex', alignItems: 'center', padding: '0 20px', color: '#fff', flexShrink: 0, gap: '10px' }}>
+        <div style={{ fontWeight: 900, fontSize: '18px', fontStyle: 'italic', letterSpacing: '-0.5px' }}>SPACE</div>
+        <div style={{ fontSize: '14px', fontWeight: 600 }}>(주)스페이스 업무캘린더</div>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '12px' }}>
+          <button style={{ background: '#ffffff', color: '#6366f1', border: 'none', padding: '4px 10px', borderRadius: '12px', fontWeight: 600, cursor: 'pointer' }}>
+            내 Google 계정 연결
+          </button>
+          <button style={{ background: 'transparent', color: '#fff', border: '1px solid #fff', padding: '4px 10px', borderRadius: '12px', cursor: 'pointer' }}>
+            비밀번호 변경
+          </button>
+          <span style={{ marginLeft: '10px' }}>관리자님으로 로그인 중</span>
+        </div>
+      </header>
 
-      {/* 사이드바 */}
-      <aside style={{ width: 250, flexShrink: 0, background: '#131b2e', borderRight: '1px solid #23334d', padding: 16, overflowY: 'auto' }}>
+      {/* 경고바 (옵션) */}
+      <div style={{ background: '#fef3c7', color: '#d97706', fontSize: '12px', padding: '8px', textAlign: 'center', fontWeight: 600 }}>
+        ⚠️ Google Drive 연동은 현재 Space Advisor 내부 스토리지로 전환되었습니다. 첨부파일은 정상 작동합니다.
+      </div>
+
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        {/* 사이드바 */}
+        <aside style={{ width: 250, flexShrink: 0, background: '#ffffff', borderRight: '1px solid #e5e7eb', padding: 16, overflowY: 'auto' }}>
         {/* 등록 버튼 */}
         <button
           onClick={() => { setEditingEvent(null); setDefaultDate(ymd(selectedDate)); setFormOpen(true); }}
@@ -504,7 +526,7 @@ export default function SchedulePage() {
         <button
           onClick={() => window.location.href = '/'}
           style={{
-            width: '100%', marginBottom: 14, background: '#1e293b', color: '#94a3b8', border: '1px solid #334155',
+            width: '100%', marginBottom: 14, background: '#ffffff', color: '#4b5563', border: '1px solid #334155',
             padding: '8px 14px', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 6,
           }}>
@@ -540,7 +562,7 @@ export default function SchedulePage() {
                 checked={catFilter[c.key] !== false}
                 onChange={e => setCatFilter(prev => ({ ...prev, [c.key]: e.target.checked }))} />
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: c.color, display: 'inline-block', flexShrink: 0 }} />
-              <span style={{ color: '#f8fafc' }}>{c.label}</span>
+              <span style={{ color: '#111827' }}>{c.label}</span>
             </label>
           ))}
         </div>
@@ -552,30 +574,30 @@ export default function SchedulePage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button onClick={() => { const d = new Date(); setBaseDate(d); setSelectedDate(d); }}
-              style={{ background: '#1e293b', border: '1px solid #23334d', borderRadius: 6, padding: '6px 12px', fontSize: 13, color: '#94a3b8', cursor: 'pointer' }}>
+              style={{ background: '#ffffff', border: '1px solid #23334d', borderRadius: 6, padding: '6px 12px', fontSize: 13, color: '#4b5563', cursor: 'pointer' }}>
               오늘
             </button>
             <button onClick={() => navigate(-1)}
-              style={{ background: '#1e293b', border: '1px solid #23334d', borderRadius: 6, padding: '6px 11px', color: '#94a3b8', cursor: 'pointer' }}>
+              style={{ background: '#ffffff', border: '1px solid #23334d', borderRadius: 6, padding: '6px 11px', color: '#4b5563', cursor: 'pointer' }}>
               <ChevronLeft size={14} />
             </button>
             <button onClick={() => navigate(1)}
-              style={{ background: '#1e293b', border: '1px solid #23334d', borderRadius: 6, padding: '6px 11px', color: '#94a3b8', cursor: 'pointer' }}>
+              style={{ background: '#ffffff', border: '1px solid #23334d', borderRadius: 6, padding: '6px 11px', color: '#4b5563', cursor: 'pointer' }}>
               <ChevronRight size={14} />
             </button>
-            <h2 style={{ margin: '0 0 0 6px', fontSize: 18, color: '#f8fafc' }}>{periodLabel}</h2>
+            <h2 style={{ margin: '0 0 0 6px', fontSize: 18, color: '#111827' }}>{periodLabel}</h2>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             {loading && <RotateCcw size={14} style={{ color: '#64748b', animation: 'spin 1s linear infinite' }} />}
             {/* 뷰 전환 탭 */}
-            <div style={{ display: 'flex', gap: 4, background: '#1e293b', border: '1px solid #23334d', borderRadius: 7, padding: 3 }}>
+            <div style={{ display: 'flex', gap: 4, background: '#ffffff', border: '1px solid #23334d', borderRadius: 7, padding: 3 }}>
               {(['month', 'week', 'day'] as const).map(v => (
                 <button key={v} onClick={() => setView(v)}
                   style={{
                     border: 'none', padding: '6px 12px', borderRadius: 5, fontSize: 13, cursor: 'pointer',
                     background: view === v ? '#2563eb' : 'transparent',
-                    color: view === v ? '#fff' : '#94a3b8',
+                    color: view === v ? '#fff' : '#4b5563',
                   }}>
                   {v === 'month' ? '월' : v === 'week' ? '주' : '일'}
                 </button>
@@ -620,10 +642,10 @@ export default function SchedulePage() {
               const isToday = sameDay(d, new Date());
               const dow = i;
               return (
-                <div key={i} style={{ background: '#1e293b', border: '1px solid #23334d', borderRadius: 8, padding: 6, minHeight: 300 }}>
+                <div key={i} style={{ background: '#ffffff', border: '1px solid #23334d', borderRadius: 8, padding: 6, minHeight: 300 }}>
                   <div style={{
                     textAlign: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6,
-                    color: isToday ? '#2563eb' : dow === 0 ? '#ef4444' : dow === 6 ? '#60a5fa' : '#94a3b8',
+                    color: isToday ? '#2563eb' : dow === 0 ? '#ef4444' : dow === 6 ? '#60a5fa' : '#4b5563',
                   }}>
                     {['일','월','화','수','목','금','토'][i]}<br />
                     <span style={{ fontSize: 11 }}>{d.getDate()}</span>
@@ -660,6 +682,8 @@ export default function SchedulePage() {
           onToggleDone={() => handleToggleDone(detailEvent)}
         />
       )}
+
+      </div> {/* End flex row */}
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

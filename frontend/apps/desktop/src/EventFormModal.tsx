@@ -26,8 +26,8 @@ const OVERLAY: React.CSSProperties = {
 };
 
 const MODAL: React.CSSProperties = {
-  background: '#1e293b', borderRadius: 12, width: '100%', maxWidth: 640,
-  boxShadow: '0 20px 50px rgba(0,0,0,.4)', color: '#f8fafc',
+  background: '#ffffff', borderRadius: 12, width: '100%', maxWidth: 640,
+  boxShadow: '0 20px 50px rgba(0,0,0,.4)', color: '#111827',
   fontFamily: "Pretendard, -apple-system, sans-serif",
 };
 
@@ -49,12 +49,12 @@ const FIELD: React.CSSProperties = {
 };
 
 const LABEL: React.CSSProperties = {
-  fontSize: 12.5, color: '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap',
+  fontSize: 12.5, color: '#4b5563', fontWeight: 600, whiteSpace: 'nowrap',
 };
 
 const INPUT_STYLE: React.CSSProperties = {
-  background: '#131b2e', border: '1px solid #23334d', borderRadius: 6,
-  padding: '7px 9px', fontSize: 13, color: '#f8fafc', fontFamily: 'inherit', width: '100%',
+  background: '#ffffff', border: '1px solid #23334d', borderRadius: 6,
+  padding: '7px 9px', fontSize: 13, color: '#111827', fontFamily: 'inherit', width: '100%',
   boxSizing: 'border-box',
 };
 
@@ -64,7 +64,7 @@ const BTN_PRIMARY: React.CSSProperties = {
 };
 
 const BTN_LINE: React.CSSProperties = {
-  background: 'transparent', color: '#94a3b8', border: '1px solid #23334d',
+  background: 'transparent', color: '#4b5563', border: '1px solid #23334d',
   padding: '8px 14px', borderRadius: 7, fontSize: 13, cursor: 'pointer',
 };
 
@@ -142,7 +142,7 @@ function FieldRenderer({ fld, value, onChange, ctx }: FieldRendererProps) {
             style={{
               border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 12.5, fontWeight: 600,
               cursor: 'pointer', width: 'auto', alignSelf: 'flex-start',
-              background: isOn ? '#2563eb' : '#27354f', color: isOn ? '#fff' : '#94a3b8',
+              background: isOn ? '#2563eb' : '#27354f', color: isOn ? '#fff' : '#4b5563',
             }}>
             {isOn ? fld.onText : fld.offText}
           </button>
@@ -167,9 +167,9 @@ function FieldRenderer({ fld, value, onChange, ctx }: FieldRendererProps) {
                     onChange(fld.key, { selected: next });
                   }}
                   style={{
-                    border: `1px solid ${isSel ? '#2563eb' : '#23334d'}`,
+                    border: `1px solid ${isSel ? '#2563eb' : '#e5e7eb'}`,
                     background: isSel ? '#2563eb22' : 'transparent',
-                    color: isSel ? '#2563eb' : '#94a3b8',
+                    color: isSel ? '#2563eb' : '#4b5563',
                     borderRadius: 16, padding: '5px 12px', fontSize: 12.5, cursor: 'pointer',
                   }}>
                   {o}
@@ -193,9 +193,9 @@ function FieldRenderer({ fld, value, onChange, ctx }: FieldRendererProps) {
                 <button key={s} type="button"
                   onClick={() => onChange(fld.key, { ...statusObj, [s]: !done })}
                   style={{
-                    border: `1px solid ${done ? '#10b981' : '#23334d'}`,
+                    border: `1px solid ${done ? '#10b981' : '#e5e7eb'}`,
                     background: done ? '#10b98122' : 'transparent',
-                    color: done ? '#10b981' : '#94a3b8',
+                    color: done ? '#10b981' : '#4b5563',
                     borderRadius: 16, padding: '5px 12px', fontSize: 12, cursor: 'pointer', fontWeight: done ? 700 : 400,
                   }}>
                   {s}{done ? ' ✓' : ''}
@@ -319,7 +319,7 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
       <div style={MODAL}>
         {/* 헤더 */}
         <div style={MODAL_HEAD}>
-          <h3 style={{ margin: 0, fontSize: 16, color: '#f8fafc' }}>{event ? '업무 수정' : '업무 등록'}</h3>
+          <h3 style={{ margin: 0, fontSize: 16, color: '#111827' }}>{event ? '업무 수정' : '업무 등록'}</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={18} /></button>
         </div>
 
@@ -333,7 +333,7 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
               <label style={LABEL}><span style={{ color: '#ef4444' }}>*</span> 업무카테고리</label>
               <select value={category} onChange={e => setCategory(e.target.value as ScheduleEventCreate['category'])}
                 style={{
-                  width: '100%', padding: '6px 10px', background: '#1e293b',
+                  width: '100%', padding: '6px 10px', background: '#ffffff',
                   border: '1px solid #334155', color: '#fff', borderRadius: 6, fontSize: 13,
                 }}
               >
@@ -405,7 +405,7 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
                 <button key={label} type="button" onClick={() => set(!val)}
                   style={{
                     border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-                    background: val ? '#2563eb' : '#27354f', color: val ? '#fff' : '#94a3b8',
+                    background: val ? '#2563eb' : '#27354f', color: val ? '#fff' : '#4b5563',
                   }}>
                   {label}
                 </button>
@@ -440,7 +440,7 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
                 {activeTabs.map(t => (
                   <button key={t.key} type="button" onClick={() => setActiveTab(t.key)}
                     style={{
-                      background: activeTab === t.key ? '#1e293b' : 'transparent',
+                      background: activeTab === t.key ? '#ffffff' : 'transparent',
                       border: '1px solid #23334d', borderBottom: 'none',
                       borderRadius: '8px 8px 0 0', padding: '8px 16px', marginBottom: -2,
                       fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
