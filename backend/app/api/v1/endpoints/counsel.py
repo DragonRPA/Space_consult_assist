@@ -32,7 +32,7 @@ async def fallback_llm_classification(user_text: str, db: AsyncSession) -> dict:
     ollama_url = f"{settings.ollama_base_url.rstrip('/')}/api/generate"
     model_name = settings.ollama_model
     
-    prompt = f"""다음 고객의 상담 내용을 분석하여 가장 적절한 부품코드와 키워드를 추출하세요.
+    prompt = f"""다음 고객의 상담 내용을 분석하여 부품코드와 키워드를 추출하세요.
 가능한 부품코드: SALES_INQUIRY, SCHEDULE_DELIVERY, SUCTION, POWER, DRIVE_BRUSH, WATER_SOLENOID, CHASSIS, WATER_NO_FLOW, BRUSH_WIRE, BRUSH_COVER, FORWARD_FAIL, WATER_SUPPLY_FAIL, BRUSH_FAIL, CHARGER_FAIL, POWER_FAIL, CHARGE_INDICATOR, INQUIRY_ETC, IRRELEVANT
 
 상담내용: "{user_text}"
@@ -79,8 +79,6 @@ async def fallback_llm_classification(user_text: str, db: AsyncSession) -> dict:
                     "model": model_name,
                     "latency": int(res.elapsed.total_seconds() * 1000) if hasattr(res, 'elapsed') else 0
                 })
-                # 조기 커밋 제거: 상위 엔드포인트에서 트랜잭션 관리
-                # await db.commit()  ← 제거됨
 
                 return {
                     "keyword": keyword,
@@ -101,8 +99,6 @@ async def fallback_llm_classification(user_text: str, db: AsyncSession) -> dict:
                 "model": model_name,
                 "err": str(e)
             })
-            # 조기 커밋 제거: 상위 엔드포인트에서 트랜잭션 관리
-            # await db.commit()  ← 제거됨
         except Exception as log_err:
             logger.error(f"Failed to write error to llm_logs: {log_err}")
     
@@ -177,6 +173,8 @@ async def classify_text(
         except Exception as e:
             logger.warning(f"Failed to parse fallback action_script: {e}")
             action_script = []
+
+    await db.commit()
 
     return ClassifyResponse(
         keyword=llm_res["keyword"],

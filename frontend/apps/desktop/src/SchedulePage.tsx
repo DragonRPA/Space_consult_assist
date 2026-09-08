@@ -9,7 +9,7 @@
  * - 완료 처리, 중요 토글
  */
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Plus, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import {
   fetchEvents, fetchCategories, createEvent, updateEvent, deleteEvent, fetchEmployees,
@@ -187,14 +187,17 @@ interface MonthViewProps {
 
 function MonthView({ baseDate, events, cats, selectedDate, onSelectDate, onClickEvent }: MonthViewProps) {
   const today = new Date();
-  const first = startOfMonth(baseDate);
-  const last  = endOfMonth(baseDate);
-  const startPad = first.getDay();
+  const cells = useMemo(() => {
+    const first = startOfMonth(baseDate);
+    const last  = endOfMonth(baseDate);
+    const startPad = first.getDay();
 
-  const cells: Date[] = [];
-  for (let i = 0; i < startPad; i++) cells.push(addDays(first, -startPad + i));
-  for (let d = new Date(first); d <= last; d = addDays(d, 1)) cells.push(new Date(d));
-  while (cells.length % 7 !== 0) cells.push(addDays(cells[cells.length - 1], 1));
+    const arr: Date[] = [];
+    for (let i = 0; i < startPad; i++) arr.push(addDays(first, -startPad + i));
+    for (let d = new Date(first); d <= last; d = addDays(d, 1)) arr.push(new Date(d));
+    while (arr.length % 7 !== 0) arr.push(addDays(arr[arr.length - 1], 1));
+    return arr;
+  }, [baseDate]);
 
   const eventsByDate = useMemo(() => {
     const map: Record<string, ScheduleEvent[]> = {};
@@ -456,7 +459,10 @@ export default function SchedulePage() {
   }, []);
 
   // ─ 일정 로드 (뷰/날짜 변경 시)
+  const reqIdRef = useRef(0);
+
   const loadEvents = useCallback(async () => {
+    const reqId = ++reqIdRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -476,11 +482,17 @@ export default function SchedulePage() {
         end = ymd(selectedDate);
       }
       const data = await fetchEvents({ start, end, limit: 1000 });
-      setEvents(data);
+      if (reqId === reqIdRef.current) {
+        setEvents(data);
+      }
     } catch (e) {
-      setError((e as Error).message);
+      if (reqId === reqIdRef.current) {
+        setError((e as Error).message);
+      }
     } finally {
-      setLoading(false);
+      if (reqId === reqIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [view, baseDate, selectedDate]);
 
@@ -610,7 +622,7 @@ export default function SchedulePage() {
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '12px' }}>
           <button style={{ background: '#ffffff', color: '#6366f1', border: 'none', padding: '4px 10px', borderRadius: '12px', fontWeight: 600, cursor: 'pointer' }}>
-            내 Google 계정 연결
+            Google 계정 연결
           </button>
           <button style={{ background: 'transparent', color: '#fff', border: '1px solid #fff', padding: '4px 10px', borderRadius: '12px', cursor: 'pointer' }}>
             비밀번호 변경
@@ -714,7 +726,7 @@ export default function SchedulePage() {
       {/* 메인 패널 */}
       <main style={{ flex: 1, overflow: 'auto', padding: '18px 20px' }}>
         {/* 툴바 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, overflowX: 'auto', whiteSpace: 'nowrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button onClick={() => { const d = new Date(); setBaseDate(d); setSelectedDate(d); }}
               style={{ background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 12px', fontSize: 13, color: '#4b5563', cursor: 'pointer' }}>

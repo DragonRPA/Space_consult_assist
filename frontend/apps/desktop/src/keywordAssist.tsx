@@ -113,7 +113,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-cust-gangnam',
     type: 'customer',
     label: '고객사',
-    pattern: /(주)?\s*스페이스\s*클린|스페이스클린|최관리\s*(팀장)?/i,
+    pattern: /(?:주)?\s*스페이스\s*클린|스페이스클린|최관리\s*(?:팀장)?/i,
     customerId: 'a1111111-1111-1111-1111-111111111111',
     colorScheme: {
       bg: 'rgba(168, 85, 247, 0.18)',
@@ -126,7 +126,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-cust-pyeongtaek',
     type: 'customer',
     label: '고객사',
-    pattern: /미래\s*물류(\s*센터)?|정센터장|미래물류/i,
+    pattern: /미래\s*물류(?:\s*센터)?|정센터장|미래물류/i,
     customerId: 'a2222222-2222-2222-2222-222222222222',
     colorScheme: {
       bg: 'rgba(168, 85, 247, 0.18)',
@@ -195,7 +195,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-suction',
     type: 'symptom',
     label: '증상/부품',
-    pattern: /흡입\s*모터|흡기|진공압|굉음|타는\s*냄새|모터\s*소리|흡입력|빨아들이(고|면(은)?|지)?|빨아들/i,
+    pattern: /흡입\s*모터|흡기|진공압|굉음|타는\s*냄새|모터\s*소리|흡입력|빨아들이(?:고|면(?:은)?|지)?|빨아들/i,
     keywordId: 'kw-suction',
     colorScheme: {
       bg: 'rgba(37, 99, 235, 0.18)',
@@ -249,7 +249,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-act-power-off',
     type: 'action',
     label: '조치사항',
-    pattern: /전원\s*(스위치)?\s*차단|전원\s*(스위치)?\s*끄|모터\s*냉각|열기\s*식히|10분\s*식히/i,
+    pattern: /전원\s*(?:스위치)?\s*차단|전원\s*(?:스위치)?\s*끄|모터\s*냉각|열기\s*식히|10분\s*식히/i,
     actionIndex: 1,
     colorScheme: {
       bg: 'rgba(16, 185, 129, 0.2)',
@@ -262,7 +262,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-act-filter-clean',
     type: 'action',
     label: '조치사항',
-    pattern: /거름망\s*청소|필터\s*(망)?\s*세척|이물질\s*(제거|청소|털어)|탱크\s*비우|오수\s*비우/i,
+    pattern: /거름망\s*청소|필터\s*(?:망)?\s*세척|이물질\s*(?:제거|청소|털어)|탱크\s*비우|오수\s*비우/i,
     actionIndex: 2,
     colorScheme: {
       bg: 'rgba(16, 185, 129, 0.2)',
@@ -288,7 +288,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-act-emergency-switch',
     type: 'action',
     label: '조치사항',
-    pattern: /비상\s*정지\s*(버튼)?\s*(해제|당기)|빨간\s*버튼\s*당기|220V\s*콘센트|충전기\s*확인|단자\s*체결/i,
+    pattern: /비상\s*정지\s*(?:버튼)?\s*(?:해제|당기)|빨간\s*버튼\s*당기|220V\s*콘센트|충전기\s*확인|단자\s*체결/i,
     actionIndex: 2,
     colorScheme: {
       bg: 'rgba(16, 185, 129, 0.2)',
@@ -319,6 +319,9 @@ export interface EntityClickHandlers {
   onActionClick?: (actionRule: EntityRule) => void;
 }
 
+// Master Unified Regex capturing Customers, Sites, Symptoms, and Action SOP steps dynamically
+const masterRegex = new RegExp('(' + NAMED_ENTITY_REGISTRY.map(r => r.pattern.source).join('|') + ')', 'gi');
+
 export function renderMultiColorHighlightedText(
   text: string,
   handlers: EntityClickHandlers,
@@ -327,9 +330,6 @@ export function renderMultiColorHighlightedText(
   customerList?: CustomerInfo[]
 ): React.ReactNode[] {
   if (!text) return [];
-
-  // Master Unified Regex capturing Customers, Sites, Symptoms, and Action SOP steps
-  const masterRegex = /(스페이스\s*클린|스페이스|최관리\s*(팀장)?|미래\s*물류(\s*센터)?|정센터장|미래물류|케이\s*로지스|오센터장|강남점|방재실|테헤란로|지하\s*1층|평택점|물류\s*데크|산단로|화성\s*센터|하역장|남양읍|남양로|흡입\s*모터|진공압|굉음|타는\s*냄새|모터\s*소리|스퀴지|바닥\s*물기|잔수|고무\s*블레이드|고무패드|고무\s*패드|패드\s*거치대|고정판|판\s*거치대|배터리|충전|방전|솔레노이드|누수|급수\s*밸브|전원\s*(스위치)?\s*차단|전원\s*(스위치)?\s*끄|모터\s*냉각|열기\s*식히|10분\s*식히|거름망\s*청소|필터\s*(망)?\s*세척|이물질\s*(제거|청소|털어)|탱크\s*비우|오수\s*비우|날\s*뒤집|4면\s*뒤집|반대로\s*끼우|날\s*교체|수평\s*조절|노브\s*조절|비상\s*정지\s*(버튼)?\s*(해제|당기)|빨간\s*버튼\s*당기|220V\s*콘센트|충전기\s*확인|단자\s*체결|출장\s*배차|기사\s*(님)?\s*방문|현장\s*점검|정비\s*배차|부품\s*교체\s*출장)/gi;
 
   const parts = text.split(masterRegex);
 
