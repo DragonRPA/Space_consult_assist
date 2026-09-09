@@ -1,0 +1,34 @@
+{
+  "total_samples": 50,
+  "correct_samples": 21,
+  "accuracy_percent": 42.0,
+  "avg_latency_ms": 1115.4,
+  "vram_gb": 0.92,
+  "breakdown": {
+    "기술문의": {
+      "total": 20,
+      "correct": 20,
+      "preds": {
+        "기술문의": 20
+      }
+    },
+    "영업문의": {
+      "total": 15,
+      "correct": 0,
+      "preds": {
+        "기술문의": 8,
+        "일정조율": 3,
+        "기타": 4
+      }
+    },
+    "일정조율": {
+      "total": 15,
+      "correct": 1,
+      "preds": {
+        "기술문의": 12,
+        "기타": 2,
+        "일정조율": 1
+      }
+    }
+  }
+}

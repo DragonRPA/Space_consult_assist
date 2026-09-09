@@ -2,6 +2,35 @@
 
 ---
 
+## v1.3.0.Build.1 — 2026-09-09 10:31
+
+### ✨ 벌처(Vultr) 기반 백엔드 인프라 재정의 및 범용 공급자(Provider) 아키텍처 구현
+
+세종텔레콤 비즈메시지 API 화이트리스트 및 PBX 통화 처리를 단일 고정 IP(벌처 VPS) 환경에서 안정적으로 구동할 수 있도록 백엔드 전체 파이프라인을 재정의하고, 공급자 패턴(Provider Pattern) 기반의 범용 모듈을 구축했습니다.
+
+#### 1. 신규 공급자(Provider) 모듈
+| 영역 | 공급자 모듈 | 주요 내용 |
+|---|---|---|
+| **메시징** | `backend/app/services/messaging/` | 세종텔레콤(`sejong.py`, 알림톡+SMS 자동 Fallback), 알리고(`aligo.py`), 모의(`mock.py`) |
+| **스토리지** | `backend/app/services/storage/` | 전사 표준 Cloudflare R2(`r2_storage.py`, 'drcf' 버킷), 로컬 디스크(`local_storage.py`) |
+| **AI (STT)** | `backend/app/services/ai/stt_groq.py` | Groq LPU 가속 기반 초고속 `whisper-large-v3-turbo` STT 연동 (OpenAI 대비 비용 89% 절감 및 1초 변환) |
+| **AI (LLM)** | `backend/app/services/ai/llm_openai.py` | OpenAI `gpt-4o-mini` 기반 통화 요약 및 고객 의도/액션 아이템 JSON 추출 |
+| **통화/PBX** | `backend/app/services/telephony/` | PBX 통화 이벤트 웹훅 및 `녹음 ➔ R2 업로드 ➔ Groq STT ➔ OpenAI LLM` 1-Way 통합 파이프라인 |
+
+#### 2. 신규 API 엔드포인트
+| 엔드포인트 | 메서드 | 설명 |
+|---|---|---|
+| `/api/v1/telecom/send` | POST | 알림톡 및 SMS 통합 발송 (Fallback 지원) |
+| `/api/v1/telecom/webhook` | POST | 통신사 전송 결과 비동기 콜백 수신 및 표준 파싱 |
+| `/api/v1/telephony/call-event` | POST | PBX 통화 진행 상태 이벤트 수신 |
+| `/api/v1/telephony/upload-recording` | POST | 통화 녹음 파일(.wav) 수신 및 STT/LLM 연계 분석 파이프라인 일괄 실행 |
+
+#### 3. 설정 및 검증
+- `backend/app/core/config.py`: `.env` 기반 동적 공급자 전환 설정 추가 (`MESSAGING_PROVIDER`, `STORAGE_PROVIDER`, `STT_PROVIDER=groq`, `LLM_PROVIDER=openai`)
+- 단위/통합 테스트 스크립트 작성 및 100% 통과 검증 (`test_providers.py`, `test_telecom_api.py`)
+
+---
+
 ## v1.2.0.Build.4 — 2026-08-26 13:08
 
 ### ✨ Serverless 아키텍처 전환 (캘린더)

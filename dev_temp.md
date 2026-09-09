@@ -16,3 +16,4 @@
 | 10 | /schedule 동선셋팅 — 카카오맵 경로 최적화 API 연동 | ⬜ 대기 | v1.2.0.Build.3 |
 | 11 | space-dust Firebase 기존 데이터 → Supabase 이관 스크립트 | ⬜ 대기 | 고객사 협의 후 |
 | 12 | space-dust 고객사와 통합 방향 협의 (Firebase 폐기 or 공존) | ⬜ 유보 | 비즈니스 결정 |
+| 13 | 벌처(Vultr) 기반 백엔드 아키텍처 재정의 및 범용 확장 Provider(메시징/스토리지/Groq STT/OpenAI LLM/PBX) 구현 | ✅ 완료 | v1.3.0 |

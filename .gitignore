@@ -20,16 +20,30 @@ frontend/packages/mobile/dist/
 frontend/packages/common/dist/
 *.local
 
-# Ollama 모델
+# AI 모델 가중치 및 대용량 데이터셋 (절대 커밋 금지)
 *.gguf
 *.bin
+*.safetensors
+*.pt
+*.onnx
 ollama_data/
+scripts/merged_*
+scripts/output_*
+scripts/*.jsonl
+scripts/stt_data/
 
 # DB / 데이터 파일
 *.sqlite
 *.db
 *.csv
 *.xlsx
+
+# 오디오 및 녹음 파일 (절대 커밋 금지)
+recordings/
+backend/recordings/
+*.wav
+*.m4a
+*.mp3
 
 # 로그
 *.log
