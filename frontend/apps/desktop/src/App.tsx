@@ -2805,10 +2805,10 @@ export default function App() {
 
             <div style={{ backgroundColor: 'var(--surface-2)', padding: '14px', borderRadius: '6px', border: '1px solid var(--hairline)', marginBottom: '16px' }}>
               <div style={{ fontSize: '11px', color: 'var(--ink-muted)', marginBottom: '6px', fontWeight: 600 }}>
-                1-클릭 실행 배치 파일 경로:
+                배치 파일 경로:
               </div>
               <div style={{ fontSize: '12px', fontFamily: 'monospace', color: 'var(--accent-primary)', backgroundColor: 'var(--surface-3)', padding: '8px 10px', borderRadius: '4px', wordBreak: 'break-all', marginBottom: '10px' }}>
-                D:\GoogleDrive\RPA_dev\01.AntiGravity\Space_consult_assist\start_backend_stt.bat
+                D:\01.AntiGravity\Space_consult_assist\start_backend_stt.bat
               </div>
               <div style={{ fontSize: '12px', color: 'var(--ink)' }}>
                 이 파일을 <strong>더블클릭</strong>하여 실행하면 로컬 GPU 서버가 <code>localhost:8000</code>에서 즉시 켜집니다.
@@ -2844,7 +2844,7 @@ export default function App() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText("D:\\GoogleDrive\\RPA_dev\\01.AntiGravity\\Space_consult_assist\\start_backend_stt.bat");
+                  navigator.clipboard.writeText("D:\\01.AntiGravity\\Space_consult_assist\\start_backend_stt.bat");
                   showToast("배치 파일 경로가 클립보드에 복사되었습니다.");
                   setTimeout(() => clearToast(), 3000);
                 }}

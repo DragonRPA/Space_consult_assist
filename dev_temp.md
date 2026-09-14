@@ -17,3 +17,5 @@
 | 11 | space-dust Firebase 기존 데이터 → Supabase 이관 스크립트 | ⬜ 대기 | 고객사 협의 후 |
 | 12 | space-dust 고객사와 통합 방향 협의 (Firebase 폐기 or 공존) | ⬜ 유보 | 비즈니스 결정 |
 | 13 | 벌처(Vultr) 기반 백엔드 아키텍처 재정의 및 범용 확장 Provider(메시징/스토리지/Groq STT/OpenAI LLM/PBX) 구현 | ✅ 완료 | v1.3.0 |
+| 14 | 로컬 GPU STT 실행 배치 파일 경로 정합성 확보 및 프론트엔드 모달 복사 경로 정상화 | ✅ 완료 | v1.3.0.Build.2 |
+

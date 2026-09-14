@@ -2,6 +2,19 @@
 
 ---
 
+## v1.3.0.Build.2 — 2026-09-14 16:26
+
+### 🛠️ 로컬 GPU STT 실행 환경 정규화 및 모달 경로 정합성 확보
+
+| 파일 / 작업 | 수정 내용 |
+|---|---|
+| `start_backend_stt.bat` | 구 드라이브 고정 경로 제거 및 배치 파일 위치 기준 상대 경로(`cd /d "%~dp0backend"`)로 전환. 사용자명 인코딩 문제 방지를 위해 `%LOCALAPPDATA%\Programs\Python\Python311\python.exe` 및 `python` 폴백 구조 적용. |
+| `frontend/apps/desktop/src/App.tsx` | 로컬 GPU 에이전트 모달 내 안내 및 클립보드 복사 절대 경로를 현재 작업 디렉터리(`D:\01.AntiGravity\Space_consult_assist\start_backend_stt.bat`)로 동기화. 전사 UI 표준에 따른 수식어 제거(`1-클릭 실행 배치 파일 경로:` ➔ `배치 파일 경로:`). |
+| `backend/fix_bat_crlf.py` | 배치 파일 생성 스크립트 경로 동적 탐색 및 ASCII 인코딩 쓰기 구조 적용. |
+| 프론트엔드 빌드 | `apps/desktop` 및 통합 모노레포(`frontend/dist`) 빌드 동기화 완료. |
+
+---
+
 ## v1.3.0.Build.1 — 2026-09-09 10:31
 
 ### ✨ 벌처(Vultr) 기반 백엔드 인프라 재정의 및 범용 공급자(Provider) 아키텍처 구현
