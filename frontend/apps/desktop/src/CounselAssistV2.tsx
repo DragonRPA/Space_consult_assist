@@ -123,7 +123,175 @@ interface KbResult {
 const API = 'http://127.0.0.1:8000/api/v1';
 
 const EQUIPMENT_MODELS = ['J600T', 'J800', 'S7', 'S5', 'S1', 'S3', 'W12', 'W15', 'S2', 'S12', '쓰담', '전체'];
-const SYMPTOM_CATEGORIES = ['전체', '충전/전원', '흡입/잔수', '브러시/구동', '세척수/배관', '외관/기타'];
+const SYMPTOM_CATEGORIES = ['전체', '에러코드', '충전/전원', '흡입/잔수', '브러시/구동', '세척수/배관', '외관/기타'];
+
+// ── 한글 초성 분해 및 통합 검색 엔진 ──────────────────────────────────────────
+const CHOSUNG_LIST = [
+  'ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ',
+  'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'
+];
+
+export function extractChosung(str: string): string {
+  if (!str) return '';
+  let res = '';
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (code >= 0xac00 && code <= 0xd7a3) {
+      const chosungIndex = Math.floor((code - 0xac00) / 588);
+      res += CHOSUNG_LIST[chosungIndex];
+    } else {
+      res += str[i];
+    }
+  }
+  return res;
+}
+
+export function cleanForSearch(str: string): string {
+  return (str || '').replace(/[\s\-_.,/()[\]]/g, '').toLowerCase();
+}
+
+export function matchesChosungOrText(target: string | undefined | null, query: string): boolean {
+  if (!target || !query) return false;
+  const tNorm = target.toLowerCase();
+  const qNorm = query.toLowerCase();
+
+  // 1. 단순 텍스트 포함
+  if (tNorm.includes(qNorm)) return true;
+
+  // 2. 공백/특수문자 제거 후 텍스트 포함
+  const tClean = cleanForSearch(target);
+  const qClean = cleanForSearch(query);
+  if (tClean.includes(qClean)) return true;
+
+  // 3. 초성 분해 포함
+  const tChosung = extractChosung(tNorm);
+  const qChosung = extractChosung(qNorm);
+  if (tChosung.includes(qChosung)) return true;
+
+  // 4. 공백/특수문자 제거 후 초성 포함
+  const tCleanChosung = extractChosung(tClean);
+  const qCleanChosung = extractChosung(qClean);
+  if (tCleanChosung.includes(qCleanChosung)) return true;
+
+  return false;
+}
+
+export function calculateSymptomMatchScore(preset: SymptomPreset, query: string): number {
+  if (!query || !query.trim()) return 1;
+  const q = query.trim().toLowerCase();
+  let score = 0;
+
+  // 1. Title 매칭
+  if (matchesChosungOrText(preset.title, q)) {
+    const titleNorm = preset.title.toLowerCase();
+    const titleChosung = extractChosung(titleNorm);
+    if (titleNorm.startsWith(q) || titleChosung.startsWith(extractChosung(q))) {
+      score = Math.max(score, 100);
+    } else {
+      score = Math.max(score, 80);
+    }
+  }
+
+  // 2. Aliases 매칭
+  if (preset.aliases && preset.aliases.length > 0) {
+    for (const alias of preset.aliases) {
+      if (matchesChosungOrText(alias, q)) {
+        score = Math.max(score, 60);
+        break;
+      }
+    }
+  }
+
+  // 3. Official Error Codes 매칭 (code, name, meaning)
+  if (preset.official_error_codes && preset.official_error_codes.length > 0) {
+    for (const ec of preset.official_error_codes) {
+      if (
+        matchesChosungOrText(ec.code, q) ||
+        matchesChosungOrText(ec.name, q) ||
+        matchesChosungOrText(ec.meaning, q)
+      ) {
+        score = Math.max(score, 50);
+        break;
+      }
+    }
+  }
+
+  // 4. Symptom 설명 매칭
+  if (matchesChosungOrText(preset.symptom, q)) {
+    score = Math.max(score, 40);
+  }
+
+  // 5. Part Code 또는 Category 매칭
+  if (matchesChosungOrText(preset.part_code, q) || matchesChosungOrText(preset.category, q)) {
+    score = Math.max(score, 30);
+  }
+
+  return score;
+}
+
+export function matchesIntegratedSessionQuery(record: ConsultSessionRecord, fullQuery: string): boolean {
+  if (!fullQuery || !fullQuery.trim()) return true;
+  const tokens = fullQuery.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+
+  const rawPhone = record.phone || '';
+  const cleanDigitsPhone = rawPhone.replace(/\D/g, '');
+
+  return tokens.every(token => {
+    const tLower = token.toLowerCase();
+    const tokenDigits = token.replace(/\D/g, '');
+
+    // ① 전화번호 매칭 (부분 일치, 숫자만 일치, 뒷자리 일치)
+    if (rawPhone && rawPhone.toLowerCase().includes(tLower)) return true;
+    if (tokenDigits.length >= 2 && cleanDigitsPhone.includes(tokenDigits)) return true;
+
+    // ② 고객명 (초성 및 텍스트)
+    if (matchesChosungOrText(record.customerName, token)) return true;
+
+    // ③ 담당자 (초성 및 텍스트)
+    if (matchesChosungOrText(record.manager, token)) return true;
+
+    // ④ 장비 모델명
+    if (matchesChosungOrText(record.modelName, token)) return true;
+
+    // ⑤ 시리얼 번호
+    if (matchesChosungOrText(record.serialNumber, token)) return true;
+
+    // ⑥ 에러코드 매칭 (예: "888", "EH", "E01")
+    if (record.selectedErrorCodes && record.selectedErrorCodes.some(c =>
+      c.toLowerCase().includes(tLower) || `에러코드 ${c}`.toLowerCase().includes(tLower)
+    )) return true;
+
+    // ⑦ 요약 및 현재 단계 요약 (초성 및 텍스트)
+    if (matchesChosungOrText(record.summaryText, token)) return true;
+    if (matchesChosungOrText(record.currentStepSummary, token)) return true;
+
+    // ⑧ 메모 (초성 및 텍스트)
+    if (matchesChosungOrText(record.notes, token)) return true;
+
+    // ⑨ 상담원 이름
+    if (matchesChosungOrText(record.counselorName, token)) return true;
+
+    // ⑩ 등록된 개별 증상 세션들 내부 검사
+    if (record.symptomSessions) {
+      for (const sKey of Object.keys(record.symptomSessions)) {
+        const s = record.symptomSessions[sKey];
+        if (!s) continue;
+        if (matchesChosungOrText(s.title, token)) return true;
+        if (matchesChosungOrText(s.part_code, token)) return true;
+        if (s.selectedErrorCode && (
+          s.selectedErrorCode.code.toLowerCase().includes(tLower) ||
+          matchesChosungOrText(s.selectedErrorCode.name, token)
+        )) return true;
+        if (s.steps && s.steps.some(st =>
+          matchesChosungOrText(st.title, token) || matchesChosungOrText(st.method, token)
+        )) return true;
+      }
+    }
+
+    return false;
+  });
+}
 
 export interface CounselAssistV2Props {
   initialOpenGuides?: boolean;
@@ -134,6 +302,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
   const [searchText, setSearchText]                 = useState('');
   const [searchResults, setSearchResults]           = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer]     = useState<Customer | null>(null);
+  const [customerPhone, setCustomerPhone]           = useState('');
   const [selectedModel, setSelectedModel]           = useState<string>('J600T');
   const [isSearching, setIsSearching]               = useState(false);
   const [dropdownOpen, setDropdownOpen]             = useState(false);
@@ -275,6 +444,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
   const selectCustomer = (c: Customer) => {
     setSelectedCustomer(c);
     setSearchText(c.name);
+    setCustomerPhone(c.phone || '');
     setDropdownOpen(false);
     if (c.assetModel) {
       setSelectedModel(c.assetModel);
@@ -774,7 +944,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
         status: 'in_progress',
         customerName: selectedCustomer?.name ?? (searchText.trim() || '일반 고객'),
         manager: selectedCustomer?.manager ?? '',
-        phone: selectedCustomer?.phone ?? '',
+        phone: customerPhone.trim() || selectedCustomer?.phone || '',
         serialNumber: selectedCustomer?.serialNumber ?? '',
         modelName: selectedModel,
         activeSymptomKey,
@@ -843,6 +1013,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
       historyTimeline: []
     });
     setSearchText(record.customerName);
+    setCustomerPhone(record.phone || '');
     setSelectedModel(record.modelName || 'J600T');
     fetchModelSymptoms(record.modelName || 'J600T');
 
@@ -920,7 +1091,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
         status: isVisit ? 'visit_required' : 'resolved_by_call',
         customerName: selectedCustomer?.name ?? (searchText.trim() || '일반 고객'),
         manager: selectedCustomer?.manager ?? '',
-        phone: selectedCustomer?.phone ?? '',
+        phone: customerPhone.trim() || selectedCustomer?.phone || '',
         serialNumber: selectedCustomer?.serialNumber ?? '',
         modelName: selectedModel,
         activeSymptomKey,
@@ -979,6 +1150,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
     setCurrentSessionId(null);
     setSearchText('');
     setSelectedCustomer(null);
+    setCustomerPhone('');
     setCustomSymptom('');
     setSymptomSessions({});
     setActiveSymptomKey(null);
@@ -1290,11 +1462,46 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
             {selectedCustomer && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '3px 6px', fontSize: 10 }}>
                 <span style={{ fontWeight: 700, color: '#1e40af' }}>{selectedCustomer.name} ({selectedCustomer.manager})</span>
-                <button onClick={() => setSelectedCustomer(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 0 }}>
+                <button onClick={() => { setSelectedCustomer(null); setCustomerPhone(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 0 }}>
                   <X size={11} />
                 </button>
               </div>
             )}
+
+            {/* 고객 연락처 및 일반 고객 전화번호 기록 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label style={{ fontSize: 10, fontWeight: 800, color: '#334155', whiteSpace: 'nowrap' }}>연락처 (전화번호)</label>
+                <span style={{ fontSize: 9, color: '#64748b' }}>대기열/이력 추적 저장</span>
+              </div>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  data-uia="input-customer-phone"
+                  value={customerPhone}
+                  onChange={e => setCustomerPhone(e.target.value)}
+                  placeholder="전화번호 입력 (예: 010-9123-4567)"
+                  style={{
+                    width: '100%',
+                    height: 26,
+                    border: '1px solid #94a3b8',
+                    borderRadius: 4,
+                    padding: '0 20px 0 6px',
+                    fontSize: 11,
+                    outline: 'none',
+                    background: '#fff',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                {customerPhone && (
+                  <button
+                    onClick={() => setCustomerPhone('')}
+                    style={{ position: 'absolute', right: 5, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 0 }}
+                  >
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+            </div>
 
             {/* 해당 고객사의 진행 중인 상담 자동 감지 배너 */}
             {(() => {
@@ -1387,7 +1594,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
               <input
                 value={symptomSearchQuery}
                 onChange={e => setSymptomSearchQuery(e.target.value)}
-                placeholder="증상 검색 (예: 20분, 소음, 누수)"
+                placeholder="증상 검색 (초성: ㅅㅇ, ㅂㅌㄹ, 소음)"
                 style={{ flex: 1, height: 26, border: '1px solid #94a3b8', borderRadius: 4, padding: '0 6px', fontSize: 11, outline: 'none', background: '#fff' }}
               />
               {symptomSearchQuery && (
@@ -1429,23 +1636,32 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
               <span style={{ fontSize: 11, fontWeight: 800, color: '#0f172a' }}>
                 표준 장애 유형 ({symptomPresets.length}건)
               </span>
-              <span style={{ fontSize: 9, color: '#64748b' }}>클릭 시 세션에 추가/전환</span>
+              <span style={{ fontSize: 9, color: '#2563eb', fontWeight: 700 }}>초성 검색 지원 (예: ㅅㅇ, ㅂㅌㄹ)</span>
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
               {(() => {
-                const q = symptomSearchQuery.trim().toLowerCase();
-                const filtered = symptomPresets.filter(p => {
-                  const matchCat = selectedCategory === '전체' || (p.category && p.category === selectedCategory);
-                  const matchQ = !q ||
-                    p.title.toLowerCase().includes(q) ||
-                    p.symptom.toLowerCase().includes(q) ||
-                    (p.aliases && p.aliases.some(a => a.toLowerCase().includes(q))) ||
-                    (p.official_error_codes && p.official_error_codes.some(ec =>
-                      ec.code.toLowerCase().includes(q) || ec.name.toLowerCase().includes(q) || ec.meaning.toLowerCase().includes(q)
-                    ));
-                  return matchCat && matchQ;
-                });
+                const q = symptomSearchQuery.trim();
+                const filtered = symptomPresets
+                  .filter(p => {
+                    let matchCat = false;
+                    if (selectedCategory === '전체') {
+                      matchCat = true;
+                    } else if (selectedCategory === '에러코드') {
+                      matchCat = p.category === '에러코드' || p.id === 'EXT_ERROR_CODE' || Boolean(p.official_error_codes && p.official_error_codes.length > 0);
+                    } else {
+                      matchCat = p.category === selectedCategory;
+                    }
+
+                    if (!matchCat) return false;
+                    if (!q) return true;
+
+                    return calculateSymptomMatchScore(p, q) > 0;
+                  })
+                  .sort((a, b) => {
+                    if (!q) return 0;
+                    return calculateSymptomMatchScore(b, q) - calculateSymptomMatchScore(a, q);
+                  });
 
                 if (filtered.length === 0) {
                   return (
@@ -2549,13 +2765,14 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   border: '1px solid #cbd5e1',
                   borderRadius: 5,
                   padding: '3px 8px',
-                  width: 220
+                  width: 280
                 }}>
                   <Search size={12} color="#64748b" />
                   <input
+                    data-uia="input-pending-search"
                     value={pendingSearchQuery}
                     onChange={e => setPendingSearchQuery(e.target.value)}
-                    placeholder="고객명, 장비명, 증상 검색"
+                    placeholder="고객명, 전화번호, 에러코드, 증상, 초성 검색"
                     style={{ border: 'none', outline: 'none', fontSize: 11, width: '100%' }}
                   />
                   {pendingSearchQuery && (
@@ -2577,16 +2794,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
             {/* Body */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {pendingSessions
-                .filter(p => {
-                  const q = pendingSearchQuery.trim().toLowerCase();
-                  if (!q) return true;
-                  return p.customerName.toLowerCase().includes(q) ||
-                         p.manager.toLowerCase().includes(q) ||
-                         p.modelName.toLowerCase().includes(q) ||
-                         p.summaryText.toLowerCase().includes(q) ||
-                         p.currentStepSummary.toLowerCase().includes(q) ||
-                         p.selectedErrorCodes.some(c => c.toLowerCase().includes(q));
-                })
+                .filter(p => matchesIntegratedSessionQuery(p, pendingSearchQuery))
                 .map(record => {
                   const symptomCount = Object.keys(record.symptomSessions || {}).length;
                   return (
@@ -2609,9 +2817,9 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                           <span style={{ fontSize: 14, fontWeight: 900, color: '#0f172a' }}>
                             {record.customerName}
                           </span>
-                          {record.manager && (
+                          {(record.manager || record.phone) && (
                             <span style={{ fontSize: 11, color: '#475569', fontWeight: 600 }}>
-                              ({record.manager}{record.phone ? ` / ${record.phone}` : ''})
+                              ({[record.manager, record.phone].filter(Boolean).join(' / ')})
                             </span>
                           )}
                           <span style={{
@@ -2855,15 +3063,21 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   border: '1px solid #cbd5e1',
                   borderRadius: 5,
                   padding: '3px 8px',
-                  width: 200
+                  width: 260
                 }}>
                   <Search size={12} color="#64748b" />
                   <input
+                    data-uia="input-history-search"
                     value={historySearchQuery}
                     onChange={e => setHistorySearchQuery(e.target.value)}
-                    placeholder="고객명, 증상, 코드 검색"
+                    placeholder="고객명, 전화번호, 에러코드, 증상, 초성 검색"
                     style={{ border: 'none', outline: 'none', fontSize: 11, width: '100%' }}
                   />
+                  {historySearchQuery && (
+                    <button onClick={() => setHistorySearchQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                      <X size={11} color="#94a3b8" />
+                    </button>
+                  )}
                 </div>
 
                 <button
@@ -2893,13 +3107,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                     if (historyStatusFilter === 'resolved' && record.status !== 'resolved_by_call') return false;
                     if (historyStatusFilter === 'visit' && record.status !== 'visit_required') return false;
                     if (historyStatusFilter === 'in_progress' && record.status !== 'in_progress') return false;
-                    const q = historySearchQuery.trim().toLowerCase();
-                    if (!q) return true;
-                    return record.customerName.toLowerCase().includes(q) ||
-                           record.manager.toLowerCase().includes(q) ||
-                           record.modelName.toLowerCase().includes(q) ||
-                           record.summaryText.toLowerCase().includes(q) ||
-                           record.selectedErrorCodes.some(c => c.toLowerCase().includes(q));
+                    return matchesIntegratedSessionQuery(record, historySearchQuery);
                   })
                   .map(record => {
                     const isSelected = selectedHistoryItem?.id === record.id;
@@ -2924,10 +3132,15 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: 13, fontWeight: 900, color: '#0f172a' }}>
                               {record.customerName}
                             </span>
+                            {(record.manager || record.phone) && (
+                              <span style={{ fontSize: 10.5, color: '#475569', fontWeight: 600 }}>
+                                ({[record.manager, record.phone].filter(Boolean).join(' / ')})
+                              </span>
+                            )}
                             <span style={{ fontSize: 10.5, color: '#64748b' }}>
                               {record.modelName}
                             </span>
@@ -2995,7 +3208,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                         {selectedHistoryItem.customerName} 상담 상세 기록
                       </span>
                       <span style={{ fontSize: 11, color: '#64748b' }}>
-                        장비: {selectedHistoryItem.modelName} | 일시: {new Date(selectedHistoryItem.timestamp).toLocaleString()}
+                        담당: {selectedHistoryItem.manager || '미지정'} | 연락처: {selectedHistoryItem.phone || '미등록'} | 장비: {selectedHistoryItem.modelName} | 일시: {new Date(selectedHistoryItem.timestamp).toLocaleString()}
                       </span>
                     </div>
 

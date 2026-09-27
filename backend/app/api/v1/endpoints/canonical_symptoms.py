@@ -985,7 +985,7 @@ CANONICAL_FAILURE_TYPES: List[Dict[str, Any]] = [
     # ── [5] 외관/기타 계통 (2종) ────────────────────────────────────────────────
     {
         "id": "EXT_ERROR_CODE",
-        "category": "외관/기타",
+        "category": "에러코드",
         "title": "계기판 에러 코드 점멸",
         "official_error_codes": OFFICIAL_12_ERROR_CODES,
         "symptom": "계기판에 알 수 없는 영문/숫자 에러 코드가 깜빡이며 경보 부저가 계속 울림",

@@ -1221,7 +1221,7 @@ export const DEFAULT_SYMPTOM_PRESETS: SymptomPreset[] = [
   },
   {
     "id": "EXT_ERROR_CODE",
-    "category": "외관/기타",
+    "category": "에러코드",
     "title": "계기판 에러 코드 점멸",
     "official_error_codes": [
       {
