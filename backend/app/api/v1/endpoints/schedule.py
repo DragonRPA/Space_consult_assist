@@ -9,6 +9,7 @@ space-dust 캘린더의 Firebase 저장 구조를 우리 Supabase(PostgreSQL)로
 import json
 import logging
 import uuid
+import re
 from typing import List, Optional
 from datetime import datetime, date
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -417,3 +418,119 @@ async def list_categories():
         {"key": "maintenance",    "label": "유지보수",    "color": "#0d9488"},
         {"key": "other",          "label": "기타",        "color": "#64748b"},
     ]
+
+
+# ─── 고객사 초성 검색 (Chosung Search) ─────────────────────────────────────────
+
+CHOSUNG_LIST = [
+    'ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ',
+    'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'
+]
+
+def extract_chosung(text_str: str) -> str:
+    """한글 음절에서 초성만 추출 (영숫자/공백 유지)"""
+    result = []
+    for ch in text_str:
+        code = ord(ch)
+        if 0xAC00 <= code <= 0xD7A3:
+            chosung_idx = (code - 0xAC00) // 588
+            result.append(CHOSUNG_LIST[chosung_idx])
+        elif 0x3131 <= code <= 0x314E:
+            result.append(ch)
+        else:
+            result.append(ch)
+    return ''.join(result)
+
+def matches_chosung(target: Optional[str], query: str) -> bool:
+    """
+    초성 검색 매칭 함수
+    1) target 원문에 query가 직접 포함되는 경우
+    2) target의 초성에 query(초성)가 포함되는 경우
+    3) 괄호, 특수기호, 공백 제거 후 초성 매칭
+    """
+    if not query:
+        return True
+    if not target:
+        return False
+    q = query.strip().lower()
+    t = target.lower()
+    if q in t:
+        return True
+    t_chosung = extract_chosung(t)
+    q_chosung = extract_chosung(q)
+    if q_chosung in t_chosung:
+        return True
+    # 괄호, 공백 제거 매칭 (예: (주)스페이스클린 -> ㅅㅍㅇㅅㅋㄹ)
+    t_clean = re.sub(r'[\(\)\[\]\s\-_]', '', t)
+    t_clean_chosung = extract_chosung(t_clean)
+    q_clean = re.sub(r'[\(\)\[\]\s\-_]', '', q)
+    q_clean_chosung = extract_chosung(q_clean)
+    if q_clean and (q_clean in t_clean or q_clean_chosung in t_clean_chosung):
+        return True
+    return False
+
+@router.get("/customers")
+async def search_customers(
+    q: Optional[str] = Query(None, description="고객사명, 담당자, 전화번호 또는 초성(예: ㅅㅍ, ㄱㄴ)"),
+    limit: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    고객사 조회 엔드포인트 - 한글 초성 검색(Chosung Search) 및 다중 필드 매칭 지원
+    """
+    try:
+        sql = text("""
+            SELECT c.id, c.name, c.manager, c.manager_phone, c.address, c.address_detail,
+                   c.use_company_name, a.model_name AS asset_model, a.serial_number, a.sales_type
+            FROM customers c
+            LEFT JOIN assets a ON c.asset_id = a.id
+            ORDER BY c.name ASC
+        """)
+        result = await db.execute(sql)
+        rows = result.fetchall()
+
+        all_customers = []
+        for r in rows:
+            all_customers.append({
+                "id": str(r.id),
+                "name": r.name or "고객사 미지정",
+                "manager": r.manager or "담당자 미지정",
+                "phone": r.manager_phone or "",
+                "address": r.address or "",
+                "addressDetail": r.address_detail or "",
+                "assetModel": r.asset_model or "J600T",
+                "serialNumber": r.serial_number or "",
+                "salesType": r.sales_type or "임대(렌탈)",
+                "useCompany": r.use_company_name or "",
+                "historyTimeline": [
+                    {"date": "최근", "title": "정기 점검 및 유지보수 이력 보유"}
+                ]
+            })
+
+        if not q or not q.strip():
+            return all_customers[:limit]
+
+        query = q.strip()
+        matched = []
+        for cust in all_customers:
+            if matches_chosung(cust["name"], query):
+                matched.append(cust)
+                continue
+            if matches_chosung(cust["manager"], query):
+                matched.append(cust)
+                continue
+            if query in cust["phone"].replace("-", "") or query in cust["phone"]:
+                matched.append(cust)
+                continue
+            if matches_chosung(cust["useCompany"], query):
+                matched.append(cust)
+                continue
+            if query.lower() in cust["assetModel"].lower():
+                matched.append(cust)
+                continue
+
+        return matched[:limit]
+    except Exception as e:
+        logger.error(f"고객사 초성 검색 오류: {e}")
+        return []
+

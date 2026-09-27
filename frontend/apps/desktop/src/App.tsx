@@ -25,7 +25,8 @@ import {
   Eye,
   Loader2,
   Download,
-  X 
+  X,
+  BookOpen
 } from 'lucide-react';
 import { useCounselStore } from './store';
 import { MicTestModal } from './MicTestModal';
@@ -38,6 +39,10 @@ import {
 import type { KeywordEntity, EntityRule } from './keywordAssist';
 import type { CustomerInfo } from './store';
 import SchedulePage from './SchedulePage';
+import CounselAssistV2 from './CounselAssistV2';
+import CounselCompare from './CounselCompare';
+import GlobalNav, { type NavTab } from './GlobalNav';
+
 import './index.css';
 
 declare global {
@@ -47,11 +52,73 @@ declare global {
   }
 }
 
+function getInitialTab(): NavTab {
+  const path = window.location.pathname;
+  const search = window.location.search;
+  const hash = window.location.hash;
+  if (search.includes('guides') || hash.includes('guides')) return 'counsel-v2';
+  if (path.startsWith('/schedule')) return 'schedule';
+  if (path.startsWith('/counsel-compare')) return 'counsel-compare';
+  if (path.startsWith('/stt') || path.startsWith('/legacy')) return 'stt-legacy';
+  // 기본 진입 화면: 최우선 신규 화면 CounselAssistV2
+  return 'counsel-v2';
+}
+
 export default function App() {
-  // ── /schedule 라우트 분기 ───────────────────────────────────────────────────
-  if (window.location.pathname.startsWith('/schedule')) {
-    return <SchedulePage />;
-  }
+  const [currentTab, setCurrentTab] = useState<NavTab>(getInitialTab);
+  const [openGuides, setOpenGuides] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const search = window.location.search || '';
+      const hash = window.location.hash || '';
+      return search.includes('guides') || hash.includes('guides');
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentTab(getInitialTab());
+      const search = window.location.search || '';
+      const hash = window.location.hash || '';
+      if (search.includes('guides') || hash.includes('guides')) {
+        setOpenGuides(true);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleSelectTab = (tab: NavTab) => {
+    setCurrentTab(tab);
+    const pathMap: Record<NavTab, string> = {
+      'counsel-v2': '/',
+      'counsel-compare': '/counsel-compare',
+      'schedule': '/schedule',
+      'stt-legacy': '/stt',
+    };
+    window.history.pushState(null, '', pathMap[tab]);
+  };
+
+  const handleOpenGuides = () => {
+    setCurrentTab('counsel-v2');
+    setOpenGuides(true);
+    window.history.pushState(null, '', '/?view=guides');
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#f8fafc' }}>
+      <GlobalNav currentTab={currentTab} onSelectTab={handleSelectTab} onOpenGuides={handleOpenGuides} />
+      <main style={{ flex: 1, position: 'relative' }}>
+        {currentTab === 'counsel-v2' && <CounselAssistV2 initialOpenGuides={openGuides} />}
+        {currentTab === 'counsel-compare' && <CounselCompare />}
+        {currentTab === 'schedule' && <SchedulePage />}
+        {currentTab === 'stt-legacy' && <LegacySttApp onOpenGuides={handleOpenGuides} />}
+      </main>
+    </div>
+  );
+}
+
+function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
 
 
   const {
@@ -1118,6 +1185,35 @@ export default function App() {
           >
             <Calendar size={14} />
             <span>업무 일정 ↗</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (onOpenGuides) {
+                onOpenGuides();
+              } else {
+                window.location.href = '/?view=guides';
+              }
+            }}
+            data-uia="btn-legacy-goto-guides"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '5px 12px',
+              borderRadius: '6px',
+              backgroundColor: '#4338ca',
+              color: '#fff',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 4px rgba(67, 56, 202, 0.4)'
+            }}
+          >
+            <BookOpen size={14} />
+            <span>상황별 수칙 ↗</span>
           </button>
         </div>
 
