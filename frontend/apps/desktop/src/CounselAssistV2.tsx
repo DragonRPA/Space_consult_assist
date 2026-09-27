@@ -6,6 +6,13 @@ import {
   ChevronUp, Check, ArrowRight, RefreshCw, ShieldAlert,
   Layers, Cpu, FileText, BookOpen, Copy
 } from 'lucide-react';
+import {
+  DEFAULT_MODEL_SPECS,
+  DEFAULT_SPECIAL_GUIDES,
+  DEFAULT_SYMPTOM_PRESETS,
+  type ModelSpec,
+  type SpecialGuide
+} from './manualKnowledgeData';
 
 // ─── 타입 정의 ─────────────────────────────────────────────────────────────────
 interface Customer {
@@ -26,7 +33,7 @@ export interface DiagnosticStep {
   criteria_normal?: string;
   criteria_fault?: string;
   fault_action?: string;
-  status: 'pending' | 'active' | 'resolved' | 'unresolved';
+  status?: 'pending' | 'active' | 'resolved' | 'unresolved';
 }
 
 type CounselStatus = 'in_progress' | 'resolved_by_call' | 'visit_required';
@@ -91,30 +98,6 @@ interface KbResult {
   similarity: number;
 }
 
-interface ModelSpec {
-  model_name: string;
-  category: string;
-  clean_tank_l: number;
-  recovery_tank_l: number;
-  brush_spec: string;
-  squeegee_width_mm: number;
-  battery_spec: string;
-  run_time: string;
-  clean_area_m2h: string;
-  weight_kg: number;
-  fuse_location: string;
-  key_consumables: string;
-}
-
-interface SpecialGuide {
-  id: string;
-  category: string;
-  title: string;
-  target_situation: string;
-  operation_steps: string[];
-  call_script: string;
-}
-
 const API = 'http://127.0.0.1:8000/api/v1';
 
 const EQUIPMENT_MODELS = ['J600T', 'J800', 'S7', 'S5', 'S1', 'S3', 'W12', 'W15', 'S2', 'S12', '쓰담', '전체'];
@@ -134,9 +117,9 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
   const [dropdownOpen, setDropdownOpen]             = useState(false);
 
   // ①-2 모델 하드웨어 제원 & 상황별 매뉴얼 가이드
-  const [currentModelSpec, setCurrentModelSpec]     = useState<ModelSpec | null>(null);
+  const [currentModelSpec, setCurrentModelSpec]     = useState<ModelSpec | null>(() => DEFAULT_MODEL_SPECS['J600T'] || null);
   const [showModelSpec, setShowModelSpec]           = useState(false);
-  const [specialGuides, setSpecialGuides]           = useState<SpecialGuide[]>([]);
+  const [specialGuides, setSpecialGuides]           = useState<SpecialGuide[]>(DEFAULT_SPECIAL_GUIDES);
   const [showGuidesModal, setShowGuidesModal]       = useState<boolean>(() => {
     if (initialOpenGuides) return true;
     if (typeof window !== 'undefined') {
@@ -159,7 +142,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
   }, [initialOpenGuides]);
 
   // ② 증상 목록 및 필터링
-  const [symptomPresets, setSymptomPresets]         = useState<SymptomPreset[]>([]);
+  const [symptomPresets, setSymptomPresets]         = useState<SymptomPreset[]>(DEFAULT_SYMPTOM_PRESETS as any);
   const [selectedCategory, setSelectedCategory]     = useState<string>('전체');
   const [symptomSearchQuery, setSymptomSearchQuery] = useState('');
   const [errorCodeFilter, setErrorCodeFilter]       = useState('');
@@ -208,22 +191,25 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
 
   // ── 장비 모델별 빈출 질문/증상 & 제원/가이드 로드 ──────────────────────────────────────────
   const fetchModelSymptoms = useCallback(async (modelName: string) => {
+    if (DEFAULT_MODEL_SPECS[modelName]) {
+      setCurrentModelSpec(DEFAULT_MODEL_SPECS[modelName]);
+    }
     try {
       const res = await fetch(`${API}/counsel/model-symptoms?model=${encodeURIComponent(modelName)}`);
       if (res.ok) {
         const data = await res.json();
-        setSymptomPresets(data.symptoms ?? []);
+        if (data.symptoms && data.symptoms.length > 0) {
+          setSymptomPresets(data.symptoms);
+        }
         if (data.model_spec) {
           setCurrentModelSpec(data.model_spec);
-        } else {
-          setCurrentModelSpec(null);
         }
         if (data.special_guides && data.special_guides.length > 0) {
           setSpecialGuides(data.special_guides);
         }
       }
     } catch {
-      // 오프라인/에러 시 기존 목록 유지
+      // 오프라인/에러 시 기본 목록 유지
     }
   }, []);
 
