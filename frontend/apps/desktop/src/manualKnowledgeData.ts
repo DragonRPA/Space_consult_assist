@@ -1472,3 +1472,8 @@ export const DEFAULT_SYMPTOM_PRESETS: SymptomPreset[] = [
     }
   }
 ];
+
+export const DEFAULT_OFFICIAL_ERROR_CODES: OfficialErrorCode[] = (
+  DEFAULT_SYMPTOM_PRESETS.find(p => p.id === 'EXT_ERROR_CODE')?.official_error_codes || []
+);
+

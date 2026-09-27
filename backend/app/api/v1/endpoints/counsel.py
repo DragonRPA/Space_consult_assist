@@ -187,18 +187,22 @@ async def classify_text(
     )
 
 class CounselCreate(BaseModel):
+    id: Optional[str] = None
     customer_id: Optional[str] = None
     customer_name: Optional[str] = "일반 고객"
     manager: Optional[str] = ""
+    phone: Optional[str] = ""
     serial_number: Optional[str] = ""
     model_name: Optional[str] = ""
     keyword: Optional[str] = ""
-    symptoms: str = Field(..., max_length=5000, description="증상 설명 (최대 5000자)")
+    symptoms: str = Field(..., max_length=10000, description="증상 설명 (최대 10000자)")
     part_code: Optional[str] = ""
-    action_taken: str = Field(..., max_length=5000, description="조치 내용 (최대 5000자)")
+    action_taken: str = Field(..., max_length=50000, description="조치 내용 (최대 50000자)")
     is_completed: bool = True
     is_visit_required: bool = False
     counselor_name: Optional[str] = None
+    session_snapshot: Optional[dict] = None
+
 # ─────────────────────────────────────────────────────────────
 # KB 검색 결과 즉시 제외 처리
 # PATCH /api/v1/counsel/knowledge/{item_id}/exclude
@@ -301,27 +305,21 @@ async def list_excluded_items(
         ]
     }
 
-    customer_id: Optional[str] = None
-    customer_name: Optional[str] = "일반 고객"
-    manager: Optional[str] = ""
-    serial_number: Optional[str] = ""
-    model_name: Optional[str] = ""
-    keyword: Optional[str] = ""
-    symptoms: str = Field(..., max_length=5000, description="증상 설명 (최대 5000자)")
-    part_code: Optional[str] = ""
-    action_taken: str = Field(..., max_length=5000, description="조치 내용 (최대 5000자)")
-    is_completed: bool = True
-    is_visit_required: bool = False
-    counselor_name: Optional[str] = None
-
 @router.post("/", status_code=201)
-async def create_counsel(
+async def create_or_update_counsel(
     counsel: CounselCreate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """상담 이력 실제 DB 저장 (consult_logs) 및 감사 로그(audit_log_minimal) 기록"""
-    new_id = uuid.uuid4()
+    """상담 이력 실제 DB 저장 (consult_logs) 및 감사 로그(audit_log_minimal) 기록 (신규 생성 또는 기존 진행중 상담 갱신)"""
+    target_id = None
+    if counsel.id:
+        try:
+            target_id = uuid.UUID(counsel.id)
+        except ValueError:
+            target_id = uuid.uuid4()
+    else:
+        target_id = uuid.uuid4()
     
     # 상담원 ID 매핑
     emp_id = None
@@ -334,41 +332,203 @@ async def create_counsel(
         if emp_row:
             emp_id = emp_row.id
 
-    query = text("""
-        INSERT INTO consult_logs (
-            id, customer_name, manager, serial_number, model_name,
-            keyword, symptom, action, is_completed, receiver_id, is_visit_required, timestamp
-        )
-        VALUES (
-            :id, :cname, :mgr, :snum, :model,
-            :kw, :symptom, :action, :is_comp, :emp_id, :is_visit, CURRENT_TIMESTAMP
-        )
-        RETURNING id
-    """)
-    res = await db.execute(query, {
-        "id": new_id,
-        "cname": counsel.customer_name or "일반 고객",
-        "mgr": counsel.manager or "",
-        "snum": counsel.serial_number or "",
-        "model": counsel.model_name or "",
-        "kw": counsel.keyword or counsel.part_code or "셀프조치",
-        "symptom": counsel.symptoms,
-        "action": counsel.action_taken,
-        "is_comp": counsel.is_completed,
-        "emp_id": emp_id,
-        "is_visit": counsel.is_visit_required
-    })
-    saved_id = res.scalar()
+    # action에 세션 스냅샷을 포함하여 완벽한 상태 복원 지원
+    action_payload = counsel.action_taken
+    if counsel.session_snapshot:
+        full_payload = {
+            "summary_text": counsel.action_taken,
+            "session_snapshot": counsel.session_snapshot
+        }
+        action_payload = json.dumps(full_payload, ensure_ascii=False)
 
-    # 감사 로그 기록 (헌장 1.2, 5.2 무누락 저장 & changed_by 연동)
+    # 기존 레코드 존재 여부 확인 (진행중 상담 갱신 지원)
+    chk_res = await db.execute(text("SELECT id FROM consult_logs WHERE id = :id"), {"id": target_id})
+    existing = chk_res.fetchone()
+
+    if existing:
+        update_query = text("""
+            UPDATE consult_logs
+            SET customer_name = :cname,
+                manager = :mgr,
+                serial_number = :snum,
+                model_name = :model,
+                keyword = :kw,
+                symptom = :symptom,
+                action = :action,
+                is_completed = :is_comp,
+                receiver_id = COALESCE(:emp_id, receiver_id),
+                is_visit_required = :is_visit,
+                timestamp = CURRENT_TIMESTAMP
+            WHERE id = :id
+            RETURNING id
+        """)
+        res = await db.execute(update_query, {
+            "id": target_id,
+            "cname": counsel.customer_name or "일반 고객",
+            "mgr": counsel.manager or "",
+            "snum": counsel.serial_number or "",
+            "model": counsel.model_name or "",
+            "kw": counsel.keyword or counsel.part_code or "셀프조치",
+            "symptom": counsel.symptoms,
+            "action": action_payload,
+            "is_comp": counsel.is_completed,
+            "emp_id": emp_id,
+            "is_visit": counsel.is_visit_required
+        })
+        saved_id = res.scalar()
+        action_name = 'UPDATE_COUNSEL'
+    else:
+        insert_query = text("""
+            INSERT INTO consult_logs (
+                id, customer_name, manager, serial_number, model_name,
+                keyword, symptom, action, is_completed, receiver_id, is_visit_required, timestamp
+            )
+            VALUES (
+                :id, :cname, :mgr, :snum, :model,
+                :kw, :symptom, :action, :is_comp, :emp_id, :is_visit, CURRENT_TIMESTAMP
+            )
+            RETURNING id
+        """)
+        res = await db.execute(insert_query, {
+            "id": target_id,
+            "cname": counsel.customer_name or "일반 고객",
+            "mgr": counsel.manager or "",
+            "snum": counsel.serial_number or "",
+            "model": counsel.model_name or "",
+            "kw": counsel.keyword or counsel.part_code or "셀프조치",
+            "symptom": counsel.symptoms,
+            "action": action_payload,
+            "is_comp": counsel.is_completed,
+            "emp_id": emp_id,
+            "is_visit": counsel.is_visit_required
+        })
+        saved_id = res.scalar()
+        action_name = 'INSERT_COUNSEL'
+
+    # 감사 로그 기록 (헌장 1.2, 5.2 무누락 저장)
     audit_q = text("""
         INSERT INTO audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
-        VALUES (:aid, 'consult_logs', :rid, 'INSERT_COUNSEL', :emp_id, CURRENT_TIMESTAMP)
+        VALUES (:aid, 'consult_logs', :rid, :action_name, :emp_id, CURRENT_TIMESTAMP)
     """)
-    await db.execute(audit_q, {"aid": uuid.uuid4(), "rid": saved_id, "emp_id": emp_id})
-
+    await db.execute(audit_q, {"aid": uuid.uuid4(), "rid": saved_id, "action_name": action_name, "emp_id": emp_id})
     await db.commit()
-    return {"id": str(saved_id), "status": "COMPLETED", "message": "상담 및 셀프조치 이력이 DB에 정상 저장되었습니다."}
+
+    return {
+        "id": str(saved_id),
+        "status": "COMPLETED" if counsel.is_completed else "IN_PROGRESS",
+        "message": "상담 데이터가 DB에 정상 저장되었습니다."
+    }
+
+
+@router.get("/pending", dependencies=[Depends(check_rate_limit)])
+async def get_pending_counsels(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """진행 중(미완결/고객 확인 대기) 상담 목록 조회"""
+    query = text("""
+        SELECT id, timestamp, customer_name, manager, serial_number, model_name,
+               keyword, symptom, action, is_completed, is_visit_required
+        FROM consult_logs
+        WHERE is_completed = false
+        ORDER BY timestamp DESC
+        LIMIT 50
+    """)
+    res = await db.execute(query)
+    rows = res.fetchall()
+    items = []
+    for r in rows:
+        snapshot = None
+        action_text = r.action or ""
+        if action_text.strip().startswith("{") and action_text.strip().endswith("}"):
+            try:
+                parsed = json.loads(action_text)
+                snapshot = parsed.get("session_snapshot")
+                action_text = parsed.get("summary_text", action_text)
+            except Exception:
+                pass
+        items.append({
+            "id": str(r.id),
+            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+            "customer_name": r.customer_name or "일반 고객",
+            "manager": r.manager or "",
+            "serial_number": r.serial_number or "",
+            "model_name": r.model_name or "",
+            "keyword": r.keyword or "",
+            "symptom": r.symptom or "",
+            "action": action_text,
+            "is_completed": r.is_completed,
+            "is_visit_required": r.is_visit_required,
+            "session_snapshot": snapshot
+        })
+    return {"status": "success", "total": len(items), "items": items}
+
+
+@router.get("/history", dependencies=[Depends(check_rate_limit)])
+async def get_counsel_history(
+    limit: int = 50,
+    status: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """상담 이력 전체 조회 (진행중 / 해결 / 출장접수)"""
+    where_cond = ""
+    if status == "in_progress":
+        where_cond = "WHERE is_completed = false"
+    elif status == "resolved":
+        where_cond = "WHERE is_completed = true AND is_visit_required = false"
+    elif status == "visit":
+        where_cond = "WHERE is_completed = true AND is_visit_required = true"
+
+    query = text(f"""
+        SELECT id, timestamp, customer_name, manager, serial_number, model_name,
+               keyword, symptom, action, is_completed, is_visit_required
+        FROM consult_logs
+        {where_cond}
+        ORDER BY timestamp DESC
+        LIMIT :lim
+    """)
+    res = await db.execute(query, {"lim": limit})
+    rows = res.fetchall()
+    items = []
+    for r in rows:
+        snapshot = None
+        action_text = r.action or ""
+        if action_text.strip().startswith("{") and action_text.strip().endswith("}"):
+            try:
+                parsed = json.loads(action_text)
+                snapshot = parsed.get("session_snapshot")
+                action_text = parsed.get("summary_text", action_text)
+            except Exception:
+                pass
+        items.append({
+            "id": str(r.id),
+            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+            "customer_name": r.customer_name or "일반 고객",
+            "manager": r.manager or "",
+            "serial_number": r.serial_number or "",
+            "model_name": r.model_name or "",
+            "keyword": r.keyword or "",
+            "symptom": r.symptom or "",
+            "action": action_text,
+            "is_completed": r.is_completed,
+            "is_visit_required": r.is_visit_required,
+            "session_snapshot": snapshot
+        })
+    return {"status": "success", "total": len(items), "items": items}
+
+
+@router.delete("/session/{session_id}", dependencies=[Depends(check_rate_limit)])
+async def delete_counsel_session(
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """진행 중 상담 취소 및 영구 삭제"""
+    await db.execute(text("DELETE FROM consult_logs WHERE id = :id"), {"id": str(session_id)})
+    await db.commit()
+    return {"status": "success", "id": str(session_id), "message": "상담 세션이 삭제되었습니다."}
+
 
 
 # ─────────────────────────────────────────────────────────────
