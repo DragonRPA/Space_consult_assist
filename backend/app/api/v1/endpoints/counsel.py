@@ -605,30 +605,36 @@ from .canonical_symptoms import (
     SPECIAL_MANUAL_GUIDES,
     resolve_symptoms_for_model,
     get_model_spec,
-    get_special_guides
+    get_special_guides,
+    get_model_error_codes
 )
 
 
 @router.get("/official-error-codes")
-async def get_official_error_codes():
-    """제조사((주)스페이스) 공식 12대 계기판 에러 코드 및 원클릭 즉시 판정 기준 반환"""
+async def get_official_error_codes(model: Optional[str] = None):
+    """제조사((주)스페이스) 공식 모델별 계기판 에러 코드 및 원클릭 즉시 판정 기준 반환"""
+    target = (model or "전체").strip()
+    codes = get_model_error_codes(target)
     return {
         "status": "success",
-        "total": len(OFFICIAL_12_ERROR_CODES),
-        "codes": OFFICIAL_12_ERROR_CODES
+        "model": target,
+        "total": len(codes),
+        "codes": codes
     }
 
 
 @router.get("/model-symptoms")
 async def get_model_symptoms(model: Optional[str] = None):
-    """장비 모델별 표준 16대 장애 유형 및 대응 조치 목록 반환 (모델 특화 부품/매뉴얼/스펙 자동 바인딩)"""
+    """장비 모델별 표준 16대 장애 유형 및 대응 조치 목록 반환 (모델 특화 부품/매뉴얼/스펙/에러코드 자동 바인딩)"""
     target = (model or "전체").strip()
     symptoms = resolve_symptoms_for_model(target)
     spec = get_model_spec(target)
+    codes = get_model_error_codes(target)
     
     return {
         "model": target,
         "symptoms": symptoms,
+        "error_codes": codes,
         "models": AVAILABLE_MODELS,
         "model_spec": spec,
         "special_guides": get_special_guides(),

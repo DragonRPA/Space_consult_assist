@@ -10,128 +10,19 @@ from typing import List, Dict, Any, Optional
 
 AVAILABLE_MODELS = ["전체", "J600T", "J800", "S7", "S5", "S1", "S3", "W12", "W15", "S2", "S12", "쓰담"]
 
-OFFICIAL_12_ERROR_CODES: List[Dict[str, Any]] = [
-    {
-        "code": "888",
-        "name": "자체 점검 (Self-Test)",
-        "category": "시스템",
-        "meaning": "키 스위치 ON 시 2초간 시스템 자체 점검 후 누적 사용 시간(Hour) 표시",
-        "call_script": "고객님, 키를 켤 때 888이 뜨는 것은 2초간 시스템 자체 점검이며, 이후 뜨는 숫자는 고장이 아닌 누적 사용 시간(Hour)입니다. 장비는 정상 작동 상태입니다.",
-        "resolution_type": "RESOLVED",
-        "part_code": None,
-        "action_desc": "정상 동작 안내 후 상담 완료"
-    },
-    {
-        "code": "0-F",
-        "name": "폐수탱크 만수",
-        "category": "탱크/센서",
-        "meaning": "오수(폐수)탱크에 물이 가득 차 부표 플로트 센서 작동으로 흡입 모터 안전 차단",
-        "call_script": "고객님, 계기판의 0-F 코드는 오수탱크가 가득 찼다는 신호입니다. 오수 배출 호스로 물을 완전히 비우고 탱크 내부 부표망을 헹궈주시면 정상 작동합니다.",
-        "resolution_type": "RESOLVED",
-        "part_code": "FLOAT-VALVE-ASSY",
-        "action_desc": "오수 탱크 배출 및 부표망 청소 안내"
-    },
-    {
-        "code": "0-C",
-        "name": "세수탱크 물없음",
-        "category": "탱크/센서",
-        "meaning": "세수(정수)탱크 수위 저하로 펌프 및 밸브 보호를 위해 장비 안전 차단",
-        "call_script": "고객님, 계기판의 0-C 코드는 깨끗한 물(정수)이 떨어졌다는 알림입니다. 정수 탱크에 물을 보충해 주시면 즉시 정상 작동합니다.",
-        "resolution_type": "RESOLVED",
-        "part_code": "SOLENOID-VALVE-24V",
-        "action_desc": "세수탱크 물 보충 안내"
-    },
-    {
-        "code": "0-0",
-        "name": "배터리 저전압",
-        "category": "배터리",
-        "meaning": "배터리 잔량이 컷오프 전압 이하로 방전되어 BMS 저전압 셧다운",
-        "call_script": "고객님, 0-0 코드는 배터리가 완전 방전된 상태입니다. 장비 전원을 끄고 전용 충전기에 연결하여 최소 8시간 동안 완충해 주십시오.",
-        "resolution_type": "RESOLVED",
-        "part_code": "BATTERY-PACK-24V",
-        "action_desc": "전용 충전기 8시간 완충 사이클 안내"
-    },
-    {
-        "code": "1-0",
-        "name": "브러시 과부하",
-        "category": "브러시",
-        "meaning": "브러시 모터에 과부하가 걸려 서킷 브레이커(차단기) 트립 또는 모터 보호 차단",
-        "call_script": "고객님, 1-0 코드는 브러시에 이물질이 감겼을 때 뜹니다. 브러시를 떼어내고 회전축에 감긴 노끈이나 비닐을 제거한 뒤 후면 차단기 버튼을 딸깍 눌러주십시오.",
-        "resolution_type": "RESOLVED",
-        "part_code": "BRUSH-MOTOR-ASSY",
-        "action_desc": "브러시 이물 제거 및 차단기 리셋 안내"
-    },
-    {
-        "code": "1-5",
-        "name": "브러시 단락/합선",
-        "category": "브러시",
-        "meaning": "브러시 구동 모터 단락(합선) 및 과전류 차단",
-        "call_script": "고객님, 1-5 코드는 브러시 모터 내부 회로 보호를 위해 차단된 상태입니다. 무리하게 재가동하시면 모터 손상이 심해지므로 즉시 전원을 끄고 전문 엔지니어 출장 점검을 접수해 드리겠습니다.",
-        "resolution_type": "VISIT_REQUIRED",
-        "part_code": "BRUSH-MOTOR-ASSY",
-        "action_desc": "브러시 모터 어셈블리 교체 출장 접수"
-    },
-    {
-        "code": "1-H",
-        "name": "브러시 과열",
-        "category": "브러시",
-        "meaning": "브러시 모터 내부 온도가 과열 임계치 초과",
-        "call_script": "고객님, 1-H 코드는 브러시 모터 과열 상태입니다. 장비 전원을 끄고 통풍이 잘되는 곳에서 30분간 모터를 식힌 후 다시 켜주십시오.",
-        "resolution_type": "RESOLVED",
-        "part_code": "BRUSH-MOTOR-ASSY",
-        "action_desc": "30분 브러시 모터 냉각 안내"
-    },
-    {
-        "code": "2-0",
-        "name": "흡입 모터 과부하",
-        "category": "흡입",
-        "meaning": "흡입 모터에 공기 흐름 차단 또는 이물질 걸림으로 과부하 발생",
-        "call_script": "고객님, 2-0 코드는 흡입 모터 통로가 막혔다는 신호입니다. 흡입 호스와 오수 탱크 거름망 필터를 빼서 물로 깨끗이 헹군 뒤 재가동해 주십시오.",
-        "resolution_type": "RESOLVED",
-        "part_code": "VACUUM-MOTOR-ASSY",
-        "action_desc": "흡입 호스 및 필터 이물 청소 안내"
-    },
-    {
-        "code": "2-5",
-        "name": "흡입 모터 단락/합선",
-        "category": "흡입",
-        "meaning": "흡입 모터 내부 코일 합선 또는 컨트롤러 파워선 단락",
-        "call_script": "고객님, 2-5 코드는 흡입 모터 전기 코일 단락 상태입니다. 누전 위험이 있으므로 즉시 전원을 끄고 흡입 모터 교체 출동을 접수해 드리겠습니다.",
-        "resolution_type": "VISIT_REQUIRED",
-        "part_code": "VACUUM-MOTOR-ASSY",
-        "action_desc": "흡입 모터 어셈블리 교체 출장 접수"
-    },
-    {
-        "code": "2-H",
-        "name": "흡입 모터 과열",
-        "category": "흡입",
-        "meaning": "흡입 모터 내부 온도가 과열 임계치 초과",
-        "call_script": "고객님, 2-H 코드는 흡입 모터 과열 상태입니다. 흡입 스위치를 끄고 30분간 모터를 냉각시킨 후 재작동해 주십시오.",
-        "resolution_type": "RESOLVED",
-        "part_code": "VACUUM-MOTOR-ASSY",
-        "action_desc": "30분 흡입 모터 냉각 안내"
-    },
-    {
-        "code": "3-0",
-        "name": "밸브 과전류",
-        "category": "세척수",
-        "meaning": "세척수 공급 솔레노이드 밸브에 과전류 감지",
-        "call_script": "고객님, 3-0 코드는 물 분사 밸브에 이물질이 걸린 상태입니다. 정수 탱크 하단 스트레이너 거름망 필터를 돌려 빼서 석회질을 세척해 주십시오.",
-        "resolution_type": "RESOLVED",
-        "part_code": "SOLENOID-VALVE-24V",
-        "action_desc": "정수 스트레이너 필터 세척 안내"
-    },
-    {
-        "code": "3-5",
-        "name": "밸브 단락/합선",
-        "category": "세척수",
-        "meaning": "솔레노이드 밸브 코일 단락 또는 액추에이터 고착 파손",
-        "call_script": "고객님, 3-5 코드는 전자 급수 밸브 코일 단락 상태입니다. 수동 급수 밸브를 잠그고 부품 교체 출동을 접수해 드리겠습니다.",
-        "resolution_type": "VISIT_REQUIRED",
-        "part_code": "SOLENOID-VALVE-24V",
-        "action_desc": "솔레노이드 밸브 부품 교체 출장 접수"
-    }
-]
+from .model_error_codes import (
+    MODEL_OFFICIAL_ERROR_CODES,
+    S3_S5_ERROR_CODES,
+    S7P_ERROR_CODES,
+    S12_ERROR_CODES,
+    JINCLEAN_ERROR_CODES,
+    SWEEPER_ERROR_CODES,
+    ROBOT_ERROR_CODES,
+    get_model_error_codes,
+)
+
+# 하위 호환성을 위한 기본 12대 코드 참조 (S3/S5 표준)
+OFFICIAL_12_ERROR_CODES: List[Dict[str, Any]] = S3_S5_ERROR_CODES
 
 # ─────────────────────────────────────────────────────────────
 # 제조사 매뉴얼 기반 모델별 하드웨어 정밀 제원 & 소모품 규격표
@@ -1086,6 +977,11 @@ def resolve_symptoms_for_model(model_name: Optional[str] = None) -> List[Dict[st
     resolved_list = []
     for item in CANONICAL_FAILURE_TYPES:
         entry = dict(item)
+
+        # 모델별 에러코드 동적 주입: EXT_ERROR_CODE일 경우
+        if entry.get("id") == "EXT_ERROR_CODE":
+            entry["official_error_codes"] = get_model_error_codes(matched_model or target_model)
+
         action_plan = dict(entry["action_plan"])
         
         # 기본 steps 복사 (깊은 복사)

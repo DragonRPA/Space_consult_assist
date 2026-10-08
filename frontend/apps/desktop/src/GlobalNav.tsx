@@ -17,27 +17,25 @@ interface GlobalNavProps {
 }
 
 export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, onOpenGuides }) => {
-  const tabs = [
+  const tabs: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [
     {
       id: 'counsel-v2' as NavTab,
-      label: '원클릭 상담 보조 (Action Plan)',
+      label: '상담 지원',
       icon: <Headphones size={15} />,
-      badge: '추천/기본',
     },
     {
       id: 'counsel-compare' as NavTab,
-      label: '임베딩 모델 비교 (bge-m3 vs OpenAI)',
+      label: '임베딩 모델 비교',
       icon: <Cpu size={15} />,
-      badge: '5,854건 HNSW',
     },
     {
       id: 'schedule' as NavTab,
-      label: '업무 일정 관리',
+      label: '일정 관리',
       icon: <Calendar size={15} />,
     },
     {
       id: 'stt-legacy' as NavTab,
-      label: '실시간 통화 녹음 / STT',
+      label: '통화 녹음 및 전사',
       icon: <Mic size={15} />,
     },
   ];
@@ -161,7 +159,7 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, o
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, fontSize: 11, color: '#64748b' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#22c55e' }}>
           <CheckCircle2 size={12} />
-          <span style={{ fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap' }}>서버 가동 중 (8000)</span>
+          <span style={{ fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap' }}>포트 8000 연결</span>
         </div>
       </div>
     </header>

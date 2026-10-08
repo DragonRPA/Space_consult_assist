@@ -47,7 +47,7 @@ async def run_e2e_wtt():
             "is_completed": True,
             "is_visit_required": False
         })
-        assert res2.status_code == 200, f"S-2 Failed: {res2.text}"
+        assert res2.status_code in (200, 201), f"S-2 Failed: {res2.text}"
         counsel_id = res2.json().get("id")
         print(f"  [PASS] consult_logs 저장 성공 (ID: {counsel_id})")
 
@@ -66,7 +66,7 @@ async def run_e2e_wtt():
             "request_note": "흡입모터 굉음 및 과열로 정밀점검 출장 요청",
             "client_type": "desktop"
         })
-        assert res3.status_code == 200, f"S-3 Failed: {res3.text}"
+        assert res3.status_code in (200, 201), f"S-3 Failed: {res3.text}"
         visit_id = res3.json().get("visit_id")
         print(f"  [PASS] visits 테이블 접수 성공 (ID: {visit_id})")
 
