@@ -278,7 +278,7 @@ export const MicTestModal: React.FC<MicTestModalProps> = ({ isOpen, onClose }) =
             lineHeight: 1.5,
             color: testTranscript ? 'var(--ink)' : 'var(--ink-subtle)'
           }}>
-            {testTranscript || (isTestListening ? "👉 지금 마이크에 대고 '아, 아, 마이크 테스트'라고 말씀해 보세요..." : "음성인식 대기 중...")}
+            {testTranscript || (isTestListening ? "마이크에 음성을 입력하여 인식을 확인하십시오." : "음성인식 대기 중")}
           </div>
         </div>
 
@@ -303,7 +303,7 @@ export const MicTestModal: React.FC<MicTestModalProps> = ({ isOpen, onClose }) =
             >
               {deviceList.map((d, i) => (
                 <option key={d.deviceId || i} value={d.deviceId}>
-                  🎙️ {d.label || `마이크 입력 장치 ${i + 1}`}
+                  {d.label || `마이크 입력 장치 ${i + 1}`}
                 </option>
               ))}
             </select>
@@ -345,7 +345,7 @@ export const MicTestModal: React.FC<MicTestModalProps> = ({ isOpen, onClose }) =
             cursor: 'pointer'
           }}
         >
-          확인 완료 및 상담 화면으로 돌아가기
+          확인 완료
         </button>
 
       </div>

@@ -86,11 +86,11 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
 
       audioRef.current.play().then(() => {
         setIsPlaying(true);
-        showToast("▶ 스피커로 소리 출력 중 (마이크로 실시간 전사)");
+        showToast("스피커 출력 시작 (마이크 실시간 전사 연동)");
         setTimeout(() => clearToast(), 3000);
       }).catch(err => {
         console.error("Audio playback error:", err);
-        showToast("⚠ 브라우저 오디오 재생 실패: 볼륨 및 오디오 장치를 확인해 주세요.");
+        showToast("오디오 재생 실패: 볼륨 및 오디오 장치 상태를 확인하십시오.");
         setTimeout(() => clearToast(), 3500);
       });
     }
@@ -213,7 +213,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
             onEnded={() => setIsPlaying(false)}
             onError={(e) => {
               console.error("Audio Load Error:", e);
-              showToast("⚠ 음성 파일 재생 오류: 파일 코덱을 확인해 주세요.");
+              showToast("음성 파일 재생 오류: 파일 코덱을 확인하십시오.");
             }}
           />
         )}
@@ -384,7 +384,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
             }}>
               <Sparkles size={16} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--accent-primary)' }} />
               <div>
-                <strong>💡 실시간 STT 검증 안내:</strong><br/>
+                <strong>실시간 STT 검증 안내:</strong><br/>
                 스피커로 재생되는 실제 음성이 PC 마이크로 입력되어 중앙 자막창에 4색 하이라이트로 실시간 전사됩니다.
               </div>
             </div>

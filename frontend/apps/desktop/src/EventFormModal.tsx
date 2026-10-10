@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2, Check } from 'lucide-react';
 import type { ScheduleEvent, ScheduleEventCreate, CategoryMeta } from './scheduleApi';
 import { CATEGORY_SCHEMAS, WORKTYPE_OPTIONS } from './CategorySchema';
 import type { FieldDef, TabDef } from './CategorySchema';
@@ -26,14 +26,15 @@ const OVERLAY: React.CSSProperties = {
 };
 
 const MODAL: React.CSSProperties = {
-  background: '#ffffff', borderRadius: 12, width: '100%', maxWidth: 640,
-  boxShadow: '0 20px 50px rgba(0,0,0,.4)', color: '#111827',
+  background: '#ffffff', borderRadius: 10, width: '100%', maxWidth: 640,
+  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+  border: '1px solid #e2e8f0', color: '#0f172a',
   fontFamily: "Pretendard, -apple-system, sans-serif",
 };
 
 const MODAL_HEAD: React.CSSProperties = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  padding: '16px 20px', borderBottom: '1px solid #23334d',
+  padding: '14px 20px', borderBottom: '1px solid #e2e8f0',
 };
 
 const MODAL_BODY: React.CSSProperties = {
@@ -41,7 +42,7 @@ const MODAL_BODY: React.CSSProperties = {
 };
 
 const MODAL_FOOT: React.CSSProperties = {
-  display: 'flex', gap: 8, padding: '14px 20px', borderTop: '1px solid #23334d', alignItems: 'center',
+  display: 'flex', gap: 8, padding: '12px 20px', borderTop: '1px solid #e2e8f0', alignItems: 'center',
 };
 
 const FIELD: React.CSSProperties = {
@@ -49,23 +50,23 @@ const FIELD: React.CSSProperties = {
 };
 
 const LABEL: React.CSSProperties = {
-  fontSize: 12.5, color: '#4b5563', fontWeight: 600, whiteSpace: 'nowrap',
+  fontSize: 12, color: '#475569', fontWeight: 600, whiteSpace: 'nowrap',
 };
 
 const INPUT_STYLE: React.CSSProperties = {
-  background: '#ffffff', border: '1px solid #23334d', borderRadius: 6,
-  padding: '7px 9px', fontSize: 13, color: '#111827', fontFamily: 'inherit', width: '100%',
-  boxSizing: 'border-box',
+  background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6,
+  padding: '6px 10px', fontSize: 13, color: '#0f172a', fontFamily: 'inherit', width: '100%',
+  boxSizing: 'border-box', outline: 'none',
 };
 
 const BTN_PRIMARY: React.CSSProperties = {
-  background: '#2563eb', color: '#fff', border: 'none', padding: '9px 18px',
-  borderRadius: 7, fontWeight: 600, fontSize: 13.5, cursor: 'pointer',
+  background: '#2563eb', color: '#fff', border: 'none', padding: '8px 18px',
+  borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer',
 };
 
 const BTN_LINE: React.CSSProperties = {
-  background: 'transparent', color: '#4b5563', border: '1px solid #23334d',
-  padding: '8px 14px', borderRadius: 7, fontSize: 13, cursor: 'pointer',
+  background: '#ffffff', color: '#475569', border: '1px solid #cbd5e1',
+  padding: '7px 14px', borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: 'pointer',
 };
 
 // ─── 동적 필드 렌더러 ─────────────────────────────────────────────────────────
@@ -193,12 +194,14 @@ function FieldRenderer({ fld, value, onChange, ctx }: FieldRendererProps) {
                 <button key={s} type="button"
                   onClick={() => onChange(fld.key, { ...statusObj, [s]: !done })}
                   style={{
-                    border: `1px solid ${done ? '#10b981' : '#e5e7eb'}`,
-                    background: done ? '#10b98122' : 'transparent',
-                    color: done ? '#10b981' : '#4b5563',
-                    borderRadius: 16, padding: '5px 12px', fontSize: 12, cursor: 'pointer', fontWeight: done ? 700 : 400,
+                    border: `1px solid ${done ? '#10b981' : '#cbd5e1'}`,
+                    background: done ? '#ecfdf5' : '#ffffff',
+                    color: done ? '#059669' : '#475569',
+                    borderRadius: 16, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontWeight: done ? 600 : 400,
+                    display: 'flex', alignItems: 'center', gap: 4
                   }}>
-                  {s}{done ? ' ✓' : ''}
+                  <span>{s}</span>
+                  {done && <Check size={12} />}
                 </button>
               );
             })}
@@ -486,14 +489,14 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
           <div style={{ marginTop: 16 }}>
             {/* 탭 버튼 */}
             {activeTabs.length > 0 && (
-              <div style={{ display: 'flex', gap: 8, marginBottom: 14, borderBottom: '2px solid #23334d' }}>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 14, borderBottom: '2px solid #e2e8f0' }}>
                 {activeTabs.map(t => (
                   <button key={t.key} type="button" onClick={() => setActiveTab(t.key)}
                     style={{
-                      background: activeTab === t.key ? '#ffffff' : 'transparent',
-                      border: '1px solid #23334d', borderBottom: 'none',
-                      borderRadius: '8px 8px 0 0', padding: '8px 16px', marginBottom: -2,
-                      fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+                      background: activeTab === t.key ? '#ffffff' : '#f8fafc',
+                      border: '1px solid #e2e8f0', borderBottom: 'none',
+                      borderRadius: '6px 6px 0 0', padding: '7px 14px', marginBottom: -2,
+                      fontSize: 13, fontWeight: 600, cursor: 'pointer',
                       color: activeTab === t.key ? '#2563eb' : '#64748b',
                     }}>
                     {t.label}

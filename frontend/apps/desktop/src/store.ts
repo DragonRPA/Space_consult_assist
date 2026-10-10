@@ -123,7 +123,7 @@ const DEFAULT_CUSTOMERS: CustomerInfo[] = [
     salesType: '임대(렌탈)',
     warrantyRemaining: '무상 7개월 잔여',
     historyTimeline: [
-      { date: '14일 전 (08-09)', title: '⚠ [30일 내 반복 고장 경고] 흡입모터 1차 교체 완료', isWarning: true },
+      { date: '14일 전 (08-09)', title: '[30일 내 반복 고장 경고] 흡입모터 1차 교체 완료', isWarning: true },
       { date: '2026-07-10', title: '솔레노이드 급수밸브 신품 교체 완료' },
       { date: '2026-05-15', title: '정기 점검 및 스퀴지 고무 블레이드 교체' }
     ]
@@ -155,7 +155,7 @@ const DEFAULT_CUSTOMERS: CustomerInfo[] = [
     salesType: '임대(렌탈)',
     warrantyRemaining: '보증 만료 (유상)',
     historyTimeline: [
-      { date: '14일 전 (08-09)', title: '⚠ [반복 AS 2회차] 흡입 모터 1차 교체 완료', isWarning: true }
+      { date: '14일 전 (08-09)', title: '[반복 AS 2회차] 흡입 모터 1차 교체 완료', isWarning: true }
     ]
   }
 ];

@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { Plus, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, RotateCcw, Star } from 'lucide-react';
 import {
   fetchEvents, fetchCategories, createEvent, updateEvent, deleteEvent, fetchEmployees,
   type ScheduleEvent, type CategoryMeta, type ScheduleEventCreate, type Employee
@@ -90,13 +90,13 @@ function MiniCal({ value, selected, onSelect, eventsByDate }: MiniCalProps) {
   }, [cur]);
 
   return (
-    <div style={{ border: '1px solid #23334d', borderRadius: 8, padding: 8, marginBottom: 14 }}>
+    <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 8, marginBottom: 14, background: '#ffffff' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
         <button onClick={() => setCur(new Date(cur.getFullYear(), cur.getMonth() - 1, 1))}
-          style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', fontSize: 15 }}>‹</button>
-        <span style={{ color: '#111827' }}>{cur.getFullYear()}년 {cur.getMonth() + 1}월</span>
+          style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 15 }}>‹</button>
+        <span style={{ color: '#0f172a' }}>{cur.getFullYear()}년 {cur.getMonth() + 1}월</span>
         <button onClick={() => setCur(new Date(cur.getFullYear(), cur.getMonth() + 1, 1))}
-          style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', fontSize: 15 }}>›</button>
+          style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 15 }}>›</button>
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, textAlign: 'center' }}>
         <thead>
@@ -114,13 +114,13 @@ function MiniCal({ value, selected, onSelect, eventsByDate }: MiniCalProps) {
                 const isToday   = sameDay(d, today);
                 const isSel     = sameDay(d, selected);
                 const hasDots   = (eventsByDate[ymd(d)] ?? []).length > 0;
-                const col       = di === 0 ? '#ef4444' : di === 6 ? '#60a5fa' : '#4b5563';
+                const col       = di === 0 ? '#ef4444' : di === 6 ? '#2563eb' : '#4b5563';
                 return (
                   <td key={di}
                     onClick={() => onSelect(d)}
                     style={{
                       cursor: 'pointer', borderRadius: '50%', padding: '3px 0',
-                      background: isSel ? '#2563eb' : isToday ? '#ffffff' : 'transparent',
+                      background: isSel ? '#2563eb' : isToday ? '#eff6ff' : 'transparent',
                       color: isSel ? '#fff' : isToday ? '#2563eb' : col,
                       fontWeight: (isToday || isSel) ? 700 : 400,
                       position: 'relative',
@@ -161,15 +161,18 @@ function EventBar({ ev, cats, onClick }: EventBarProps) {
       style={{
         fontSize: 11.5, padding: '2px 5px', borderRadius: 4,
         borderLeft: `3px solid ${color}`,
-        background: `${color}22`,
-        color: ev.is_done ? '#64748b' : '#111827',
+        background: `${color}18`,
+        color: ev.is_done ? '#64748b' : '#0f172a',
         textDecoration: ev.is_done ? 'line-through' : 'none',
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         cursor: 'pointer', marginBottom: 2,
         opacity: ev.is_done ? 0.6 : 1,
+        display: 'flex', alignItems: 'center', gap: 3
       }}>
-      {ev.is_important && <span style={{ color: '#f59e0b', marginRight: 3 }}>★</span>}
-      {ev.title || cat?.label || ev.category}
+      {ev.is_important && <Star size={10} fill="#f59e0b" color="#f59e0b" style={{ flexShrink: 0 }} />}
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {ev.title || cat?.label || ev.category}
+      </span>
     </div>
   );
 }
@@ -214,13 +217,13 @@ function MonthView({ baseDate, events, cats, selectedDate, onSelectDate, onClick
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
-      background: '#ffffff', border: '1px solid #23334d', borderRadius: 10, overflow: 'hidden',
+      background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden',
     }}>
       {DOW.map((d, i) => (
         <div key={d} style={{
           textAlign: 'center', fontSize: 12, fontWeight: 700,
-          color: i === 0 ? '#ef4444' : i === 6 ? '#60a5fa' : '#64748b',
-          padding: '9px 0', background: '#ffffff', borderBottom: '1px solid #23334d',
+          color: i === 0 ? '#ef4444' : i === 6 ? '#2563eb' : '#64748b',
+          padding: '8px 0', background: '#f8fafc', borderBottom: '1px solid #e2e8f0',
         }}>{d}</div>
       ))}
       {cells.map((cell, idx) => {
@@ -235,16 +238,16 @@ function MonthView({ baseDate, events, cats, selectedDate, onSelectDate, onClick
             onClick={() => onSelectDate(cell)}
             style={{
               minHeight: 100, padding: 6, cursor: 'pointer',
-              borderRight: (idx + 1) % 7 === 0 ? 'none' : '1px solid #23334d',
-              borderBottom: '1px solid #23334d',
-              background: isToday ? '#ffffff' : 'transparent',
+              borderRight: (idx + 1) % 7 === 0 ? 'none' : '1px solid #e2e8f0',
+              borderBottom: '1px solid #e2e8f0',
+              background: isSel ? '#f0f7ff' : isToday ? '#fafafa' : '#ffffff',
               opacity: isCurrentMonth ? 1 : 0.35,
             }}>
             <div style={{
               fontSize: 12.5, fontWeight: 700, marginBottom: 4,
               color: isToday
                 ? '#2563eb'
-                : dow === 0 ? '#ef4444' : dow === 6 ? '#60a5fa' : '#64748b',
+                : dow === 0 ? '#ef4444' : dow === 6 ? '#2563eb' : '#64748b',
               ...(isSel ? {
                 background: '#2563eb', color: '#fff', borderRadius: '50%',
                 width: 22, height: 22, display: 'flex', alignItems: 'center',
@@ -258,7 +261,7 @@ function MonthView({ baseDate, events, cats, selectedDate, onSelectDate, onClick
                 <EventBar key={ev.id} ev={ev} cats={cats} onClick={() => onClickEvent(ev)} />
               ))}
               {dayEvs.length > 3 && (
-                <div style={{ fontSize: 11, color: '#64748b', cursor: 'pointer' }}>
+                <div style={{ fontSize: 11, color: '#64748b', cursor: 'pointer', paddingLeft: 4 }}>
                   +{dayEvs.length - 3}건 더
                 </div>
               )}
@@ -286,16 +289,16 @@ function DayView({ date, events, cats, onClickEvent, onNewEvent }: DayViewProps)
   const isToday = sameDay(date, today);
 
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #23334d', borderRadius: 10, minHeight: 400, padding: 16 }}>
-      <div style={{ fontWeight: 700, fontSize: 15, color: isToday ? '#2563eb' : '#111827', marginBottom: 14 }}>
+    <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, minHeight: 400, padding: 16 }}>
+      <div style={{ fontWeight: 700, fontSize: 15, color: isToday ? '#2563eb' : '#0f172a', marginBottom: 14 }}>
         {date.getFullYear()}년 {date.getMonth() + 1}월 {date.getDate()}일
-        {isToday && <span style={{ marginLeft: 8, fontSize: 11, background: '#2563eb22', color: '#2563eb', borderRadius: 4, padding: '2px 7px' }}>오늘</span>}
+        {isToday && <span style={{ marginLeft: 8, fontSize: 11, background: '#eff6ff', color: '#2563eb', borderRadius: 4, padding: '2px 7px', border: '1px solid #bfdbfe' }}>오늘</span>}
       </div>
       {dayEvs.length === 0 ? (
         <div style={{ color: '#64748b', fontSize: 13, textAlign: 'center', padding: '40px 0' }}>
           등록된 일정이 없습니다.
           <br />
-          <button onClick={onNewEvent} style={{ marginTop: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 7, padding: '8px 16px', cursor: 'pointer', fontSize: 13 }}>
+          <button onClick={onNewEvent} style={{ marginTop: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
             + 업무 등록
           </button>
         </div>
@@ -309,7 +312,7 @@ function DayView({ date, events, cats, onClickEvent, onNewEvent }: DayViewProps)
               <div key={ev.id} onClick={() => onClickEvent(ev)}
                 style={{
                   display: 'flex', alignItems: 'flex-start', gap: 10,
-                  padding: '10px 4px', borderBottom: '1px solid #23334d',
+                  padding: '10px 4px', borderBottom: '1px solid #f1f5f9',
                   cursor: 'pointer',
                 }}>
                 <div style={{ flex: '0 0 52px', fontSize: 12, color: '#64748b', paddingTop: 2 }}>
@@ -318,12 +321,13 @@ function DayView({ date, events, cats, onClickEvent, onNewEvent }: DayViewProps)
                 <div style={{ width: 3, borderRadius: 2, background: color, alignSelf: 'stretch', minHeight: 20, flex: 'none' }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 14, color: ev.is_done ? '#64748b' : '#111827',
+                    fontSize: 14, color: ev.is_done ? '#64748b' : '#0f172a',
                     textDecoration: ev.is_done ? 'line-through' : 'none',
+                    display: 'flex', alignItems: 'center', gap: 4
                   }}>
-                    {ev.is_important && <span style={{ color: '#f59e0b', marginRight: 4 }}>★</span>}
-                    {ev.title || cat?.label || ev.category}
-                    {ev.call_done && <span style={{ marginLeft: 6, fontSize: 11, color: '#10b981' }}>T</span>}
+                    {ev.is_important && <Star size={12} fill="#f59e0b" color="#f59e0b" style={{ flexShrink: 0 }} />}
+                    <span>{ev.title || cat?.label || ev.category}</span>
+                    {ev.call_done && <span style={{ marginLeft: 4, fontSize: 11, color: '#10b981', fontWeight: 600 }}>통화완료</span>}
                   </div>
                   {ev.contract_company && (
                     <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
@@ -400,11 +404,12 @@ function ListView({ events, cats, onClickEvent }: ListViewProps) {
                       {ev.is_allday ? '종일' : ev.start_at.slice(11, 16)}
                     </div>
                     <div style={{
-                      flex: 1, fontSize: 14, color: ev.is_done ? '#9ca3af' : '#111827',
-                      textDecoration: ev.is_done ? 'line-through' : 'none'
+                      flex: 1, fontSize: 14, color: ev.is_done ? '#94a3b8' : '#0f172a',
+                      textDecoration: ev.is_done ? 'line-through' : 'none',
+                      display: 'flex', alignItems: 'center', gap: 4
                     }}>
-                      {ev.is_important && <span style={{ color: '#f59e0b', marginRight: 4 }}>★</span>}
-                      {ev.title || cat?.label || ev.category}
+                      {ev.is_important && <Star size={12} fill="#f59e0b" color="#f59e0b" style={{ flexShrink: 0 }} />}
+                      <span>{ev.title || cat?.label || ev.category}</span>
                     </div>
                   </div>
                 );
@@ -613,234 +618,206 @@ export default function SchedulePage() {
 
   // ─── 렌더 ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f9fafb', color: '#111827', fontFamily: "Pretendard, -apple-system, sans-serif", overflow: 'hidden' }}>
-      
-      {/* 모방용 상단 헤더 */}
-      <header style={{ height: '48px', background: '#6366f1', display: 'flex', alignItems: 'center', padding: '0 20px', color: '#fff', flexShrink: 0, gap: '10px' }}>
-        <div style={{ fontWeight: 900, fontSize: '18px', fontStyle: 'italic', letterSpacing: '-0.5px' }}>SPACE</div>
-        <div style={{ fontSize: '14px', fontWeight: 600 }}>(주)스페이스 업무캘린더</div>
-        <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '12px' }}>
-          <button style={{ background: '#ffffff', color: '#6366f1', border: 'none', padding: '4px 10px', borderRadius: '12px', fontWeight: 600, cursor: 'pointer' }}>
-            Google 계정 연결
-          </button>
-          <button style={{ background: 'transparent', color: '#fff', border: '1px solid #fff', padding: '4px 10px', borderRadius: '12px', cursor: 'pointer' }}>
-            비밀번호 변경
-          </button>
-          <span style={{ marginLeft: '10px' }}>관리자님으로 로그인 중</span>
-        </div>
-      </header>
-
-      {/* 경고바 (옵션) */}
-      <div style={{ background: '#fef3c7', color: '#d97706', fontSize: '12px', padding: '8px', textAlign: 'center', fontWeight: 600 }}>
-        ⚠️ Google Drive 연동은 현재 Space Advisor 내부 스토리지로 전환되었습니다. 첨부파일은 정상 작동합니다.
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)', background: '#f8fafc', color: '#0f172a', fontFamily: "Pretendard, -apple-system, sans-serif", overflow: 'hidden' }}>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* 사이드바 */}
-        <aside style={{ width: 250, flexShrink: 0, background: '#ffffff', borderRight: '1px solid #e5e7eb', padding: 16, overflowY: 'auto' }}>
-        {/* 등록 버튼 */}
-        <button
-          onClick={() => { setEditingEvent(null); setDefaultDate(ymd(selectedDate)); setFormOpen(true); }}
-          style={{
-            width: '100%', marginBottom: 8, background: '#2563eb', color: '#fff', border: 'none',
-            padding: '10px 14px', borderRadius: 7, fontWeight: 600, fontSize: 13.5, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-          <Plus size={16} /> 업무 등록
-        </button>
-
-        {/* 관제 복귀 버튼 */}
-        <button
-          onClick={() => window.location.href = '/'}
-          style={{
-            width: '100%', marginBottom: 14, background: '#ffffff', color: '#4b5563', border: '1px solid #334155',
-            padding: '8px 14px', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-          <span style={{ transform: 'scaleX(-1)' }}>↗</span> 상담 관제로 복귀
-        </button>
-
-        {/* 미니 캘린더 */}
-        <MiniCal
-          value={baseDate}
-          selected={selectedDate}
-          onSelect={handleSelectDate}
-          eventsByDate={eventsByDate}
-        />
-
-        {/* 일정 검색 (Image 모방) */}
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px', marginBottom: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#4b5563', marginBottom: 8 }}>
-            일정검색
-          </div>
-          <input
-            type="text"
-            placeholder="연-월-일"
-            value={searchDate}
-            onChange={e => setSearchDate(e.target.value)}
+        <aside style={{ width: 240, flexShrink: 0, background: '#ffffff', borderRight: '1px solid #e2e8f0', padding: 14, overflowY: 'auto' }}>
+          {/* 업무 등록 버튼 */}
+          <button
+            onClick={() => { setEditingEvent(null); setDefaultDate(ymd(selectedDate)); setFormOpen(true); }}
             style={{
-              width: '100%', padding: '6px 10px', fontSize: 13, border: '1px solid #d1d5db', borderRadius: 6,
-              marginBottom: 6, outline: 'none', color: '#111827'
+              width: '100%', marginBottom: 12, background: '#2563eb', color: '#ffffff', border: 'none',
+              padding: '8px 12px', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+              transition: 'background-color 0.15s'
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1d4ed8'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#2563eb'; }}
+          >
+            <Plus size={15} /> 업무 등록
+          </button>
+
+          {/* 미니 캘린더 */}
+          <MiniCal
+            value={baseDate}
+            selected={selectedDate}
+            onSelect={handleSelectDate}
+            eventsByDate={eventsByDate}
           />
-          <input
-            type="text"
-            placeholder="제목/장소/거래처 등"
-            value={searchKeyword}
-            onChange={e => setSearchKeyword(e.target.value)}
-            style={{
-              width: '100%', padding: '6px 10px', fontSize: 13, border: '1px solid #d1d5db', borderRadius: 6,
-              outline: 'none', color: '#111827'
-            }}
-          />
-        </div>
 
-        {/* 카테고리 필터 */}
-        <div>
-          <div style={{ fontSize: 12, color: '#64748b', fontWeight: 700, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>카테고리</span>
-            <label style={{ fontWeight: 400, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
-              <input type="checkbox"
-                checked={Object.values(catFilter).every(Boolean)}
-                onChange={e => {
-                  const next: Record<string, boolean> = {};
-                  cats.forEach(c => { next[c.key] = e.target.checked; });
-                  setCatFilter(next);
-                }} />
-              전체
-            </label>
-          </div>
-          {cats.map(c => (
-            <label key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              <input type="checkbox"
-                checked={catFilter[c.key] !== false}
-                onChange={e => setCatFilter(prev => ({ ...prev, [c.key]: e.target.checked }))} />
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: c.color, display: 'inline-block', flexShrink: 0 }} />
-              <span style={{ color: '#111827' }}>{c.label}</span>
-            </label>
-          ))}
-        </div>
-      </aside>
-
-      {/* 메인 패널 */}
-      <main style={{ flex: 1, overflow: 'auto', padding: '18px 20px' }}>
-        {/* 툴바 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, overflowX: 'auto', whiteSpace: 'nowrap', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={() => { const d = new Date(); setBaseDate(d); setSelectedDate(d); }}
-              style={{ background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 12px', fontSize: 13, color: '#4b5563', cursor: 'pointer' }}>
-              오늘
-            </button>
-            <button onClick={() => navigate(-1)}
-              style={{ background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 11px', color: '#4b5563', cursor: 'pointer' }}>
-              <ChevronLeft size={14} />
-            </button>
-            <button onClick={() => navigate(1)}
-              style={{ background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 11px', color: '#4b5563', cursor: 'pointer' }}>
-              <ChevronRight size={14} />
-            </button>
-            <h2 style={{ margin: '0 0 0 6px', fontSize: 18, color: '#111827' }}>{periodLabel}</h2>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            {loading && <RotateCcw size={14} style={{ color: '#64748b', animation: 'spin 1s linear infinite' }} />}
-            
-            {/* 담당자 필터 (Image 모방) */}
-            <select
-              value={selectedEmp}
-              onChange={e => setSelectedEmp(e.target.value)}
+          {/* 일정 검색 */}
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: '10px 12px', marginBottom: 14, background: '#f8fafc' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+              일정 검색
+            </div>
+            <input
+              type="text"
+              placeholder="연-월-일 (예: 2026-10-11)"
+              value={searchDate}
+              onChange={e => setSearchDate(e.target.value)}
               style={{
-                background: '#ffffff', border: '1px solid #d1d5db', color: '#111827',
-                padding: '6px 28px 6px 12px', borderRadius: 20, fontSize: 13, fontWeight: 500,
-                outline: 'none', cursor: 'pointer', appearance: 'none',
-                backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23111827\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'/%3E%3C/svg%3E")',
-                backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center'
+                width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid #cbd5e1', borderRadius: 4,
+                marginBottom: 6, outline: 'none', color: '#0f172a', background: '#ffffff', boxSizing: 'border-box'
               }}
-            >
-              <option value="all">담당자 전체</option>
-              {employees.map(emp => (
-                <option key={emp.id} value={emp.name}>{emp.name}</option>
-              ))}
-            </select>
+            />
+            <input
+              type="text"
+              placeholder="제목, 장소, 거래처 검색"
+              value={searchKeyword}
+              onChange={e => setSearchKeyword(e.target.value)}
+              style={{
+                width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid #cbd5e1', borderRadius: 4,
+                outline: 'none', color: '#0f172a', background: '#ffffff', boxSizing: 'border-box'
+              }}
+            />
+          </div>
 
-            {/* 뷰 전환 탭 */}
-            <div style={{ display: 'flex', gap: 4 }}>
-              {(['day', 'week', 'month', 'list'] as const).map(v => (
-                <button key={v} onClick={() => setView(v)}
-                  style={{
-                    border: view === v ? '1px solid #2563eb' : '1px solid #d1d5db',
-                    padding: '6px 12px', borderRadius: 20, fontSize: 13, cursor: 'pointer', fontWeight: 500,
-                    background: view === v ? '#2563eb' : '#ffffff',
-                    color: view === v ? '#ffffff' : '#4b5563',
-                  }}>
-                  {v === 'day' ? '일간' : v === 'week' ? '주간' : v === 'month' ? '월간' : '목록'}
-                </button>
-              ))}
+          {/* 카테고리 필터 */}
+          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 10 }}>
+            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>카테고리</span>
+              <label style={{ fontWeight: 500, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: '#475569' }}>
+                <input type="checkbox"
+                  checked={Object.values(catFilter).every(Boolean)}
+                  onChange={e => {
+                    const next: Record<string, boolean> = {};
+                    cats.forEach(c => { next[c.key] = e.target.checked; });
+                    setCatFilter(next);
+                  }} />
+                전체
+              </label>
+            </div>
+            {cats.map(c => (
+              <label key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                <input type="checkbox"
+                  checked={catFilter[c.key] !== false}
+                  onChange={e => setCatFilter(prev => ({ ...prev, [c.key]: e.target.checked }))} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.color, display: 'inline-block', flexShrink: 0 }} />
+                <span style={{ color: '#334155' }}>{c.label}</span>
+              </label>
+            ))}
+          </div>
+        </aside>
+
+        {/* 메인 패널 */}
+        <main style={{ flex: 1, overflow: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column' }}>
+          {/* 툴바 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, overflowX: 'auto', whiteSpace: 'nowrap', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button onClick={() => { const d = new Date(); setBaseDate(d); setSelectedDate(d); }}
+                style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                오늘
+              </button>
+              <button onClick={() => navigate(-1)}
+                style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 8px', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                <ChevronLeft size={14} />
+              </button>
+              <button onClick={() => navigate(1)}
+                style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 8px', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                <ChevronRight size={14} />
+              </button>
+              <h2 style={{ margin: '0 0 0 8px', fontSize: 16, fontWeight: 700, color: '#0f172a' }}>{periodLabel}</h2>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {loading && <RotateCcw size={14} style={{ color: '#64748b', animation: 'spin 1s linear infinite' }} />}
+              
+              {/* 담당자 필터 */}
+              <select
+                value={selectedEmp}
+                onChange={e => setSelectedEmp(e.target.value)}
+                style={{
+                  background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a',
+                  padding: '5px 28px 5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                  outline: 'none', cursor: 'pointer', appearance: 'none',
+                  backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%230f172a\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'/%3E%3C/svg%3E")',
+                  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center'
+                }}
+              >
+                <option value="all">담당자 전체</option>
+                {employees.map(emp => (
+                  <option key={emp.id} value={emp.name}>{emp.name}</option>
+                ))}
+              </select>
+
+              {/* 뷰 전환 탭 */}
+              <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: 6, overflow: 'hidden', background: '#f1f5f9' }}>
+                {(['day', 'week', 'month', 'list'] as const).map(v => (
+                  <button key={v} onClick={() => setView(v)}
+                    style={{
+                      border: 'none',
+                      padding: '5px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600,
+                      background: view === v ? '#2563eb' : 'transparent',
+                      color: view === v ? '#ffffff' : '#475569',
+                      transition: 'all 0.15s ease'
+                    }}>
+                    {v === 'day' ? '일간' : v === 'week' ? '주간' : v === 'month' ? '월간' : '목록'}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* 오류 */}
-        {error && (
-          <div style={{ background: '#ef444422', border: '1px solid #ef4444', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#ef4444', marginBottom: 12 }}>
-            {error}
-          </div>
-        )}
+          {/* 오류 */}
+          {error && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: '#dc2626', marginBottom: 12 }}>
+              {error}
+            </div>
+          )}
 
-        {/* 뷰 본문 */}
-        {view === 'month' && (
-          <MonthView
-            baseDate={baseDate}
-            events={filteredEvents}
-            cats={cats}
-            selectedDate={selectedDate}
-            onSelectDate={handleSelectDate}
-            onClickEvent={setDetailEvent}
-          />
-        )}
-        {view === 'day' && (
-          <DayView
-            date={selectedDate}
-            events={filteredEvents}
-            cats={cats}
-            onClickEvent={setDetailEvent}
-            onNewEvent={() => { setEditingEvent(null); setDefaultDate(ymd(selectedDate)); setFormOpen(true); }}
-          />
-        )}
-        {view === 'week' && (
-          // 주간 뷰: 7열 그리드 (간소화 — 일간 뷰 7개 나열)
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-            {Array.from({ length: 7 }, (_, i) => {
-              const d = addDays(startOfWeek(baseDate), i);
-              const dayEvs = filteredEvents.filter(ev => ev.start_at.slice(0, 10) === ymd(d));
-              const isToday = sameDay(d, new Date());
-              const dow = i;
-              return (
-                <div key={i} style={{ background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 8, padding: 6, minHeight: 300 }}>
-                  <div style={{
-                    textAlign: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6,
-                    color: isToday ? '#2563eb' : dow === 0 ? '#ef4444' : dow === 6 ? '#60a5fa' : '#4b5563',
-                  }}>
-                    {['일','월','화','수','목','금','토'][i]}<br />
-                    <span style={{ fontSize: 11 }}>{d.getDate()}</span>
+          {/* 뷰 본문 */}
+          {view === 'month' && (
+            <MonthView
+              baseDate={baseDate}
+              events={filteredEvents}
+              cats={cats}
+              selectedDate={selectedDate}
+              onSelectDate={handleSelectDate}
+              onClickEvent={setDetailEvent}
+            />
+          )}
+          {view === 'day' && (
+            <DayView
+              date={selectedDate}
+              events={filteredEvents}
+              cats={cats}
+              onClickEvent={setDetailEvent}
+              onNewEvent={() => { setEditingEvent(null); setDefaultDate(ymd(selectedDate)); setFormOpen(true); }}
+            />
+          )}
+          {view === 'week' && (
+            // 주간 뷰: 7열 그리드
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+              {Array.from({ length: 7 }, (_, i) => {
+                const d = addDays(startOfWeek(baseDate), i);
+                const dayEvs = filteredEvents.filter(ev => ev.start_at.slice(0, 10) === ymd(d));
+                const isToday = sameDay(d, new Date());
+                const dow = i;
+                return (
+                  <div key={i} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 8, minHeight: 320 }}>
+                    <div style={{
+                      textAlign: 'center', fontSize: 12, fontWeight: 700, marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid #f1f5f9',
+                      color: isToday ? '#2563eb' : dow === 0 ? '#ef4444' : dow === 6 ? '#2563eb' : '#475569',
+                    }}>
+                      {['일','월','화','수','목','금','토'][i]} <span style={{ fontSize: 12, fontWeight: 600 }}>({d.getDate()})</span>
+                    </div>
+                    {dayEvs.map(ev => (
+                      <EventBar key={ev.id} ev={ev} cats={cats} onClick={() => setDetailEvent(ev)} />
+                    ))}
                   </div>
-                  {dayEvs.map(ev => (
-                    <EventBar key={ev.id} ev={ev} cats={cats} onClick={() => setDetailEvent(ev)} />
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {view === 'list' && (
-          <ListView
-            events={filteredEvents}
-            cats={cats}
-            onClickEvent={setDetailEvent}
-          />
-        )}
-      </main>
+                );
+              })}
+            </div>
+          )}
+          {view === 'list' && (
+            <ListView
+              events={filteredEvents}
+              cats={cats}
+              onClickEvent={setDetailEvent}
+            />
+          )}
+        </main>
 
       {/* 업무 등록/수정 모달 */}
       {formOpen && (

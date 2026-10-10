@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { X, Star } from 'lucide-react';
 import type { ScheduleEvent, CategoryMeta } from './scheduleApi';
 import { CATEGORY_SCHEMAS, getAllFields } from './CategorySchema';
 
@@ -18,17 +18,18 @@ const OVERLAY: React.CSSProperties = {
 };
 
 const MODAL: React.CSSProperties = {
-  background: '#ffffff', borderRadius: 12, width: '100%', maxWidth: 560,
-  boxShadow: '0 20px 50px rgba(0,0,0,.4)', color: '#111827',
+  background: '#ffffff', borderRadius: 10, width: '100%', maxWidth: 560,
+  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+  border: '1px solid #e2e8f0', color: '#0f172a',
   fontFamily: "Pretendard, -apple-system, sans-serif",
 };
 
 const D_ROW: React.CSSProperties = {
-  display: 'flex', gap: 14, padding: '10px 0', borderBottom: '1px solid #e5e7eb', fontSize: 13,
+  display: 'flex', gap: 14, padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: 13,
 };
 
-const D_LABEL: React.CSSProperties = { flex: '0 0 120px', color: '#6b7280', fontWeight: 500 };
-const D_VALUE: React.CSSProperties = { flex: 1, color: '#111827', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontWeight: 500 };
+const D_LABEL: React.CSSProperties = { flex: '0 0 110px', color: '#64748b', fontWeight: 600, fontSize: 12 };
+const D_VALUE: React.CSSProperties = { flex: 1, color: '#0f172a', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontWeight: 500 };
 
 function formatFieldValue(val: unknown, type: string): string {
   if (val === undefined || val === null || val === '') return '';
@@ -111,29 +112,29 @@ export function EventDetailModal({ event: ev, cats, onClose, onEdit, onDelete: _
       <div style={MODAL}>
         
         {/* 헤더 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e5e7eb' }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>일정 상세보기</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}><X size={20} /></button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid #e2e8f0' }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>일정 상세</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={18} /></button>
         </div>
 
         {/* 바디 */}
-        <div style={{ padding: '24px 20px 14px 20px', maxHeight: '70vh', overflowY: 'auto' }}>
+        <div style={{ padding: '20px 20px 14px 20px', maxHeight: '70vh', overflowY: 'auto' }}>
           
-          {/* 제목부 (A/S 모방: 빨간점 + 제목) */}
+          {/* 제목부 */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
             <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0, marginTop: 5 }} />
             <div>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827', textDecoration: ev.is_done ? 'line-through' : 'none' }}>
-                {ev.is_important && <span style={{ color: '#f59e0b', marginRight: 4 }}>★</span>}
-                {ev.title || cat?.label || ev.category}
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a', textDecoration: ev.is_done ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {ev.is_important && <Star size={14} fill="#f59e0b" color="#f59e0b" style={{ flexShrink: 0 }} />}
+                <span>{ev.title || cat?.label || ev.category}</span>
               </h3>
-              <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
                 {cat?.label || ev.category}
               </div>
             </div>
           </div>
 
-          <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 16 }}>
+          <div style={{ borderTop: '1px solid #f1f5f9', marginTop: 14 }}>
             {/* 고정 필드 순서 (공통 & A/S 특화) */}
             
             <div style={D_ROW}><span style={D_LABEL}>업무카테고리</span><span style={D_VALUE}>{cat?.label || ev.category}</span></div>
@@ -219,28 +220,28 @@ export function EventDetailModal({ event: ev, cats, onClose, onEdit, onDelete: _
         </div>
 
         {/* 푸터 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 20px', borderTop: '1px solid #e5e7eb', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid #e2e8f0', alignItems: 'center' }}>
           {/* 좌측 버튼 그룹 */}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={onToggleDone}
-              style={{ background: '#ffffff', border: '1px solid #d1d5db', color: '#4b5563', padding: '8px 16px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
+              style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#475569', padding: '7px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
               {ev.is_done ? '완료취소' : '완료처리'}
             </button>
             <button
-              style={{ background: '#ffffff', border: '1px solid #d1d5db', color: '#4b5563', padding: '8px 16px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
-              ERP 복사용
+              style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#475569', padding: '7px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
+              ERP 복사
             </button>
           </div>
           
           {/* 우측 버튼 그룹 */}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={onClose}
-              style={{ background: '#ffffff', border: '1px solid #d1d5db', color: '#4b5563', padding: '8px 16px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
+              style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#475569', padding: '7px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
               닫기
             </button>
             <button onClick={onEdit}
-              style={{ background: '#4f46e5', color: '#ffffff', border: 'none', padding: '8px 16px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
-              상세정보(수정)
+              style={{ background: '#2563eb', color: '#ffffff', border: 'none', padding: '7px 16px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+              정보 수정
             </button>
           </div>
         </div>

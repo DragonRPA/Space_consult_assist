@@ -878,7 +878,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
       console.warn("Speech Recognition Status:", event.error);
       if (event.error === 'not-allowed') {
         setRecording(false);
-        showToast("⚠ 마이크 권한이 차단되었습니다. 브라우저 설정에서 마이크를 허용해 주세요.");
+        showToast("마이크 권한이 차단되었습니다. 브라우저 설정에서 마이크를 허용해 주세요.");
         setTimeout(() => clearToast(), 4000);
       }
     };
@@ -946,20 +946,20 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
 
   const handleKeywordSelect = (entity: KeywordEntity) => {
     setActiveKeywordEntity(entity);
-    showToast(`🔍 키워드 [${entity.keyword}] 어시스트 즉시 조회 연동됨`);
+    showToast(`키워드 [${entity.keyword}] 어시스트 조회 연동 완료`);
     setTimeout(() => clearToast(), 2500);
   };
 
   const handleCustomerSelect = (customer: CustomerInfo) => {
     selectCustomer(customer);
-    showToast(`🏢 고객사 [${customer.name}] 선택됨`);
+    showToast(`고객사 [${customer.name}] 선택 완료`);
     setTimeout(() => clearToast(), 2500);
   };
 
   const handleActionSelect = (rule: EntityRule) => {
     if (rule.actionIndex && actionChecklist[rule.actionIndex - 1]) {
       toggleChecklist(rule.actionIndex);
-      showToast(`🛠️ 조치 체크리스트 [${rule.label}] 전환`);
+      showToast(`조치 체크리스트 [${rule.label}] 전환`);
       setTimeout(() => clearToast(), 2500);
     }
   };
@@ -993,10 +993,10 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
       if (!res.ok) {
         throw new Error(`상담 저장 실패 (HTTP ${res.status}): ${res.statusText}`);
       }
-      showToast("✓ 1차 셀프조치 해결 이력이 DB에 정상 등록되었습니다.");
+      showToast("1차 셀프조치 해결 이력이 DB에 정상 등록되었습니다.");
     } catch (e) {
       console.error("셀프조치 저장 실패:", e);
-      showToast(`⚠️ DB 저장 실패: ${e instanceof Error ? e.message : '네트워크 오류'}`);
+      showToast(`DB 저장 실패: ${e instanceof Error ? e.message : '네트워크 오류'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -1028,10 +1028,10 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
         throw new Error(`배차 등록 실패 (HTTP ${res.status}): ${res.statusText}`);
       }
       setDispatchDrawerOpen(false);
-      showToast(`🚗 [${selectedCustomer.name}] 출장 배차 접수가 정상 등록되었습니다.`);
+      showToast(`[${selectedCustomer.name}] 출장 배차 접수가 정상 등록되었습니다.`);
     } catch (e) {
       console.error("배차 저장 실패:", e);
-      showToast(`❌ 배차 접수 실패: ${e instanceof Error ? e.message : '서버 통신 실패'}`);
+      showToast(`배차 접수 실패: ${e instanceof Error ? e.message : '서버 통신 실패'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -1059,10 +1059,10 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
         throw new Error(`영업 이관 실패 (HTTP ${res.status}): ${res.statusText}`);
       }
       setSalesModalOpen(false);
-      showToast(`💼 영업팀으로 신규 견적 문의가 성공적으로 이관되었습니다.`);
+      showToast(`영업팀으로 신규 견적 문의가 성공적으로 이관되었습니다.`);
     } catch (e) {
       console.error("영업 이관 실패:", e);
-      showToast(`❌ 영업 이관 실패: ${e instanceof Error ? e.message : '서버 통신 실패'}`);
+      showToast(`영업 이관 실패: ${e instanceof Error ? e.message : '서버 통신 실패'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -1637,8 +1637,8 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 </span>
               </div>
               <div style={{ fontSize: '12px', color: 'var(--ink-muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div>👤 담당자: <strong style={{ color: 'var(--ink)' }}>{selectedCustomer.manager}</strong> ({selectedCustomer.phone})</div>
-                <div>📍 주소: {selectedCustomer.address} {selectedCustomer.addressDetail}</div>
+                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>담당자</span><strong style={{ color: 'var(--ink)' }}>{selectedCustomer.manager}</strong> ({selectedCustomer.phone})</div>
+                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>주소</span>{selectedCustomer.address} {selectedCustomer.addressDetail}</div>
               </div>
             </div>
 
@@ -2297,7 +2297,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               </div>
             ) : (
               <div style={{ backgroundColor: 'var(--surface-2)', padding: '16px', borderRadius: '6px', border: '1px dashed var(--hairline)', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '12px', flexShrink: 0 }}>
-                🔍 상담 대화 중 증상 키워드가 감지되면 해당 부품 및 가이드가 자동 표출됩니다.
+                상담 대화 중 증상 키워드가 감지되면 해당 부품 및 가이드가 자동 표출됩니다.
               </div>
             )}
 
@@ -2352,9 +2352,9 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                           },
                           scriptList
                         );
-                        showToast(`✓ 키워드 [${kw}] 진단/부품/SOP 실시간 교정 적용 완료`);
+                        showToast(`키워드 [${kw}] 진단·부품·SOP 교정 적용 완료`);
                       } else {
-                        showToast(`수동 교정 키워드 [${kw}]가 적용되었습니다.`);
+                        showToast(`수동 교정 키워드 [${kw}] 적용 완료`);
                       }
                     } catch (err) {
                       console.error("교정 API 호출 실패:", err);
@@ -2583,10 +2583,10 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             
             {/* Auto-filled Summary */}
             <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div>🏢 고객사: <strong style={{ color: 'var(--ink)' }}>{selectedCustomer.name}</strong></div>
-              <div>📍 방문지: {selectedCustomer.address} {selectedCustomer.addressDetail}</div>
-              <div>📞 연락처: {selectedCustomer.manager} ({selectedCustomer.phone})</div>
-              <div>🔧 대상장비: {selectedCustomer.assetModel} ({selectedCustomer.serialNumber})</div>
+              <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>고객사</span><strong style={{ color: 'var(--ink)' }}>{selectedCustomer.name}</strong></div>
+              <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>방문지</span>{selectedCustomer.address} {selectedCustomer.addressDetail}</div>
+              <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>연락처</span>{selectedCustomer.manager} ({selectedCustomer.phone})</div>
+              <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>대상 장비</span>{selectedCustomer.assetModel} ({selectedCustomer.serialNumber})</div>
             </div>
 
             {/* Engineer Assignment */}

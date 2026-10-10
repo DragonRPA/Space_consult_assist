@@ -704,7 +704,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
       return st;
     });
 
-    const logEntry = `STEP ${currentStep.step_no} (${currentStep.title}): 🔴 불량 판정`;
+    const logEntry = `STEP ${currentStep.step_no} (${currentStep.title}): [불량 판정]`;
     const nextActiveIdx = isLastStep ? stepIdx : stepIdx + 1;
     const nextStatus: CounselStatus = isLastStep ? 'visit_required' : currentSession.status;
 
@@ -724,9 +724,9 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
     }));
 
     if (isLastStep) {
-      showToast(`[${currentSession.title}] 모든 조치 실패 ➔ AS 출장 접수 필요`, 3000);
+      showToast(`[${currentSession.title}] 전수 조치 미해결 -> AS 출장 접수 필요`, 3000);
     } else {
-      showToast(`[${currentSession.title}] 다음 조치 (STEP ${stepIdx + 2})로 자동 전이`);
+      showToast(`[${currentSession.title}] 다음 조치 (STEP ${stepIdx + 2})로 전이`);
     }
   };
 
@@ -788,7 +788,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
           call_script: codeObj.call_script,
           historyLog: [
             ...s.historyLog,
-            `[즉시 판정] 에러코드 ${codeObj.code} (${codeObj.name}) -> ${isVisit ? '🚨 AS 출장 접수' : '🟢 전화 자가해결 종결'}`
+            `[즉시 판정] 에러코드 ${codeObj.code} (${codeObj.name}) -> ${isVisit ? '[AS 출장 접수]' : '[전화 자가해결 종결]'}`
           ]
         }
       };
@@ -971,11 +971,11 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
 
       const sessionSummaries = sessionList.map(s => {
         const stepLogs = s.steps.map(st => {
-          const mark = st.status === 'resolved' ? '🟢해결' : st.status === 'unresolved' ? '🔴불량' : st.status === 'active' ? '🔵진행' : '⚪대기';
+          const mark = st.status === 'resolved' ? '[해결]' : st.status === 'unresolved' ? '[불량]' : st.status === 'active' ? '[진행]' : '[대기]';
           return `STEP ${st.step_no} ${st.title} (${mark})`;
         }).join(' / ');
         const errCodeLog = s.selectedErrorCode ? ` (선택 에러코드: [${s.selectedErrorCode.code}] ${s.selectedErrorCode.name})` : '';
-        return `[증상: ${s.title}${errCodeLog} | 🔵진행중(고객확인대기)]\n - 조치내역: ${stepLogs}`;
+        return `[증상: ${s.title}${errCodeLog} | 진행중(고객확인대기)]\n - 조치내역: ${stepLogs}`;
       }).join('\n');
 
       const allSymptoms = sessionList.map(s => s.title).join(', ') || customSymptom;
@@ -1008,7 +1008,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
       setHistoryRecords(updatedHistory);
       try { localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory)); } catch {}
 
-      showToast('✓ 고객 확인 대기 상태로 저장되었습니다. [진행중 상담] 목록에서 언제든 이어할 수 있습니다.', 3500);
+      showToast('고객 확인 대기 상태로 저장되었습니다. [진행 상담 대기열]에서 언제든 이어할 수 있습니다.', 3500);
       handleReset();
 
       try {
@@ -1117,11 +1117,11 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
 
       const sessionSummaries = sessionList.map(s => {
         const stepLogs = s.steps.map(st => {
-          const mark = st.status === 'resolved' ? '🟢해결' : st.status === 'unresolved' ? '🔴불량' : st.status === 'active' ? '🔵진행' : '⚪대기';
+          const mark = st.status === 'resolved' ? '[해결]' : st.status === 'unresolved' ? '[불량]' : st.status === 'active' ? '[진행]' : '[대기]';
           return `STEP ${st.step_no} ${st.title} (${mark})`;
         }).join(' / ');
         const errCodeLog = s.selectedErrorCode ? ` (선택 에러코드: [${s.selectedErrorCode.code}] ${s.selectedErrorCode.name})` : '';
-        const statLabel = s.status === 'resolved_by_call' ? '🟢전화해결' : s.status === 'visit_required' ? '🚨출장필요' : '🔵진행중';
+        const statLabel = s.status === 'resolved_by_call' ? '[전화해결]' : s.status === 'visit_required' ? '[출장필요]' : '[진행중]';
         return `[증상: ${s.title}${errCodeLog} | ${statLabel}]\n - 조치내역: ${stepLogs}`;
       }).join('\n');
 
@@ -1143,7 +1143,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
         notes,
         counselorName: counselorName || '상담원',
         summaryText: allSymptoms,
-        currentStepSummary: isVisit ? '🚨 AS 출동 예약 접수 완료' : '🟢 직접조치 종결 완료',
+        currentStepSummary: isVisit ? 'AS 출장 접수 완료' : '직접 조치 종결 완료',
         selectedErrorCodes: selectedCodes
       };
 
@@ -1593,7 +1593,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                       boxShadow: '0 1px 3px rgba(217,119,6,0.3)'
                     }}
                   >
-                    상담 이어하기 ➔
+                    상담 이어하기
                   </button>
                 </div>
               );
@@ -2634,7 +2634,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                         ) : (
                           <>
                             <ArrowRight size={14} />
-                            <span>불량 판정 (다음 조치 STEP {currentSession.activeStepIndex + 2} ➔)</span>
+                            <span>불량 판정 (다음 조치 STEP {currentSession.activeStepIndex + 2} 진행)</span>
                           </>
                         )}
                       </button>
@@ -3025,7 +3025,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                               boxShadow: '0 1px 2px rgba(37,99,235,0.2)'
                             }}
                           >
-                            <span>상담 재개 ➔</span>
+                            <span>상담 재개</span>
                           </button>
                           <button
                             onClick={e => handleDeletePendingSession(record.id, e)}
@@ -3386,7 +3386,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                           cursor: 'pointer'
                         }}
                       >
-                        상담 재개 ➔
+                        상담 재개
                       </button>
                     )}
                   </div>
