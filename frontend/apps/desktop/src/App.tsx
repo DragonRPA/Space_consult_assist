@@ -1155,13 +1155,13 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)', boxShadow: '0 0 8px var(--glow-color)' }} />
             <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.3px', color: 'var(--ink)' }}>
-              Space Advisor <span style={{ fontWeight: 400, color: 'var(--ink-muted)', fontSize: '12px' }}>상담 관제</span>
+              Space Advisor <span style={{ fontWeight: 400, color: 'var(--ink-muted)', fontSize: '13.5px' }}>상담 관제</span>
             </span>
           </div>
 
           <div style={{ height: '16px', width: '1px', backgroundColor: 'var(--hairline)' }} />
 
-          <span style={{ fontSize: '13px', color: 'var(--ink-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '14px', color: 'var(--ink-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
             상담원: <strong style={{ color: 'var(--ink)', fontWeight: 600 }}>{counselorName}</strong>
           </span>
 
@@ -1178,7 +1178,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               backgroundColor: 'var(--accent-primary)',
               color: '#fff',
               border: 'none',
-              fontSize: '13px',
+              fontSize: '14px',
               fontWeight: 600,
               cursor: 'pointer'
             }}
@@ -1205,7 +1205,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               backgroundColor: '#4338ca',
               color: '#fff',
               border: 'none',
-              fontSize: '13px',
+              fontSize: '14px',
               fontWeight: 700,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
@@ -1230,7 +1230,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               backgroundColor: isContextCorrectionEnabled ? 'rgba(37, 99, 235, 0.15)' : 'var(--surface-2)',
               border: `1px solid ${isContextCorrectionEnabled ? 'var(--accent-primary)' : 'var(--hairline)'}`,
               color: isContextCorrectionEnabled ? '#93c5fd' : 'var(--ink-muted)',
-              fontSize: '11px',
+              fontSize: '13.5px',
               fontWeight: 600,
               cursor: 'pointer'
             }}
@@ -1248,7 +1248,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             borderRadius: '4px',
             backgroundColor: isCallActive ? 'rgba(239, 68, 68, 0.12)' : 'var(--surface-2)',
             border: `1px solid ${isCallActive ? 'var(--accent-danger)' : 'var(--hairline)'}`,
-            fontSize: '11px',
+            fontSize: '13.5px',
             color: isCallActive ? 'var(--accent-danger)' : 'var(--ink-muted)'
           }}>
             <Radio size={12} className={isCallActive ? "animate-pulse" : ""} />
@@ -1273,7 +1273,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 alignItems: 'center',
                 gap: '5px',
                 padding: '4px 9px',
-                fontSize: '11px',
+                fontSize: '13.5px',
                 fontWeight: 700,
                 borderRadius: '4px',
                 border: 'none',
@@ -1300,7 +1300,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               }}
               style={{
                 padding: '4px 9px',
-                fontSize: '11px',
+                fontSize: '13.5px',
                 fontWeight: 700,
                 borderRadius: '4px',
                 border: 'none',
@@ -1318,11 +1318,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
           {sttEngine === 'whisper_large_v3' ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <span style={{ fontSize: '9px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>무음 감지</span>
+                <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>무음 감지</span>
                 <select
                   value={whisperSilenceSec}
                   onChange={e => setWhisperSilenceSec(parseFloat(e.target.value))}
-                  style={{ fontSize: '10px', padding: '2px 4px', borderRadius: '4px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', color: 'var(--ink)', cursor: 'pointer' }}
+                  style={{ fontSize: '13.5px', padding: '2px 4px', borderRadius: '4px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', color: 'var(--ink)', cursor: 'pointer' }}
                 >
                   {[0.1, 0.2, 0.3, 0.5, 1.0, 1.5].map(v => (
                     <option key={v} value={v}>{v}s</option>
@@ -1330,11 +1330,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <span style={{ fontSize: '9px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>최대 청크</span>
+                <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>최대 청크</span>
                 <select
                   value={whisperMaxChunkSec}
                   onChange={e => setWhisperMaxChunkSec(parseFloat(e.target.value))}
-                  style={{ fontSize: '10px', padding: '2px 4px', borderRadius: '4px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', color: 'var(--ink)', cursor: 'pointer' }}
+                  style={{ fontSize: '13.5px', padding: '2px 4px', borderRadius: '4px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', color: 'var(--ink)', cursor: 'pointer' }}
                 >
                   {[0.5, 1.0, 1.2, 2.0, 3.0, 5.0].map(v => (
                     <option key={v} value={v}>{v}s</option>
@@ -1344,11 +1344,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              <span style={{ fontSize: '9px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>커밋 지연</span>
+              <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>커밋 지연</span>
               <select
                 value={webSpeechSilenceSec}
                 onChange={e => setWebSpeechSilenceSec(parseFloat(e.target.value))}
-                style={{ fontSize: '10px', padding: '2px 4px', borderRadius: '4px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', color: 'var(--ink)', cursor: 'pointer' }}
+                style={{ fontSize: '13.5px', padding: '2px 4px', borderRadius: '4px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', color: 'var(--ink)', cursor: 'pointer' }}
               >
                 {[0.5, 1.0, 1.5, 2.0, 3.0].map(v => (
                   <option key={v} value={v}>{v}s</option>
@@ -1365,7 +1365,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 {/* 상태 배지 (Always-On) */}
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: '5px',
-                  padding: '4px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
+                  padding: '4px 9px', borderRadius: '6px', fontSize: '13.5px', fontWeight: 700,
                   backgroundColor: isLoopbackActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
                   border: `1px solid ${isLoopbackActive ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`,
                   color: isLoopbackActive ? 'var(--accent-success)' : 'var(--accent-warning)'
@@ -1389,7 +1389,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                       display: 'flex', alignItems: 'center', gap: '4px',
                       padding: '4px 10px', borderRadius: '6px',
                       backgroundColor: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)',
-                      color: 'var(--accent-success)', fontSize: '11px', fontWeight: 700,
+                      color: 'var(--accent-success)', fontSize: '13.5px', fontWeight: 700,
                       textDecoration: 'none', whiteSpace: 'nowrap'
                     }}
                   >
@@ -1403,7 +1403,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                     value={loopbackDevice}
                     onChange={(e) => setLoopbackDevice(e.target.value)}
                     style={{
-                      padding: '3px 6px', borderRadius: '4px', fontSize: '10px',
+                      padding: '3px 6px', borderRadius: '4px', fontSize: '13.5px',
                       backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)',
                       color: 'var(--ink-muted)', maxWidth: '160px', cursor: 'pointer'
                     }}
@@ -1422,7 +1422,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   display: 'flex', alignItems: 'center', gap: '5px',
                   padding: '4px 8px', borderRadius: '6px',
                   backgroundColor: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)',
-                  fontSize: '11px', fontWeight: 600, color: 'var(--accent-danger)'
+                  fontSize: '13.5px', fontWeight: 600, color: 'var(--accent-danger)'
                 }}>
                   <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--accent-danger)' }} />
                   <span>로컬 휘스퍼 미실행</span>
@@ -1433,7 +1433,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                     display: 'flex', alignItems: 'center', gap: '4px',
                     padding: '4px 10px', borderRadius: '6px',
                     backgroundColor: 'var(--accent-primary)', color: '#fff',
-                    border: 'none', fontSize: '11px', fontWeight: 700, cursor: 'pointer'
+                    border: 'none', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer'
                   }}
                 >
                   <Play size={11} fill="#fff" />
@@ -1456,7 +1456,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               backgroundColor: 'var(--surface-2)',
               border: '1px solid var(--hairline)',
               color: 'var(--ink)',
-              fontSize: '12px',
+              fontSize: '13.5px',
               fontWeight: 600,
               cursor: 'pointer'
             }}
@@ -1475,7 +1475,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             backgroundColor: isCallActive ? 'rgba(239, 68, 68, 0.15)' : callSeconds > 0 ? 'rgba(59, 130, 246, 0.12)' : 'var(--surface-2)', 
             border: `1px solid ${isCallActive ? 'rgba(239, 68, 68, 0.4)' : callSeconds > 0 ? 'rgba(59, 130, 246, 0.3)' : 'var(--hairline)'}`,
             color: isCallActive ? 'var(--accent-danger)' : callSeconds > 0 ? '#93c5fd' : 'var(--ink-muted)',
-            fontSize: '12px',
+            fontSize: '13.5px',
             fontWeight: 600
           }}>
             <PhoneCall size={14} className={isCallActive ? "animate-pulse" : ""} />
@@ -1493,11 +1493,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             borderRadius: '6px',
             backgroundColor: 'var(--surface-2)',
             border: '1px solid var(--hairline)',
-            fontSize: '12px',
+            fontSize: '13.5px',
             color: 'var(--ink)'
           }}>
             <Mic size={14} style={{ color: 'var(--accent-success)' }} />
-            <span className="nowrap" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-success)' }}>
+            <span className="nowrap" style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--accent-success)' }}>
               상시 수신 대기
             </span>
             <span style={{
@@ -1536,7 +1536,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
         }}>
           {/* Panel Header & Customer Search */}
           <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
-            <label style={{ fontSize: '11px', color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', display: 'block' }}>
+            <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', display: 'block' }}>
               고객사 실시간 식별 및 검색
             </label>
             <div style={{ position: 'relative' }}>
@@ -1581,7 +1581,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   border: '1px solid var(--hairline)',
                   borderRadius: '6px',
                   color: 'var(--ink)',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   outline: 'none'
                 }}
               />
@@ -1611,13 +1611,13 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                         padding: '8px 12px',
                         borderBottom: '1px solid var(--hairline)',
                         cursor: 'pointer',
-                        fontSize: '12px',
+                        fontSize: '13.5px',
                         backgroundColor: idx === selectedSearchIndex ? 'var(--surface-hover)' : 'transparent'
                       }}
                       onMouseEnter={() => setSelectedSearchIndex(idx)}
                     >
                       <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{cust.name}</div>
-                      <div style={{ color: 'var(--ink-muted)', fontSize: '11px' }}>{cust.manager} · {cust.phone}</div>
+                      <div style={{ color: 'var(--ink-muted)', fontSize: '13.5px' }}>{cust.manager} · {cust.phone}</div>
                     </div>
                   ))}
                 </div>
@@ -1632,11 +1632,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', flexShrink: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--ink)' }}>{selectedCustomer.name}</span>
-                <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--badge-bg)', color: 'var(--badge-text)', fontWeight: 600 }}>
+                <span style={{ fontSize: '13.5px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--badge-bg)', color: 'var(--badge-text)', fontWeight: 600 }}>
                   {selectedCustomer.salesType}
                 </span>
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--ink-muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--ink-muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>담당자</span><strong style={{ color: 'var(--ink)' }}>{selectedCustomer.manager}</strong> ({selectedCustomer.phone})</div>
                 <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>주소</span>{selectedCustomer.address} {selectedCustomer.addressDetail}</div>
               </div>
@@ -1644,13 +1644,13 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
 
             {/* Asset Info Card */}
             <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', flexShrink: 0 }}>
-              <div style={{ fontSize: '11px', color: 'var(--ink-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '6px' }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--ink-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '6px' }}>
                 보유 장비 및 보증 상태
               </div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)', marginBottom: '4px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)', marginBottom: '4px' }}>
                 {selectedCustomer.assetModel}
               </div>
-              <div style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', color: 'var(--ink-muted)' }}>
+              <div style={{ fontSize: '13.5px', display: 'flex', justifyContent: 'space-between', color: 'var(--ink-muted)' }}>
                 <span>시리얼: <span className="font-mono" style={{ color: 'var(--ink)' }}>{selectedCustomer.serialNumber}</span></span>
                 <span style={{ color: 'var(--accent-warning)', fontWeight: 600 }}>{selectedCustomer.warrantyRemaining}</span>
               </div>
@@ -1660,7 +1660,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', flex: 1, minHeight: '120px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                 <Clock size={13} style={{ color: 'var(--ink-muted)' }} />
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink-muted)', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--ink-muted)', textTransform: 'uppercase' }}>
                   최근 30일 상담/정비 이력 타임라인
                 </span>
               </div>
@@ -1674,10 +1674,10 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                       borderRadius: '4px',
                       backgroundColor: item.isWarning ? 'rgba(245, 158, 11, 0.12)' : 'var(--surface-1)',
                       border: item.isWarning ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid var(--hairline)',
-                      fontSize: '12px'
+                      fontSize: '13.5px'
                     }}
                   >
-                    <div style={{ fontSize: '10px', color: item.isWarning ? 'var(--accent-warning)' : 'var(--ink-muted)', fontWeight: 600 }}>
+                    <div style={{ fontSize: '13.5px', color: item.isWarning ? 'var(--accent-warning)' : 'var(--ink-muted)', fontWeight: 600 }}>
                       {item.date}
                     </div>
                     <div style={{ color: item.isWarning ? 'var(--accent-warning)' : 'var(--ink)', fontWeight: item.isWarning ? 600 : 400, marginTop: '2px' }}>
@@ -1708,11 +1708,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
           <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
                   전사 자막 및 개체 감지
                 </span>
                 <span style={{ 
-                  fontSize: '10px', 
+                  fontSize: '13.5px', 
                   fontWeight: 700, 
                   padding: '1px 6px', 
                   borderRadius: '3px', 
@@ -1727,11 +1727,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               {/* Dynamic Mic Activity Indicator */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {isRecording && (
-                  <span style={{ fontSize: '10px', color: 'var(--accent-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ fontSize: '13.5px', color: 'var(--accent-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Volume2 size={12} className="animate-pulse" /> STT 음성 수신 중 ({Math.max(15, micAudioLevel)}%)
                   </span>
                 )}
-                <span style={{ fontSize: '11px', color: isRecording ? 'var(--accent-success)' : 'var(--ink-muted)', fontWeight: 600 }}>
+                <span style={{ fontSize: '13.5px', color: isRecording ? 'var(--accent-success)' : 'var(--ink-muted)', fontWeight: 600 }}>
                   {isRecording ? "● 실시간 가동 중" : "대기 상태"}
                 </span>
               </div>
@@ -1743,7 +1743,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               alignItems: 'center', 
               flexWrap: 'wrap',
               gap: '6px', 
-              fontSize: '11px', 
+              fontSize: '13.5px', 
               backgroundColor: 'var(--surface-2)', 
               padding: '5px 8px', 
               borderRadius: '4px', 
@@ -1770,9 +1770,9 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               border: '1px solid var(--ars-border)', 
               borderRadius: '4px', 
               padding: '4px 8px', 
-              fontSize: '10px', 
+              fontSize: '13.5px', 
               color: 'var(--ars-text)',
-              lineHeight: 1.2 
+              lineHeight: 1.3 
             }}>
               [ARS 고지 필수] "본 통화는 품질 향상 및 AI 상담 지원을 위해 녹음/분석됩니다."
             </div>
@@ -1794,10 +1794,10 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               {activeAudioFile ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
                   <FileAudio size={15} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#93c5fd', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#93c5fd', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {activeAudioFile.name}
                   </span>
-                  <span className="font-mono" style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
+                  <span className="font-mono" style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>
                     ({formatAudioTime(audioCurrentTime)} / {formatAudioTime(audioDuration)})
                   </span>
                 </div>
@@ -1819,7 +1819,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                       color: isDirectEditMode ? '#000' : 'var(--ink)',
                       border: '1px solid var(--hairline)',
                       borderRadius: '4px',
-                      fontSize: '11px',
+                      fontSize: '13.5px',
                       fontWeight: 700,
                       cursor: 'pointer'
                     }}
@@ -1829,11 +1829,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                     <span>{isDirectEditMode ? '하이라이트 보기' : '텍스트 직접 편집'}</span>
                   </button>
 
-                  <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
+                  <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>
                     {isDirectEditMode ? '대화록을 직접 수정/작성 중' : '전사 자막 (더블클릭 시 직접 편집 가능)'}
                   </label>
                   {correctionHistory.length > 0 && isContextCorrectionEnabled && !isDirectEditMode && (
-                    <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                    <span style={{ fontSize: '13.5px', color: 'var(--accent-primary)', fontWeight: 600 }}>
                       맥락 보정 {correctionHistory.length}건
                     </span>
                   )}
@@ -1856,7 +1856,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                       color: '#fff',
                       border: 'none',
                       borderRadius: '4px',
-                      fontSize: '11px',
+                      fontSize: '13.5px',
                       fontWeight: 700,
                       cursor: 'pointer',
                       boxShadow: isAudioPlaying ? '0 0 10px rgba(239, 68, 68, 0.4)' : '0 0 10px rgba(37, 99, 235, 0.4)'
@@ -1875,7 +1875,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                       color: 'var(--ink)',
                       border: '1px solid var(--hairline)',
                       borderRadius: '4px',
-                      fontSize: '11px',
+                      fontSize: '13.5px',
                       cursor: 'pointer'
                     }}
                   >
@@ -1910,7 +1910,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                       border: '1px solid var(--hairline)', 
                       borderRadius: '4px', 
                       color: '#93c5fd', 
-                      fontSize: '11px', 
+                      fontSize: '13.5px', 
                       cursor: 'pointer', 
                       fontWeight: 600 
                     }}
@@ -1934,7 +1934,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                       border: '1px solid var(--accent-primary)', 
                       borderRadius: '4px', 
                       color: '#93c5fd', 
-                      fontSize: '11px', 
+                      fontSize: '13.5px', 
                       cursor: 'pointer', 
                       fontWeight: 600 
                     }}
@@ -1955,7 +1955,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                       border: '1px solid var(--hairline)', 
                       borderRadius: '4px', 
                       color: 'var(--ink)', 
-                      fontSize: '11px', 
+                      fontSize: '13.5px', 
                       cursor: 'pointer', 
                       fontWeight: 600 
                     }}
@@ -2009,7 +2009,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 overflowY: isDirectEditMode ? 'hidden' : 'auto',
                 overflowX: 'hidden',
                 wordBreak: 'break-word',
-                fontSize: '13px',
+                fontSize: '14px',
                 lineHeight: 1.6,
                 color: 'var(--ink)',
                 position: 'relative',
@@ -2054,7 +2054,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                       border: 'none',
                       padding: '8px',
                       color: 'var(--ink)',
-                      fontSize: '13px',
+                      fontSize: '14px',
                       fontFamily: 'monospace',
                       lineHeight: 1.6,
                       resize: 'none',
@@ -2063,7 +2063,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   />
                 </div>
               ) : activeParagraphs.length > 0 ? (
-                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '13px' }}>
+                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '14px' }}>
                   {activeParagraphs.map((line, pIdx) => {
                     const match = line.match(/^(\[\d{1,2}:\d{2}(?::\d{2})?\])\s*(.*)$/);
                     const timestampBadge = match ? match[1] : null;
@@ -2074,7 +2074,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                         {timestampBadge && (
                           <span style={{ 
                             fontFamily: 'monospace', 
-                            fontSize: '11px', 
+                            fontSize: '13.5px', 
                             fontWeight: 600, 
                             color: 'var(--ink-muted)', 
                             backgroundColor: 'var(--surface-3)', 
@@ -2120,7 +2120,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   )}
                 </div>
               ) : interimSttText ? (
-                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '13px' }}>
+                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '14px' }}>
                   <span style={{ color: '#93c5fd', backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '2px 6px', borderRadius: '3px', fontWeight: 600 }}>
                     {interimSttText}
                   </span>
@@ -2129,7 +2129,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   )}
                 </div>
               ) : (
-                <div style={{ color: 'var(--ink-subtle)', padding: '24px 8px', textAlign: 'center', fontSize: '12px' }}>
+                <div style={{ color: 'var(--ink-subtle)', padding: '24px 8px', textAlign: 'center', fontSize: '13.5px' }}>
                   이 영역을 더블클릭하거나 상단 <strong>[텍스트 직접 편집]</strong> 버튼을 누르면 글을 쓰고 수정할 수 있습니다.
                 </div>
               )}
@@ -2151,7 +2151,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   border: 'none',
                   borderRadius: '16px',
                   padding: '6px 12px',
-                  fontSize: '11px',
+                  fontSize: '13.5px',
                   fontWeight: 700,
                   boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                   cursor: 'pointer',
@@ -2172,11 +2172,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <label style={{ fontSize: '11px', color: 'var(--ink-muted)', display: 'block', fontWeight: 600 }}>
+                  <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)', display: 'block', fontWeight: 600 }}>
                     이번 통화 실시간 감지 증상 ({detectedKeywordEntities.length}건)
                   </label>
                   {justTriggeredKeyword && (
-                    <span style={{ fontSize: '11px', color: 'var(--accent-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '13.5px', color: 'var(--accent-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Zap size={12} /> [{justTriggeredKeyword}] 포착!
                     </span>
                   )}
@@ -2184,7 +2184,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 <button
                   onClick={() => setShowAllSymptoms(!showAllSymptoms)}
                   style={{
-                    fontSize: '10px',
+                    fontSize: '13.5px',
                     padding: '2px 8px',
                     borderRadius: '4px',
                     backgroundColor: showAllSymptoms ? 'var(--accent-primary)' : 'var(--surface-2)',
@@ -2215,7 +2215,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                           backgroundColor: isSelected ? 'var(--accent-primary)' : 'rgba(37, 99, 235, 0.12)',
                           border: `1px solid ${isSelected ? 'var(--accent-primary)' : 'rgba(37, 99, 235, 0.35)'}`,
                           color: isSelected ? '#fff' : '#93c5fd',
-                          fontSize: '12px',
+                          fontSize: '13.5px',
                           fontWeight: 700,
                           cursor: 'pointer',
                           boxShadow: isSelected ? '0 0 10px rgba(37, 99, 235, 0.5)' : 'none',
@@ -2223,12 +2223,12 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                         }}
                       >
                         <span>#{entity.keyword}</span>
-                        <span style={{ fontSize: '10px', opacity: 0.85, fontWeight: 500 }}>({entity.category})</span>
+                        <span style={{ fontSize: '13.5px', opacity: 0.85, fontWeight: 500 }}>({entity.category})</span>
                       </button>
                     );
                   })
                 ) : (
-                  <div style={{ fontSize: '11px', color: 'var(--ink-subtle)', fontStyle: 'italic', padding: '4px 0' }}>
+                  <div style={{ fontSize: '13.5px', color: 'var(--ink-subtle)', fontStyle: 'italic', padding: '4px 0' }}>
                     상담 대화 중 고객이 언급한 고장 증상이 실시간으로 여기에 자동 포착됩니다.
                   </div>
                 )}
@@ -2237,7 +2237,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               {/* Collapsible Full Symptoms Catalog (Optional Manual Lookup) */}
               {showAllSymptoms && (
                 <div style={{ marginTop: '8px', padding: '8px', backgroundColor: 'var(--surface-3)', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
-                  <div style={{ fontSize: '10px', color: 'var(--ink-muted)', marginBottom: '4px', fontWeight: 600 }}>
+                  <div style={{ fontSize: '13.5px', color: 'var(--ink-muted)', marginBottom: '4px', fontWeight: 600 }}>
                     수동 증상 선택 카탈로그 (전체 6대 분류):
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
@@ -2256,7 +2256,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                             backgroundColor: isSelected ? 'var(--accent-primary)' : 'var(--badge-bg)',
                             border: `1px solid ${isSelected ? 'var(--accent-primary)' : 'var(--hairline)'}`,
                             color: isSelected ? '#fff' : 'var(--badge-text)',
-                            fontSize: '11px',
+                            fontSize: '13.5px',
                             fontWeight: 500,
                             cursor: 'pointer'
                           }}
@@ -2282,28 +2282,28 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 flexShrink: 0
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-primary)' }}>{matchedDiagnosis.category}</span>
-                  <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-success)', fontWeight: 600 }}>
+                  <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--accent-primary)' }}>{matchedDiagnosis.category}</span>
+                  <span style={{ fontSize: '13.5px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-success)', fontWeight: 600 }}>
                     신뢰도 {matchedDiagnosis.confidence}%
                   </span>
                 </div>
                 <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>
                   {matchedDiagnosis.partName}
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--ink-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: '13.5px', color: 'var(--ink-muted)', display: 'flex', justifyContent: 'space-between' }}>
                   <span>부품코드: <strong className="font-mono" style={{ color: 'var(--ink)' }}>{matchedDiagnosis.partCode}</strong></span>
                   <span>본사재고: <strong style={{ color: matchedDiagnosis.stock > 0 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>{matchedDiagnosis.stock}개 보유</strong></span>
                 </div>
               </div>
             ) : (
-              <div style={{ backgroundColor: 'var(--surface-2)', padding: '16px', borderRadius: '6px', border: '1px dashed var(--hairline)', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '12px', flexShrink: 0 }}>
+              <div style={{ backgroundColor: 'var(--surface-2)', padding: '16px', borderRadius: '6px', border: '1px dashed var(--hairline)', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '13.5px', flexShrink: 0 }}>
                 상담 대화 중 증상 키워드가 감지되면 해당 부품 및 가이드가 자동 표출됩니다.
               </div>
             )}
 
             {/* Manual Override Input */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
-              <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
+              <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>
                 상담사 수동 진단 교정 (AI 추천 불일치 시 직접 입력)
               </label>
               <div style={{ display: 'flex', gap: '6px' }}>
@@ -2319,7 +2319,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                     border: '1px solid var(--hairline)',
                     borderRadius: '4px',
                     color: 'var(--ink)',
-                    fontSize: '12px'
+                    fontSize: '13.5px'
                   }}
                 />
                 <button 
@@ -2368,7 +2368,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                     border: '1px solid var(--hairline)',
                     borderRadius: '4px',
                     color: 'var(--ink)',
-                    fontSize: '12px',
+                    fontSize: '13.5px',
                     fontWeight: 600,
                     cursor: 'pointer'
                   }}
@@ -2395,10 +2395,10 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
         }}>
           {/* Panel Header & Progress */}
           <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
               표준 조치 체크리스트 (SOP)
             </span>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: totalCount > 0 && checkedCount === totalCount ? 'var(--accent-success)' : 'var(--accent-primary)' }}>
+            <span style={{ fontSize: '13.5px', fontWeight: 700, color: totalCount > 0 && checkedCount === totalCount ? 'var(--accent-success)' : 'var(--accent-primary)' }}>
               {totalCount > 0 ? `${checkedCount} / ${totalCount} 완료 (${Math.round((checkedCount / totalCount) * 100)}%)` : '대기'}
             </span>
           </div>
@@ -2411,7 +2411,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               backgroundColor: 'rgba(37, 99, 235, 0.1)',
               border: '1px solid rgba(37, 99, 235, 0.3)',
               borderRadius: '6px',
-              fontSize: '12px',
+              fontSize: '13.5px',
               lineHeight: 1.4,
               color: '#bfdbfe',
               flexShrink: 0
@@ -2448,13 +2448,13 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   <button style={{ background: 'none', border: 'none', color: item.checked ? 'var(--accent-success)' : 'var(--ink-subtle)', cursor: 'pointer', marginTop: '1px' }}>
                     {item.checked ? <CheckSquare size={16} /> : <Square size={16} />}
                   </button>
-                  <div style={{ flex: 1, fontSize: '13px', lineHeight: 1.4, color: item.checked ? 'var(--accent-success)' : 'var(--ink)', textDecoration: item.checked ? 'line-through' : 'none' }}>
+                  <div style={{ flex: 1, fontSize: '14px', lineHeight: 1.4, color: item.checked ? 'var(--accent-success)' : 'var(--ink)', textDecoration: item.checked ? 'line-through' : 'none' }}>
                     <strong style={{ marginRight: '4px', color: 'var(--ink-muted)' }}>{item.id}.</strong> {item.text}
                   </div>
                 </div>
               ))
             ) : (
-              <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '12px' }}>
+              <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '13.5px' }}>
                 진단이 시작되면 1~5단계 표준 점검 체크리스트가 표출됩니다.
               </div>
             )}
@@ -2474,7 +2474,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 color: '#fff',
                 border: 'none',
                 borderRadius: '6px',
-                fontSize: '13px',
+                fontSize: '14px',
                 fontWeight: 700,
                 cursor: isSubmitting ? 'not-allowed' : 'pointer',
                 display: 'flex',
@@ -2499,7 +2499,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   color: '#fff',
                   border: 'none',
                   borderRadius: '6px',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   fontWeight: 700,
                   cursor: isSubmitting ? 'not-allowed' : 'pointer',
                   display: 'flex',
@@ -2522,7 +2522,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   color: 'var(--ink)',
                   border: '1px solid var(--hairline)',
                   borderRadius: '6px',
-                  fontSize: '12px',
+                  fontSize: '13.5px',
                   fontWeight: 600,
                   cursor: isSubmitting ? 'not-allowed' : 'pointer',
                   display: 'flex',
@@ -2582,7 +2582,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
           <div style={{ flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             
             {/* Auto-filled Summary */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', fontSize: '13.5px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>고객사</span><strong style={{ color: 'var(--ink)' }}>{selectedCustomer.name}</strong></div>
               <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>방문지</span>{selectedCustomer.address} {selectedCustomer.addressDetail}</div>
               <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>연락처</span>{selectedCustomer.manager} ({selectedCustomer.phone})</div>
@@ -2591,11 +2591,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
 
             {/* Engineer Assignment */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>출장 담당 정비기사 배정</label>
+              <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>출장 담당 정비기사 배정</label>
               <select 
                 value={assignedEngineer} 
                 onChange={(e) => setAssignedEngineer(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '13px' }}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '14px' }}
               >
                 <option value="김철수 정비기사 (화성/경기남부)">김철수 정비기사 (화성/경기남부 관할)</option>
                 <option value="박영호 정비기사 (인천/서울서부)">박영호 정비기사 (인천/서울서부 관할)</option>
@@ -2605,23 +2605,23 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
 
             {/* Visit Date & Time */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>방문 희망일시</label>
+              <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>방문 희망일시</label>
               <input 
                 type="text" 
                 value={dispatchDate} 
                 onChange={(e) => setDispatchDate(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '13px' }}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '14px' }}
               />
             </div>
 
             {/* Dispatch Note */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>정비기사 전달 요청 메모</label>
+              <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>정비기사 전달 요청 메모</label>
               <textarea 
                 rows={4}
                 value={dispatchNote} 
                 onChange={(e) => setDispatchNote(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '12px', lineHeight: 1.4 }}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '13.5px', lineHeight: 1.4 }}
               />
             </div>
 
@@ -2678,16 +2678,16 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               </button>
             </div>
 
-            <div style={{ fontSize: '13px', color: 'var(--ink-muted)', marginBottom: '12px' }}>
+            <div style={{ fontSize: '14px', color: 'var(--ink-muted)', marginBottom: '12px' }}>
               고객사 <strong style={{ color: 'var(--ink)' }}>{selectedCustomer.name}</strong>의 단순 견적/계약 문의를 영업팀 리드 대장으로 이관합니다.
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>이관 유형</label>
+              <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>이관 유형</label>
               <select 
                 value={salesTransferType}
                 onChange={(e) => setSalesTransferType(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)' }}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '14px' }}
               >
                 <option value="신규 렌탈 견적서 요청">신규 렌탈 견적서 요청</option>
                 <option value="장비 추가 도입 및 계약 변경">장비 추가 도입 및 계약 변경</option>
@@ -2696,12 +2696,12 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>상세 요청사항</label>
+              <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>상세 요청사항</label>
               <textarea
                 value={salesTransferNote}
                 onChange={(e) => setSalesTransferNote(e.target.value)}
                 rows={3}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '12px', resize: 'none' }}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '13.5px', resize: 'none' }}
               />
             </div>
 
@@ -2715,7 +2715,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 border: 'none',
                 borderRadius: '6px',
                 fontWeight: 700,
-                fontSize: '13px',
+                fontSize: '14px',
                 cursor: 'pointer'
               }}
             >
@@ -2739,7 +2739,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
           color: 'var(--ink)',
           padding: '10px 20px',
           borderRadius: '8px',
-          fontSize: '13px',
+          fontSize: '14px',
           fontWeight: 600,
           boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
           zIndex: 200,
@@ -2794,7 +2794,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               </button>
             </div>
 
-            <div style={{ fontSize: '13px', color: 'var(--ink-muted)', marginBottom: '12px', lineHeight: 1.5 }}>
+            <div style={{ fontSize: '14px', color: 'var(--ink-muted)', marginBottom: '12px', lineHeight: 1.5 }}>
               실제 통화 녹취록 텍스트(타임스탬프 <code>[00:00:19]</code> 포함 가능)를 아래에 붙여넣으세요. 
               입력 즉시 고객사 식별, 구어체 고장 증상 4색 하이라이트, 조치 SOP 체크리스트가 <strong>0.01초 만에 일괄 표출</strong>됩니다.
             </div>
@@ -2812,7 +2812,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 borderRadius: '6px',
                 padding: '12px',
                 color: 'var(--ink)',
-                fontSize: '13px',
+                fontSize: '14px',
                 fontFamily: 'monospace',
                 lineHeight: 1.6,
                 resize: 'vertical',
@@ -2829,7 +2829,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   border: '1px solid var(--hairline)',
                   borderRadius: '6px',
                   color: 'var(--ink)',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   cursor: 'pointer',
                   fontWeight: 600
                 }}
@@ -2849,7 +2849,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   color: '#fff',
                   border: 'none',
                   borderRadius: '6px',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   fontWeight: 700,
                   cursor: pastedInputText.trim() ? 'pointer' : 'not-allowed',
                   boxShadow: pastedInputText.trim() ? '0 0 12px rgba(37, 99, 235, 0.4)' : 'none'
@@ -2900,13 +2900,13 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             </div>
 
             <div style={{ backgroundColor: 'var(--surface-2)', padding: '14px', borderRadius: '6px', border: '1px solid var(--hairline)', marginBottom: '16px' }}>
-              <div style={{ fontSize: '11px', color: 'var(--ink-muted)', marginBottom: '6px', fontWeight: 600 }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--ink-muted)', marginBottom: '6px', fontWeight: 600 }}>
                 배치 파일 경로:
               </div>
-              <div style={{ fontSize: '12px', fontFamily: 'monospace', color: 'var(--accent-primary)', backgroundColor: 'var(--surface-3)', padding: '8px 10px', borderRadius: '4px', wordBreak: 'break-all', marginBottom: '10px' }}>
+              <div style={{ fontSize: '13.5px', fontFamily: 'monospace', color: 'var(--accent-primary)', backgroundColor: 'var(--surface-3)', padding: '8px 10px', borderRadius: '4px', wordBreak: 'break-all', marginBottom: '10px' }}>
                 D:\01.AntiGravity\Space_consult_assist\start_backend_stt.bat
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--ink)' }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--ink)' }}>
                 이 파일을 <strong>더블클릭</strong>하여 실행하면 로컬 GPU 서버가 <code>localhost:8000</code>에서 즉시 켜집니다.
               </div>
             </div>
@@ -2928,11 +2928,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 ) : (
                   <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent-warning)' }} />
                 )}
-                <span style={{ fontSize: '13px', fontWeight: 700, color: gpuServerOnline ? 'var(--accent-success)' : 'var(--accent-warning)' }}>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: gpuServerOnline ? 'var(--accent-success)' : 'var(--accent-warning)' }}>
                   {gpuServerOnline ? "GPU 엔진 연결됨" : "GPU 서버 대기 중"}
                 </span>
               </div>
-              <span style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
+              <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>
                 {gpuServerOnline ? "포트 8000 정상" : "자동 감지 중"}
               </span>
             </div>
@@ -2950,7 +2950,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   border: '1px solid var(--hairline)',
                   borderRadius: '6px',
                   color: 'var(--ink)',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   cursor: 'pointer',
                   fontWeight: 600
                 }}
@@ -2965,7 +2965,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   border: 'none',
                   borderRadius: '6px',
                   color: '#fff',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   cursor: 'pointer',
                   fontWeight: 700
                 }}

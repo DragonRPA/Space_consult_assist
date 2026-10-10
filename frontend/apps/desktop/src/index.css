@@ -48,6 +48,8 @@ html, body, #root {
 
 body {
   font-family: Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
   background-color: var(--canvas);
   color: var(--ink);
   overflow: hidden;

@@ -58,12 +58,12 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, o
     }}>
       {/* 브랜드 타이틀 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <span style={{ fontWeight: 800, fontSize: 15, letterSpacing: '-0.3px', color: '#fff', whiteSpace: 'nowrap' }}>
+        <span style={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.3px', color: '#fff', whiteSpace: 'nowrap' }}>
           Space Advisor
         </span>
         <span style={{ 
-          fontSize: 10, 
-          padding: '2px 6px', 
+          fontSize: '10pt', 
+          padding: '2px 8px', 
           borderRadius: 4, 
           background: '#1e293b', 
           color: '#94a3b8', 
@@ -77,7 +77,7 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, o
       <div style={{ width: 1, height: 20, background: '#334155' }} />
 
       {/* 탭 버튼군 */}
-      <nav style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+      <nav style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
         {tabs.map((tab) => {
           const isActive = currentTab === tab.id;
           return (
@@ -87,10 +87,10 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, o
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '6px 12px',
+                gap: 7,
+                padding: '6px 14px',
                 borderRadius: 6,
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: isActive ? 700 : 500,
                 color: isActive ? '#ffffff' : '#94a3b8',
                 background: isActive ? '#2563eb' : 'transparent',
@@ -110,9 +110,9 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, o
               <span>{tab.label}</span>
               {tab.badge && (
                 <span style={{
-                  fontSize: 9,
+                  fontSize: '10pt',
                   fontWeight: 700,
-                  padding: '1px 5px',
+                  padding: '2px 6px',
                   borderRadius: 10,
                   background: isActive ? '#1d4ed8' : '#334155',
                   color: isActive ? '#bfdbfe' : '#cbd5e1',
@@ -135,12 +135,12 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, o
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            padding: '5px 12px',
+            padding: '6px 14px',
             borderRadius: 6,
             backgroundColor: '#4338ca',
             color: '#ffffff',
             border: '1px solid #6366f1',
-            fontSize: 12,
+            fontSize: 13.5,
             fontWeight: 800,
             cursor: 'pointer',
             whiteSpace: 'nowrap',
@@ -150,15 +150,15 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, o
           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#3730a3'; }}
           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#4338ca'; }}
         >
-          <BookOpen size={13} />
+          <BookOpen size={14} />
           <span>상황별 수칙</span>
         </button>
       )}
 
       {/* 우측 시스템 상태 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, fontSize: 11, color: '#64748b' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#22c55e' }}>
-          <CheckCircle2 size={12} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, fontSize: '10pt', color: '#64748b' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#22c55e' }}>
+          <CheckCircle2 size={14} />
           <span style={{ fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap' }}>포트 8000 연결</span>
         </div>
       </div>

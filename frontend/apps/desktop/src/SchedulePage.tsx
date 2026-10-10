@@ -91,14 +91,14 @@ function MiniCal({ value, selected, onSelect, eventsByDate }: MiniCalProps) {
 
   return (
     <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 8, marginBottom: 14, background: '#ffffff' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
         <button onClick={() => setCur(new Date(cur.getFullYear(), cur.getMonth() - 1, 1))}
           style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 15 }}>‹</button>
         <span style={{ color: '#0f172a' }}>{cur.getFullYear()}년 {cur.getMonth() + 1}월</span>
         <button onClick={() => setCur(new Date(cur.getFullYear(), cur.getMonth() + 1, 1))}
           style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 15 }}>›</button>
       </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, textAlign: 'center' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, textAlign: 'center' }}>
         <thead>
           <tr>
             {['일','월','화','수','목','금','토'].map(d => (
@@ -159,7 +159,7 @@ function EventBar({ ev, cats, onClick }: EventBarProps) {
       onClick={e => { e.stopPropagation(); onClick(); }}
       title={ev.title || cat?.label || ''}
       style={{
-        fontSize: 11.5, padding: '2px 5px', borderRadius: 4,
+        fontSize: 13.5, padding: '2px 5px', borderRadius: 4,
         borderLeft: `3px solid ${color}`,
         background: `${color}18`,
         color: ev.is_done ? '#64748b' : '#0f172a',
@@ -221,7 +221,7 @@ function MonthView({ baseDate, events, cats, selectedDate, onSelectDate, onClick
     }}>
       {DOW.map((d, i) => (
         <div key={d} style={{
-          textAlign: 'center', fontSize: 12, fontWeight: 700,
+          textAlign: 'center', fontSize: 13.5, fontWeight: 700,
           color: i === 0 ? '#ef4444' : i === 6 ? '#2563eb' : '#64748b',
           padding: '8px 0', background: '#f8fafc', borderBottom: '1px solid #e2e8f0',
         }}>{d}</div>
@@ -244,14 +244,14 @@ function MonthView({ baseDate, events, cats, selectedDate, onSelectDate, onClick
               opacity: isCurrentMonth ? 1 : 0.35,
             }}>
             <div style={{
-              fontSize: 12.5, fontWeight: 700, marginBottom: 4,
+              fontSize: 13.5, fontWeight: 700, marginBottom: 4,
               color: isToday
                 ? '#2563eb'
                 : dow === 0 ? '#ef4444' : dow === 6 ? '#2563eb' : '#64748b',
               ...(isSel ? {
                 background: '#2563eb', color: '#fff', borderRadius: '50%',
-                width: 22, height: 22, display: 'flex', alignItems: 'center',
-                justifyContent: 'center', fontSize: 11,
+                width: 24, height: 24, display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: 13.5,
               } : {}),
             }}>
               {cell.getDate()}
@@ -261,7 +261,7 @@ function MonthView({ baseDate, events, cats, selectedDate, onSelectDate, onClick
                 <EventBar key={ev.id} ev={ev} cats={cats} onClick={() => onClickEvent(ev)} />
               ))}
               {dayEvs.length > 3 && (
-                <div style={{ fontSize: 11, color: '#64748b', cursor: 'pointer', paddingLeft: 4 }}>
+                <div style={{ fontSize: 13.5, color: '#64748b', cursor: 'pointer', paddingLeft: 4 }}>
                   +{dayEvs.length - 3}건 더
                 </div>
               )}
@@ -290,15 +290,15 @@ function DayView({ date, events, cats, onClickEvent, onNewEvent }: DayViewProps)
 
   return (
     <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, minHeight: 400, padding: 16 }}>
-      <div style={{ fontWeight: 700, fontSize: 15, color: isToday ? '#2563eb' : '#0f172a', marginBottom: 14 }}>
+      <div style={{ fontWeight: 700, fontSize: 16, color: isToday ? '#2563eb' : '#0f172a', marginBottom: 14 }}>
         {date.getFullYear()}년 {date.getMonth() + 1}월 {date.getDate()}일
-        {isToday && <span style={{ marginLeft: 8, fontSize: 11, background: '#eff6ff', color: '#2563eb', borderRadius: 4, padding: '2px 7px', border: '1px solid #bfdbfe' }}>오늘</span>}
+        {isToday && <span style={{ marginLeft: 8, fontSize: 13.5, background: '#eff6ff', color: '#2563eb', borderRadius: 4, padding: '2px 7px', border: '1px solid #bfdbfe' }}>오늘</span>}
       </div>
       {dayEvs.length === 0 ? (
-        <div style={{ color: '#64748b', fontSize: 13, textAlign: 'center', padding: '40px 0' }}>
+        <div style={{ color: '#64748b', fontSize: 14, textAlign: 'center', padding: '40px 0' }}>
           등록된 일정이 없습니다.
           <br />
-          <button onClick={onNewEvent} style={{ marginTop: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+          <button onClick={onNewEvent} style={{ marginTop: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
             + 업무 등록
           </button>
         </div>
@@ -315,7 +315,7 @@ function DayView({ date, events, cats, onClickEvent, onNewEvent }: DayViewProps)
                   padding: '10px 4px', borderBottom: '1px solid #f1f5f9',
                   cursor: 'pointer',
                 }}>
-                <div style={{ flex: '0 0 52px', fontSize: 12, color: '#64748b', paddingTop: 2 }}>
+                <div style={{ flex: '0 0 52px', fontSize: 13.5, color: '#64748b', paddingTop: 2 }}>
                   {ev.is_allday ? '종일' : ev.start_at.slice(11, 16)}
                 </div>
                 <div style={{ width: 3, borderRadius: 2, background: color, alignSelf: 'stretch', minHeight: 20, flex: 'none' }} />
@@ -327,14 +327,14 @@ function DayView({ date, events, cats, onClickEvent, onNewEvent }: DayViewProps)
                   }}>
                     {ev.is_important && <Star size={12} fill="#f59e0b" color="#f59e0b" style={{ flexShrink: 0 }} />}
                     <span>{ev.title || cat?.label || ev.category}</span>
-                    {ev.call_done && <span style={{ marginLeft: 4, fontSize: 11, color: '#10b981', fontWeight: 600 }}>통화완료</span>}
+                    {ev.call_done && <span style={{ marginLeft: 4, fontSize: 13.5, color: '#10b981', fontWeight: 600 }}>통화완료</span>}
                   </div>
                   {ev.contract_company && (
-                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                    <div style={{ fontSize: 13.5, color: '#64748b', marginTop: 2 }}>
                       {ev.contract_company}{ev.use_company && ev.use_company !== ev.contract_company ? ` (사용: ${ev.use_company})` : ''}
                     </div>
                   )}
-                  {ev.location && <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>{ev.location}</div>}
+                  {ev.location && <div style={{ fontSize: 13.5, color: '#64748b', marginTop: 1 }}>{ev.location}</div>}
                 </div>
               </div>
             );
@@ -386,7 +386,7 @@ function ListView({ events, cats, onClickEvent }: ListViewProps) {
         const dateLabel = `${date.replace(/-/g, '.')} (${DOW[dObj.getDay()]})`;
         return (
           <div key={date} style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid #f3f4f6' }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#4b5563', marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid #f3f4f6' }}>
               {dateLabel}
             </div>
             <div>
@@ -400,7 +400,7 @@ function ListView({ events, cats, onClickEvent }: ListViewProps) {
                       cursor: 'pointer', borderBottom: '1px dashed #f3f4f6'
                     }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                    <div style={{ flex: '0 0 40px', fontSize: 13, color: '#6b7280' }}>
+                    <div style={{ flex: '0 0 44px', fontSize: 13.5, color: '#6b7280' }}>
                       {ev.is_allday ? '종일' : ev.start_at.slice(11, 16)}
                     </div>
                     <div style={{
@@ -627,7 +627,7 @@ export default function SchedulePage() {
             onClick={() => { setEditingEvent(null); setDefaultDate(ymd(selectedDate)); setFormOpen(true); }}
             style={{
               width: '100%', marginBottom: 12, background: '#2563eb', color: '#ffffff', border: 'none',
-              padding: '8px 12px', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer',
+              padding: '8px 12px', borderRadius: 6, fontWeight: 600, fontSize: 14, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
               transition: 'background-color 0.15s'
@@ -648,7 +648,7 @@ export default function SchedulePage() {
 
           {/* 일정 검색 */}
           <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: '10px 12px', marginBottom: 14, background: '#f8fafc' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: '#475569', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
               일정 검색
             </div>
             <input
@@ -657,7 +657,7 @@ export default function SchedulePage() {
               value={searchDate}
               onChange={e => setSearchDate(e.target.value)}
               style={{
-                width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid #cbd5e1', borderRadius: 4,
+                width: '100%', padding: '6px 8px', fontSize: 13.5, border: '1px solid #cbd5e1', borderRadius: 4,
                 marginBottom: 6, outline: 'none', color: '#0f172a', background: '#ffffff', boxSizing: 'border-box'
               }}
             />
@@ -667,7 +667,7 @@ export default function SchedulePage() {
               value={searchKeyword}
               onChange={e => setSearchKeyword(e.target.value)}
               style={{
-                width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid #cbd5e1', borderRadius: 4,
+                width: '100%', padding: '6px 8px', fontSize: 13.5, border: '1px solid #cbd5e1', borderRadius: 4,
                 outline: 'none', color: '#0f172a', background: '#ffffff', boxSizing: 'border-box'
               }}
             />
@@ -675,9 +675,9 @@ export default function SchedulePage() {
 
           {/* 카테고리 필터 */}
           <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 10 }}>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 13.5, color: '#64748b', fontWeight: 700, marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>카테고리</span>
-              <label style={{ fontWeight: 500, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: '#475569' }}>
+              <label style={{ fontWeight: 500, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: '#475569' }}>
                 <input type="checkbox"
                   checked={Object.values(catFilter).every(Boolean)}
                   onChange={e => {
@@ -689,7 +689,7 @@ export default function SchedulePage() {
               </label>
             </div>
             {cats.map(c => (
-              <label key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <label key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 13.5, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 <input type="checkbox"
                   checked={catFilter[c.key] !== false}
                   onChange={e => setCatFilter(prev => ({ ...prev, [c.key]: e.target.checked }))} />
@@ -706,7 +706,7 @@ export default function SchedulePage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, overflowX: 'auto', whiteSpace: 'nowrap', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button onClick={() => { const d = new Date(); setBaseDate(d); setSelectedDate(d); }}
-                style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 12px', fontSize: 13.5, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
                 오늘
               </button>
               <button onClick={() => navigate(-1)}
@@ -729,7 +729,7 @@ export default function SchedulePage() {
                 onChange={e => setSelectedEmp(e.target.value)}
                 style={{
                   background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a',
-                  padding: '5px 28px 5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                  padding: '5px 28px 5px 10px', borderRadius: 6, fontSize: 13.5, fontWeight: 500,
                   outline: 'none', cursor: 'pointer', appearance: 'none',
                   backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%230f172a\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'/%3E%3C/svg%3E")',
                   backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center'
@@ -747,7 +747,7 @@ export default function SchedulePage() {
                   <button key={v} onClick={() => setView(v)}
                     style={{
                       border: 'none',
-                      padding: '5px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600,
+                      padding: '5px 12px', fontSize: 13.5, cursor: 'pointer', fontWeight: 600,
                       background: view === v ? '#2563eb' : 'transparent',
                       color: view === v ? '#ffffff' : '#475569',
                       transition: 'all 0.15s ease'
@@ -761,7 +761,7 @@ export default function SchedulePage() {
 
           {/* 오류 */}
           {error && (
-            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: '#dc2626', marginBottom: 12 }}>
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '8px 12px', fontSize: 13.5, color: '#dc2626', marginBottom: 12 }}>
               {error}
             </div>
           )}
@@ -797,10 +797,10 @@ export default function SchedulePage() {
                 return (
                   <div key={i} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 8, minHeight: 320 }}>
                     <div style={{
-                      textAlign: 'center', fontSize: 12, fontWeight: 700, marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid #f1f5f9',
+                      textAlign: 'center', fontSize: 13.5, fontWeight: 700, marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid #f1f5f9',
                       color: isToday ? '#2563eb' : dow === 0 ? '#ef4444' : dow === 6 ? '#2563eb' : '#475569',
                     }}>
-                      {['일','월','화','수','목','금','토'][i]} <span style={{ fontSize: 12, fontWeight: 600 }}>({d.getDate()})</span>
+                      {['일','월','화','수','목','금','토'][i]} <span style={{ fontSize: 13.5, fontWeight: 600 }}>({d.getDate()})</span>
                     </div>
                     {dayEvs.map(ev => (
                       <EventBar key={ev.id} ev={ev} cats={cats} onClick={() => setDetailEvent(ev)} />

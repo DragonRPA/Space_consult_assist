@@ -194,7 +194,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>실제 음성 파일(.m4a) 미디어 플레이어</h3>
-              <p style={{ margin: 0, fontSize: '11px', color: 'var(--ink-muted)' }}>스피커로 실제 소리를 출력하여 STT 및 AI 어시스트를 검증합니다.</p>
+              <p style={{ margin: 0, fontSize: '13.5px', color: 'var(--ink-muted)' }}>스피커로 실제 소리를 출력하여 STT 및 AI 어시스트를 검증합니다.</p>
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}>
@@ -244,7 +244,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
               <FileAudio size={28} style={{ color: 'var(--accent-primary)' }} />
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)' }}>{activeAudioFile.name}</div>
-                <div style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
+                <div style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>
                   크기: {(activeAudioFile.size / (1024 * 1024)).toFixed(2)} MB · 길이: {formatTime(duration)} (클릭 시 다른 파일 선택)
                 </div>
               </div>
@@ -255,7 +255,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
               <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)' }}>
                 내 PC의 통화 녹음 파일(.m4a, .mp3, .wav)을 클릭하여 선택하세요
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--ink-muted)' }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>
                 파일을 끌어다 놓으셔도 즉시 로드되어 스피커로 소리가 출력됩니다.
               </div>
             </div>
@@ -268,7 +268,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
             
             {/* Timeline Scrub Slider */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span className="font-mono" style={{ fontSize: '12px', color: 'var(--accent-primary)', fontWeight: 600 }}>{formatTime(currentTime)}</span>
+              <span className="font-mono" style={{ fontSize: '13.5px', color: 'var(--accent-primary)', fontWeight: 600 }}>{formatTime(currentTime)}</span>
               <input
                 type="range"
                 min="0"
@@ -278,7 +278,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
                 onChange={handleSeek}
                 style={{ flex: 1, accentColor: 'var(--accent-primary)', cursor: 'pointer', height: '6px' }}
               />
-              <span className="font-mono" style={{ fontSize: '12px', color: 'var(--ink-muted)' }}>{formatTime(duration)}</span>
+              <span className="font-mono" style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>{formatTime(duration)}</span>
             </div>
 
             {/* Play/Pause/Stop & Volume & Speed Controls */}
@@ -297,7 +297,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
                     color: '#fff',
                     border: 'none',
                     borderRadius: '6px',
-                    fontSize: '13px',
+                    fontSize: '14px',
                     fontWeight: 700,
                     cursor: 'pointer',
                     boxShadow: isPlaying ? '0 0 12px rgba(239, 68, 68, 0.5)' : '0 0 12px rgba(37, 99, 235, 0.4)'
@@ -318,7 +318,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
                     color: 'var(--ink)',
                     border: '1px solid var(--hairline)',
                     borderRadius: '6px',
-                    fontSize: '12px',
+                    fontSize: '13.5px',
                     cursor: 'pointer'
                   }}
                 >
@@ -341,7 +341,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
                   onChange={handleVolumeChange}
                   style={{ width: '70px', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
                 />
-                <span style={{ fontSize: '11px', color: 'var(--ink-muted)', width: '30px' }}>
+                <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', width: '36px' }}>
                   {isMuted ? '0%' : `${Math.round(volume * 100)}%`}
                 </span>
               </div>
@@ -353,12 +353,12 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
                     key={rate}
                     onClick={() => changePlaybackRate(rate)}
                     style={{
-                      padding: '3px 7px',
+                      padding: '4px 8px',
                       borderRadius: '4px',
                       backgroundColor: playbackRate === rate ? 'var(--accent-primary)' : 'var(--surface-3)',
                       color: playbackRate === rate ? '#fff' : 'var(--ink-muted)',
                       border: 'none',
-                      fontSize: '11px',
+                      fontSize: '13.5px',
                       fontWeight: 600,
                       cursor: 'pointer'
                     }}
@@ -375,7 +375,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
               border: '1px solid rgba(37, 99, 235, 0.3)', 
               borderRadius: '6px', 
               padding: '10px 12px', 
-              fontSize: '12px', 
+              fontSize: '13.5px', 
               color: '#93c5fd',
               lineHeight: 1.4,
               display: 'flex',
@@ -391,7 +391,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
 
           </div>
         ) : (
-          <div style={{ textAlign: 'center', padding: '16px', color: 'var(--ink-subtle)', fontSize: '12px' }}>
+          <div style={{ textAlign: 'center', padding: '16px', color: 'var(--ink-subtle)', fontSize: '13.5px' }}>
             위 박스를 클릭하여 PC의 실제 통화 녹음 파일(.m4a)을 선택하세요.
           </div>
         )}
@@ -406,7 +406,7 @@ export const AudioTestPlayer: React.FC<RealAudioPlayerProps> = ({ isOpen, onClos
             color: 'var(--ink)',
             border: '1px solid var(--hairline)',
             borderRadius: '6px',
-            fontSize: '13px',
+            fontSize: '14px',
             fontWeight: 600,
             cursor: 'pointer'
           }}

@@ -182,7 +182,7 @@ export const MicTestModal: React.FC<MicTestModalProps> = ({ isOpen, onClose }) =
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>실시간 마이크 & 음성인식 진단 테스트</h3>
-              <p style={{ margin: 0, fontSize: '11px', color: 'var(--ink-muted)' }}>마이크 하드웨어 입력 및 실시간 음성인식(STT) 정상 여부 진단</p>
+              <p style={{ margin: 0, fontSize: '13.5px', color: 'var(--ink-muted)' }}>마이크 하드웨어 입력 및 실시간 음성인식(STT) 정상 여부 진단</p>
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}>
@@ -205,7 +205,7 @@ export const MicTestModal: React.FC<MicTestModalProps> = ({ isOpen, onClose }) =
           ) : (
             <AlertCircle size={20} style={{ color: 'var(--accent-danger)', flexShrink: 0 }} />
           )}
-          <div style={{ fontSize: '12px' }}>
+          <div style={{ fontSize: '13.5px' }}>
             <strong style={{ color: permissionStatus === 'granted' ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
               {permissionStatus === 'granted' ? "마이크 하드웨어 정상 연결됨" : "마이크 권한 필요 또는 오류 발생"}
             </strong>
@@ -217,7 +217,7 @@ export const MicTestModal: React.FC<MicTestModalProps> = ({ isOpen, onClose }) =
 
         {/* Real-time VU Decibel Meter */}
         <div style={{ backgroundColor: 'var(--surface-2)', padding: '16px', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--hairline)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13.5px' }}>
             <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Volume2 size={15} style={{ color: audioLevel > 15 ? 'var(--accent-success)' : 'var(--ink-muted)' }} />
               실시간 음량 레벨 (VU Meter)
@@ -263,7 +263,7 @@ export const MicTestModal: React.FC<MicTestModalProps> = ({ isOpen, onClose }) =
 
         {/* Live Speech Recognition Echo Box */}
         <div style={{ backgroundColor: 'var(--surface-2)', padding: '14px', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--hairline)' }}>
-          <label style={{ fontSize: '11px', color: 'var(--ink-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+          <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
             음성인식(STT) 텍스트 전사 에코 테스트
           </label>
           <div style={{
@@ -274,7 +274,7 @@ export const MicTestModal: React.FC<MicTestModalProps> = ({ isOpen, onClose }) =
             borderRadius: 'var(--radius-sm)',
             border: 'var(--border-width) solid var(--hairline)',
             padding: '10px',
-            fontSize: '13px',
+            fontSize: '14px',
             lineHeight: 1.5,
             color: testTranscript ? 'var(--ink)' : 'var(--ink-subtle)'
           }}>
@@ -298,7 +298,7 @@ export const MicTestModal: React.FC<MicTestModalProps> = ({ isOpen, onClose }) =
                 border: 'var(--border-width) solid var(--hairline)',
                 borderRadius: 'var(--radius-sm)',
                 color: 'var(--ink)',
-                fontSize: '12px'
+                fontSize: '13.5px'
               }}
             >
               {deviceList.map((d, i) => (
@@ -316,7 +316,7 @@ export const MicTestModal: React.FC<MicTestModalProps> = ({ isOpen, onClose }) =
                 border: 'var(--border-width) solid var(--hairline)',
                 borderRadius: 'var(--radius-sm)',
                 color: 'var(--ink)',
-                fontSize: '12px',
+                fontSize: '13.5px',
                 fontWeight: 600,
                 cursor: 'pointer',
                 display: 'flex',
@@ -340,7 +340,7 @@ export const MicTestModal: React.FC<MicTestModalProps> = ({ isOpen, onClose }) =
             color: '#fff',
             border: 'none',
             borderRadius: 'var(--radius-md)',
-            fontSize: '13px',
+            fontSize: '14px',
             fontWeight: 700,
             cursor: 'pointer'
           }}
