@@ -5,7 +5,7 @@ import {
   History, Sparkles, X, ChevronDown,
   ChevronUp, Check, ArrowRight, RefreshCw, ShieldAlert,
   Layers, Cpu, FileText, BookOpen, Copy, Clock,
-  Package, Smartphone, Edit3
+  Package, Smartphone, Edit3, Image as ImageIcon
 } from 'lucide-react';
 import {
   DEFAULT_MODEL_SPECS,
@@ -24,6 +24,7 @@ import {
 } from './DispatchDocPackageModal';
 import { PartsOrderQuotationModal } from './PartsOrderQuotationModal';
 import { SelfActionGuideModal, type SitePhotoSketchEvidence } from './SelfActionGuideModal';
+import { SymptomPhotoManagerModal } from './SymptomPhotoManagerModal';
 
 // ─── 타입 정의 ─────────────────────────────────────────────────────────────────
 export interface Customer {
@@ -428,9 +429,10 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
   const [dispatchDoc2nd, setDispatchDoc2nd]         = useState<Partial<DispatchDoc2nd> | null>(null);
   const [dispatchModalTab, setDispatchModalTab]     = useState<'doc1' | 'doc2'>('doc1');
 
-  // ①-4 현장 자가조치 모바일 가이드 & 소모품 견적서 상태
+  // ①-4 현장 자가조치 모바일 가이드 & 소모품 견적서 & 사진 순서 관리 상태
   const [showSelfActionGuideModal, setShowSelfActionGuideModal] = useState(false);
   const [showPartsOrderModal, setShowPartsOrderModal]           = useState(false);
+  const [showPhotoManagerModal, setShowPhotoManagerModal]       = useState(false);
   const [photoEvidence, setPhotoEvidence]                       = useState<SitePhotoSketchEvidence | null>(null);
 
   // ①-2 모델 하드웨어 제원 & 상황별 매뉴얼 가이드
@@ -1648,6 +1650,32 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
         >
           <Smartphone size={13} color="#1d4ed8" />
           <span>자가조치 가이드 (사진/영상)</span>
+        </button>
+
+        {/* 5-2. 증상별 사진 순서 등록 관리 (수파베이스) 버튼 */}
+        <button
+          onClick={() => setShowPhotoManagerModal(true)}
+          data-uia="btn-subtoolbar-photo-manager"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 12px',
+            borderRadius: 6,
+            fontSize: 13.5,
+            fontWeight: 700,
+            background: '#f0fdf4',
+            color: '#166534',
+            border: '1px solid #bbf7d0',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            height: 30,
+            boxShadow: '0 1px 2px rgba(22,101,52,0.08)',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <ImageIcon size={13} color="#16a34a" />
+          <span>사진 순서 관리</span>
         </button>
 
         {/* 6. 원청 결재 소모품 견적서 발행 바로가기 버튼 */}
@@ -4241,6 +4269,17 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
           serialNumber={selectedCustomer?.serialNumber || `${selectedModel}-2024-0812`}
           symptoms={sessionList.map(s => s.title).length ? sessionList.map(s => s.title) : ['잔수 흡입 불량 및 오수 유출']}
           onClose={() => setShowPartsOrderModal(false)}
+          onToast={msg => showToast(msg, 3500)}
+        />
+      )}
+
+      {/* ── [모달 6: 증상별 참고 사진 순서 등록 관리 (수파베이스)] ── */}
+      {showPhotoManagerModal && (
+        <SymptomPhotoManagerModal
+          equipmentModel={selectedModel}
+          symptomId={currentSession?.key || 'SUCTION_FAIL'}
+          symptomTitle={currentSession?.title || '바닥 잔수 과다 / 흡입 불량'}
+          onClose={() => setShowPhotoManagerModal(false)}
           onToast={msg => showToast(msg, 3500)}
         />
       )}

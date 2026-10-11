@@ -2,9 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   X, Send, Smartphone, MessageSquare, Mail,
   CheckCircle2, ExternalLink, Play, RotateCcw,
-  Edit3, ArrowRight, ShieldAlert, Package, Paperclip
+  Edit3, ArrowRight, ShieldAlert, Package,
+  Image as ImageIcon
 } from 'lucide-react';
 import type { DispatchChannelType } from './PartsOrderQuotationModal';
+import { SymptomPhotoManagerModal } from './SymptomPhotoManagerModal';
+import {
+  type SymptomPhotoItem,
+  getSymptomPhotos
+} from './symptomPhotoApi';
 
 export interface GuideStepItem {
   stepNo: number;
@@ -246,6 +252,55 @@ export function SelfActionGuideModal({
   // 발송 상태
   const [isSent, setIsSent] = useState(false);
   const [sentAt, setSentAt] = useState<string | null>(null);
+
+  // 증상별 가이드 사진 관리 상태 (수파베이스 스토리지 보관 및 순서 매핑)
+  const [symptomPhotos, setSymptomPhotos] = useState<SymptomPhotoItem[]>([]);
+  const [showPhotoManager, setShowPhotoManager] = useState(false);
+  const [previewPhoto, setPreviewPhoto] = useState<SymptomPhotoItem | null>(null);
+
+  // 수파베이스 스토리지로부터 등록된 사진 목록 로드 및 가이드 스텝 1:1 매핑
+  useEffect(() => {
+    let isMounted = true;
+    getSymptomPhotos(equipmentModel, symptomTitle)
+      .then(photos => {
+        if (!isMounted) return;
+        setSymptomPhotos(photos);
+        if (photos && photos.length > 0) {
+          setGuideSteps(prev => prev.map(step => {
+            const matched = photos.find(p => p.step_no === step.stepNo) || photos[step.stepNo - 1];
+            if (matched) {
+              return {
+                ...step,
+                photoUrl: matched.photo_url,
+                photoLabel: matched.caption || step.photoLabel
+              };
+            }
+            return step;
+          }));
+        }
+      })
+      .catch(err => {
+        console.warn('[SelfActionGuideModal] Failed to load symptom photos:', err);
+      });
+    return () => { isMounted = false; };
+  }, [equipmentModel, symptomTitle]);
+
+  // 사진 관리 모달에서 순서 재배열 또는 사진 추가/삭제 시 가이드 스텝 동기화
+  const handlePhotosUpdated = (updatedPhotos: SymptomPhotoItem[]) => {
+    setSymptomPhotos(updatedPhotos);
+    setGuideSteps(prev => prev.map(step => {
+      const matched = updatedPhotos.find(p => p.step_no === step.stepNo) || updatedPhotos[step.stepNo - 1];
+      if (matched) {
+        return {
+          ...step,
+          photoUrl: matched.photo_url,
+          photoLabel: matched.caption || step.photoLabel
+        };
+      }
+      return step;
+    }));
+    onToast?.(`가이드 사진 ${updatedPhotos.length}장의 정렬 순서 및 설명이 반영되었습니다.`);
+  };
 
   // 현장 회신 사진 및 적색 스케치 상태
   const [sketchEvidence, setSketchEvidence] = useState<SitePhotoSketchEvidence>({
@@ -665,9 +720,33 @@ export function SelfActionGuideModal({
                 <span style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
                   2. 단계별 자가조치 사진 및 공식 유튜브 가이드
                 </span>
-                <span style={{ fontSize: 13.5, color: '#059669', fontWeight: 700 }}>
-                  고압축 참고 이미지 탑재
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowPhotoManager(true)}
+                    data-uia="btn-open-photo-manager"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      background: '#1d4ed8',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 4,
+                      padding: '4px 10px',
+                      fontSize: 13.5,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <ImageIcon size={14} />
+                    <span>사진 순서 등록/관리 (수파베이스)</span>
+                  </button>
+                  <span style={{ fontSize: 13.5, color: '#059669', fontWeight: 700 }}>
+                    고압축 참고 이미지 탑재
+                  </span>
+                </div>
               </div>
 
               {/* 스텝 리스트 */}
@@ -682,7 +761,7 @@ export function SelfActionGuideModal({
                       padding: 10,
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 6
+                      gap: 8
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -739,18 +818,84 @@ export function SelfActionGuideModal({
                       {step.description}
                     </p>
 
+                    {/* 참고 사진 썸네일 & 관리 액션 */}
                     <div
                       style={{
-                        paddingLeft: 24,
+                        marginLeft: 24,
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 6,
-                        fontSize: 13.5,
-                        color: '#64748b'
+                        justifyContent: 'space-between',
+                        gap: 10,
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 4,
+                        padding: '6px 10px'
                       }}
                     >
-                      <Paperclip size={12} />
-                      <span>참고 사진: {step.photoLabel}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                        {step.photoUrl ? (
+                          <img
+                            src={step.photoUrl}
+                            alt={step.photoLabel}
+                            style={{
+                              width: 54,
+                              height: 38,
+                              objectFit: 'cover',
+                              borderRadius: 4,
+                              border: '1px solid #cbd5e1',
+                              cursor: 'pointer',
+                              flexShrink: 0
+                            }}
+                            onClick={() => {
+                              const found = symptomPhotos.find(p => p.photo_url === step.photoUrl);
+                              if (found) setPreviewPhoto(found);
+                              else {
+                                setPreviewPhoto({
+                                  id: `step-${step.stepNo}`,
+                                  equipment_model: equipmentModel,
+                                  symptom_id: symptomTitle,
+                                  step_no: step.stepNo,
+                                  order_no: step.stepNo,
+                                  photo_url: step.photoUrl!,
+                                  caption: step.photoLabel
+                                });
+                              }
+                            }}
+                            title="클릭하여 원본 사진 확대"
+                          />
+                        ) : (
+                          <div style={{ width: 54, height: 38, background: '#e2e8f0', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <ImageIcon size={18} color="#94a3b8" />
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, overflow: 'hidden' }}>
+                          <span style={{ fontSize: 13.5, fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            참고 사진: {step.photoLabel}
+                          </span>
+                          <span style={{ fontSize: 13.5, color: '#64748b' }}>
+                            {step.photoUrl?.startsWith('data:image/svg') ? '기본 도해 그래픽' : '수파베이스 보관 고압축 사진'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowPhotoManager(true)}
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: 4,
+                          padding: '3px 8px',
+                          fontSize: 13.5,
+                          fontWeight: 700,
+                          color: '#1d4ed8',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0
+                        }}
+                      >
+                        사진 변경/순서 조정
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1093,7 +1238,7 @@ export function SelfActionGuideModal({
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#94a3b8',
-                  fontSize: 13
+                  fontSize: 13.5
                 }}
               >
                 <div style={{ width: 44, height: 4, background: '#334155', borderRadius: 2 }} />
@@ -1117,7 +1262,7 @@ export function SelfActionGuideModal({
                   <span style={{ fontSize: 13.5, fontWeight: 900 }}>
                     (주)스페이스 고객기술지원센터
                   </span>
-                  <span style={{ fontSize: 13, opacity: 0.85 }}>공식 알림</span>
+                  <span style={{ fontSize: 13.5, opacity: 0.85 }}>공식 알림</span>
                 </div>
 
                 {/* 환영 안내문 */}
@@ -1149,7 +1294,7 @@ export function SelfActionGuideModal({
                       padding: 10,
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 6
+                      gap: 8
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1157,7 +1302,7 @@ export function SelfActionGuideModal({
                         style={{
                           background: '#1d4ed8',
                           color: '#ffffff',
-                          fontSize: 13,
+                          fontSize: 13.5,
                           fontWeight: 800,
                           padding: '2px 7px',
                           borderRadius: 3
@@ -1169,6 +1314,47 @@ export function SelfActionGuideModal({
                         {step.title}
                       </span>
                     </div>
+
+                    {/* 모바일 가이드 내 참고 사진 표시 */}
+                    {step.photoUrl && (
+                      <div
+                        style={{
+                          position: 'relative',
+                          borderRadius: 4,
+                          overflow: 'hidden',
+                          border: '1px solid #cbd5e1',
+                          background: '#0f172a'
+                        }}
+                      >
+                        <img
+                          src={step.photoUrl}
+                          alt={step.photoLabel}
+                          style={{
+                            width: '100%',
+                            height: 140,
+                            objectFit: 'cover',
+                            display: 'block'
+                          }}
+                        />
+                        <div
+                          style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            background: 'rgba(15, 23, 42, 0.82)',
+                            color: '#ffffff',
+                            fontSize: 13.5,
+                            padding: '3px 8px',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                        >
+                          📷 {step.photoLabel}
+                        </div>
+                      </div>
+                    )}
 
                     <p style={{ margin: 0, fontSize: 13.5, color: '#334155', lineHeight: 1.4 }}>
                       {step.description}
@@ -1187,7 +1373,7 @@ export function SelfActionGuideModal({
                           justifyContent: 'space-between'
                         }}
                       >
-                        <span style={{ fontSize: 13, color: '#dc2626', fontWeight: 700 }}>
+                        <span style={{ fontSize: 13.5, color: '#dc2626', fontWeight: 700 }}>
                           ▶ {step.youtubeTitle || '1분 조작 영상 보기'}
                         </span>
                         <ExternalLink size={13} color="#dc2626" />
@@ -1212,7 +1398,7 @@ export function SelfActionGuideModal({
                   <span style={{ fontSize: 13.5, fontWeight: 900, color: '#1e40af' }}>
                     📸 부품을 모르시겠다면?
                   </span>
-                  <span style={{ fontSize: 13, color: '#475569', lineHeight: 1.35 }}>
+                  <span style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.35 }}>
                     스마트폰으로 장비 부위를 찍고 <strong>빨간 동그라미</strong>를 그려서 회신하시면 즉시 동일 소모품 견적서로 연결됩니다.
                   </span>
                   <button
@@ -1233,7 +1419,7 @@ export function SelfActionGuideModal({
                 </div>
 
                 {/* 고객센터 직통 안내 */}
-                <div style={{ textAlign: 'center', padding: '6px 0', fontSize: 13, color: '#94a3b8' }}>
+                <div style={{ textAlign: 'center', padding: '6px 0', fontSize: 13.5, color: '#94a3b8' }}>
                   문의: (주)스페이스 고객센터 1588-0000 | 평일 08:30 ~ 17:30
                 </div>
               </div>
@@ -1242,6 +1428,100 @@ export function SelfActionGuideModal({
 
         </div>
       </div>
+
+      {/* ── 사진 원본 확대 모달 (Zoom Modal) ── */}
+      {previewPhoto && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPreviewPhoto(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.85)',
+            zIndex: 10005,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            cursor: 'zoom-out'
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#0f172a',
+              borderRadius: 8,
+              maxWidth: 780,
+              width: '100%',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+              border: '1px solid #334155',
+              cursor: 'default'
+            }}
+          >
+            <div
+              style={{
+                padding: '12px 16px',
+                background: '#1e293b',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                color: '#ffffff'
+              }}
+            >
+              <span style={{ fontSize: 14, fontWeight: 800 }}>
+                [순서 {previewPhoto.order_no}] {previewPhoto.caption}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewPhoto(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: 4
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: 16, display: 'flex', justifyContent: 'center', background: '#020617' }}>
+              <img
+                src={previewPhoto.photo_url}
+                alt={previewPhoto.caption}
+                style={{ maxWidth: '100%', maxHeight: '65vh', objectFit: 'contain', borderRadius: 4 }}
+              />
+            </div>
+            <div
+              style={{
+                padding: '10px 16px',
+                background: '#1e293b',
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: 13.5,
+                color: '#94a3b8'
+              }}
+            >
+              <span>매핑: STEP {previewPhoto.step_no}</span>
+              <span>{previewPhoto.is_local_only ? '로컬 저장' : '수파베이스 스토리지 보관 (WebP 고압축)'}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 증상별 참고 사진 순서 등록 관리 모달 (수파베이스 연동) ── */}
+      {showPhotoManager && (
+        <SymptomPhotoManagerModal
+          equipmentModel={equipmentModel}
+          symptomId={symptomTitle}
+          symptomTitle={symptomTitle}
+          onClose={() => setShowPhotoManager(false)}
+          onPhotosUpdated={handlePhotosUpdated}
+          onToast={onToast}
+        />
+      )}
     </div>
   );
 }
