@@ -73,13 +73,13 @@ export type ScheduleEventUpdate = Partial<ScheduleEventCreate>;
 // ─── 카테고리 ───────────────────────────────────────────────────────────────
 
 const STATIC_CATEGORIES: CategoryMeta[] = [
-    { key: "sales-demo", label: "영업시연", color: "#8b5cf6" },
-    { key: "equip-ship", label: "장비출고", color: "#3b82f6" },
-    { key: "part-ship", label: "부품출고", color: "#2563eb" },
-    { key: "rental-ship", label: "렌탈출고", color: "#0ea5e9" },
-    { key: "as-service", label: "A/S접수", color: "#ef4444" },
-    { key: "purchase-check", label: "매입실사", color: "#f59e0b" },
-    { key: "maintenance", label: "유지보수", color: "#10b981" },
+    { key: "sales-demo", label: "영업시연", color: "#16a34a" },
+    { key: "equip-ship", label: "장비출고", color: "#2563eb" },
+    { key: "part-ship", label: "부품출고", color: "#1d4ed8" },
+    { key: "rental-ship", label: "렌탈출고", color: "#3b82f6" },
+    { key: "as-service", label: "A/S접수", color: "#dc2626" },
+    { key: "purchase-check", label: "매입실사", color: "#d97706" },
+    { key: "maintenance", label: "유지보수", color: "#059669" },
     { key: "other", label: "기타", color: "#64748b" }
 ];
 

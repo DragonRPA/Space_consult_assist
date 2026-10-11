@@ -137,18 +137,18 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, o
             gap: 6,
             padding: '6px 14px',
             borderRadius: 6,
-            backgroundColor: '#4338ca',
+            backgroundColor: '#1d4ed8',
             color: '#ffffff',
-            border: '1px solid #6366f1',
+            border: '1px solid #2563eb',
             fontSize: 13.5,
             fontWeight: 800,
             cursor: 'pointer',
             whiteSpace: 'nowrap',
             transition: 'all 0.15s ease',
-            boxShadow: '0 2px 6px rgba(67, 56, 202, 0.4)'
+            boxShadow: '0 2px 6px rgba(29, 78, 216, 0.3)'
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#3730a3'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#4338ca'; }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1e40af'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#1d4ed8'; }}
         >
           <BookOpen size={14} />
           <span>상황별 수칙</span>
@@ -157,7 +157,7 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, o
 
       {/* 우측 시스템 상태 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, fontSize: '10pt', color: '#64748b' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#22c55e' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#10b981' }}>
           <CheckCircle2 size={14} />
           <span style={{ fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap' }}>포트 8000 연결</span>
         </div>

@@ -2,27 +2,45 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
 
 :root {
-  --canvas: #0b0f17;
-  --surface-1: #131b2e;
-  --surface-2: #1e293b;
-  --surface-3: #27354f;
-  --surface-hover: #334155;
-  --hairline: #23334d;
-  --hairline-strong: #3b82f6;
-  --ink: #f8fafc;
-  --ink-muted: #94a3b8;
+  /* 🌟 라이트 테마 토큰: 프리미엄 웜 페이퍼(Warm Cotton Paper) 종이질감 및 5색 고시인성 표준 (eBro ERP 연계) */
+  --bg-app: #f5f2eb;              /* 웜 코튼 페이퍼(종이질감) 캔버스 */
+  --bg-sidebar: #ece7de;          /* 가죽 바인더/장부 표지 톤 사이드바 */
+  --bg-card: #fbf9f5;             /* 선명하고 깨끗한 장부 서식 표면 */
+  --bg-header: #ece7de;           /* 장부 상단 바인더 헤더 */
+  --bg-card-header: #f2eee6;      /* 카드 내부 헤더 */
+  --border-color: #dcd5c9;        /* 정갈한 연필 그리드/장부 테두리선 */
+  --table-border-color: #dcd5c9;
+  --table-row-border: #e8e2d8;    /* 장부 괘선(미세 행 구분선) */
+  
+  --scrollbar-track: #e8e2d8;
+  --scrollbar-thumb: #9a9284;     /* 부드러운 먹색/흑연 썸 */
+  --scrollbar-thumb-hover: #575147;
+  --scrollbar-thumb-border: #f5f2eb;
+
+  /* 📜 종이질감(Warm Cotton Paper Micro-grain) 노이즈 텍스처 (SVG 무손실 벡터 데이터 URI) */
+  --paper-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='paperNoise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0 0.25 0 0 0 0 0.038 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paperNoise)'/%3E%3C/svg%3E");
+
+  --canvas: var(--bg-app);
+  --surface-1: var(--bg-card);
+  --surface-2: var(--bg-sidebar);
+  --surface-3: var(--bg-card-header);
+  --surface-hover: #e8e2d8;
+  --hairline: var(--border-color);
+  --hairline-strong: #1d4ed8;
+  --ink: #0f172a;
+  --ink-muted: #334155;
   --ink-subtle: #64748b;
-  --accent-primary: #2563eb;
-  --accent-primary-hover: #3b82f6;
-  --accent-success: #10b981;
-  --accent-warning: #f59e0b;
-  --accent-danger: #ef4444;
-  --badge-bg: rgba(37, 99, 235, 0.15);
-  --badge-text: #bfdbfe;
-  --ars-bg: rgba(59, 130, 246, 0.08);
-  --ars-border: rgba(59, 130, 246, 0.2);
-  --ars-text: #93c5fd;
-  --glow-color: rgba(37, 99, 235, 0.25);
+  --accent-primary: #1d4ed8;
+  --accent-primary-hover: #1e40af;
+  --accent-success: #047857;
+  --accent-warning: #b45309;
+  --accent-danger: #dc2626;
+  --badge-bg: #eff6ff;
+  --badge-text: #1d4ed8;
+  --ars-bg: rgba(29, 78, 216, 0.08);
+  --ars-border: rgba(29, 78, 216, 0.2);
+  --ars-text: #1d4ed8;
+  --glow-color: rgba(29, 78, 216, 0.15);
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -35,7 +53,7 @@
   margin: 0;
   padding: 0;
   scrollbar-width: thin;
-  scrollbar-color: #3b82f6 rgba(15, 23, 42, 0.6);
+  scrollbar-color: #9a9284 #e8e2d8;
 }
 
 html, body, #root {
@@ -50,7 +68,9 @@ body {
   font-family: Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  background-color: var(--canvas);
+  background-color: var(--bg-app);
+  background-image: var(--paper-texture);
+  background-repeat: repeat;
   color: var(--ink);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
@@ -62,22 +82,21 @@ input, select, textarea, button {
 
 /* Custom Sleek Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.5);
-  border-radius: 4px;
+  background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3b82f6;
+  background: var(--scrollbar-thumb-hover);
 }
 
 .font-mono {

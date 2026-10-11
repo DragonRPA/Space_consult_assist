@@ -108,7 +108,7 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
 
 // 2. Comprehensive 4-Category Named Entity Registry (Zero Emoji, Professional Clean UI)
 export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
-  // A. CUSTOMER & PERSON (고객사명 / 담당자명 - Purple / Violet)
+  // A. CUSTOMER & PERSON (고객사명 / 담당자명 - Primary Blue)
   {
     id: 'ent-cust-gangnam',
     type: 'customer',
@@ -116,10 +116,10 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /(?:주)?\s*스페이스\s*클린|스페이스클린|최관리\s*(?:팀장)?/i,
     customerId: 'a1111111-1111-1111-1111-111111111111',
     colorScheme: {
-      bg: 'rgba(168, 85, 247, 0.18)',
-      border: '#a855f7',
-      text: '#e9d5ff',
-      glow: '0 0 8px rgba(168, 85, 247, 0.5)'
+      bg: 'rgba(37, 99, 235, 0.18)',
+      border: '#2563eb',
+      text: '#bfdbfe',
+      glow: 'none'
     }
   },
   {
@@ -129,10 +129,10 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /미래\s*물류(?:\s*센터)?|정센터장|미래물류/i,
     customerId: 'a2222222-2222-2222-2222-222222222222',
     colorScheme: {
-      bg: 'rgba(168, 85, 247, 0.18)',
-      border: '#a855f7',
-      text: '#e9d5ff',
-      glow: '0 0 8px rgba(168, 85, 247, 0.5)'
+      bg: 'rgba(37, 99, 235, 0.18)',
+      border: '#2563eb',
+      text: '#bfdbfe',
+      glow: 'none'
     }
   },
   {
@@ -142,10 +142,10 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /케이\s*로지스|오센터장|케이로지스/i,
     customerId: 'a1010101-1010-1010-1010-101010101010',
     colorScheme: {
-      bg: 'rgba(168, 85, 247, 0.18)',
-      border: '#a855f7',
-      text: '#e9d5ff',
-      glow: '0 0 8px rgba(168, 85, 247, 0.5)'
+      bg: 'rgba(37, 99, 235, 0.18)',
+      border: '#2563eb',
+      text: '#bfdbfe',
+      glow: 'none'
     }
   },
 
@@ -254,7 +254,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     colorScheme: {
       bg: 'rgba(16, 185, 129, 0.2)',
       border: '#10b981',
-      text: '#6ee7b7',
+      text: '#a7f3d0',
       glow: '0 0 8px rgba(16, 185, 129, 0.6)'
     }
   },
@@ -267,7 +267,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     colorScheme: {
       bg: 'rgba(16, 185, 129, 0.2)',
       border: '#10b981',
-      text: '#6ee7b7',
+      text: '#a7f3d0',
       glow: '0 0 8px rgba(16, 185, 129, 0.6)'
     }
   },
@@ -280,7 +280,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     colorScheme: {
       bg: 'rgba(16, 185, 129, 0.2)',
       border: '#10b981',
-      text: '#6ee7b7',
+      text: '#a7f3d0',
       glow: '0 0 8px rgba(16, 185, 129, 0.6)'
     }
   },
@@ -293,7 +293,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     colorScheme: {
       bg: 'rgba(16, 185, 129, 0.2)',
       border: '#10b981',
-      text: '#6ee7b7',
+      text: '#a7f3d0',
       glow: '0 0 8px rgba(16, 185, 129, 0.6)'
     }
   },
@@ -306,7 +306,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     colorScheme: {
       bg: 'rgba(16, 185, 129, 0.2)',
       border: '#10b981',
-      text: '#6ee7b7',
+      text: '#a7f3d0',
       glow: '0 0 8px rgba(16, 185, 129, 0.6)'
     }
   }

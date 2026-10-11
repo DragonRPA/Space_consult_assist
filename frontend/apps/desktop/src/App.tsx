@@ -106,7 +106,7 @@ export default function App() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#f8fafc' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: 'var(--bg-app)', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat' }}>
       <GlobalNav currentTab={currentTab} onSelectTab={handleSelectTab} onOpenGuides={handleOpenGuides} />
       <main style={{ flex: 1, position: 'relative' }}>
         {currentTab === 'counsel-v2' && <CounselAssistV2 initialOpenGuides={openGuides} />}
@@ -1202,14 +1202,14 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               gap: '6px',
               padding: '5px 12px',
               borderRadius: '6px',
-              backgroundColor: '#4338ca',
+              backgroundColor: '#1d4ed8',
               color: '#fff',
-              border: 'none',
+              border: '1px solid #2563eb',
               fontSize: '14px',
               fontWeight: 700,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
-              boxShadow: '0 2px 4px rgba(67, 56, 202, 0.4)'
+              boxShadow: '0 2px 4px rgba(29, 78, 216, 0.3)'
             }}
           >
             <BookOpen size={14} />
@@ -1305,7 +1305,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 borderRadius: '4px',
                 border: 'none',
                 backgroundColor: sttEngine === 'web_speech' ? 'var(--accent-warning)' : 'transparent',
-                color: sttEngine === 'web_speech' ? '#000' : 'var(--ink-muted)',
+                color: sttEngine === 'web_speech' ? '#0f172a' : 'var(--ink-muted)',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease'
               }}
@@ -1751,16 +1751,16 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               marginBottom: '6px'
             }}>
               <span style={{ color: 'var(--ink-muted)', fontWeight: 600 }}>식별 범례:</span>
-              <span style={{ color: '#e9d5ff', backgroundColor: 'rgba(168, 85, 247, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
-                고객사/담당자 (보라)
+              <span style={{ color: '#bfdbfe', backgroundColor: 'rgba(37, 99, 235, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+                고객사/담당자 (청색)
               </span>
               <span style={{ color: '#fde68a', backgroundColor: 'rgba(245, 158, 11, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
                 현장/위치 (황색)
               </span>
-              <span style={{ color: '#93c5fd', backgroundColor: 'rgba(37, 99, 235, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
-                고장증상 (청색)
+              <span style={{ color: '#fecaca', backgroundColor: 'rgba(220, 38, 38, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+                고장증상 (적색)
               </span>
-              <span style={{ color: '#6ee7b7', backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+              <span style={{ color: '#a7f3d0', backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
                 조치사항 (녹색)
               </span>
             </div>
@@ -1816,7 +1816,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                       gap: '4px',
                       padding: '3px 8px',
                       backgroundColor: isDirectEditMode ? 'var(--accent-warning)' : 'var(--surface-3)',
-                      color: isDirectEditMode ? '#000' : 'var(--ink)',
+                      color: isDirectEditMode ? '#0f172a' : 'var(--ink)',
                       border: '1px solid var(--hairline)',
                       borderRadius: '4px',
                       fontSize: '13.5px',
@@ -2710,7 +2710,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 width: '100%',
                 padding: '11px',
                 backgroundColor: 'var(--accent-warning)',
-                color: '#000',
+                color: '#0f172a',
                 border: 'none',
                 borderRadius: '6px',
                 fontWeight: 700,

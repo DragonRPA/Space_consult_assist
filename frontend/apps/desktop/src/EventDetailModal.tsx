@@ -18,9 +18,9 @@ const OVERLAY: React.CSSProperties = {
 };
 
 const MODAL: React.CSSProperties = {
-  background: '#ffffff', borderRadius: 10, width: '100%', maxWidth: 560,
+  background: '#fbf9f5', borderRadius: 10, width: '100%', maxWidth: 560,
   boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-  border: '1px solid #e2e8f0', color: '#0f172a',
+  border: '1px solid #dcd5c9', color: '#0f172a',
   fontFamily: "Pretendard, -apple-system, sans-serif",
 };
 
@@ -112,7 +112,7 @@ export function EventDetailModal({ event: ev, cats, onClose, onEdit, onDelete: _
       <div style={MODAL}>
         
         {/* 헤더 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid #e2e8f0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid #dcd5c9' }}>
           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>일정 상세</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={18} /></button>
         </div>
@@ -220,15 +220,15 @@ export function EventDetailModal({ event: ev, cats, onClose, onEdit, onDelete: _
         </div>
 
         {/* 푸터 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid #e2e8f0', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid #dcd5c9', alignItems: 'center' }}>
           {/* 좌측 버튼 그룹 */}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={onToggleDone}
-              style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#475569', padding: '7px 14px', borderRadius: 6, fontSize: 14, cursor: 'pointer', fontWeight: 500 }}>
+              style={{ background: '#fbf9f5', border: '1px solid #dcd5c9', color: '#475569', padding: '7px 14px', borderRadius: 6, fontSize: 14, cursor: 'pointer', fontWeight: 500 }}>
               {ev.is_done ? '완료취소' : '완료처리'}
             </button>
             <button
-              style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#475569', padding: '7px 14px', borderRadius: 6, fontSize: 14, cursor: 'pointer', fontWeight: 500 }}>
+              style={{ background: '#fbf9f5', border: '1px solid #dcd5c9', color: '#475569', padding: '7px 14px', borderRadius: 6, fontSize: 14, cursor: 'pointer', fontWeight: 500 }}>
               ERP 복사
             </button>
           </div>
@@ -236,7 +236,7 @@ export function EventDetailModal({ event: ev, cats, onClose, onEdit, onDelete: _
           {/* 우측 버튼 그룹 */}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={onClose}
-              style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#475569', padding: '7px 14px', borderRadius: 6, fontSize: 14, cursor: 'pointer', fontWeight: 500 }}>
+              style={{ background: '#fbf9f5', border: '1px solid #dcd5c9', color: '#475569', padding: '7px 14px', borderRadius: 6, fontSize: 14, cursor: 'pointer', fontWeight: 500 }}>
               닫기
             </button>
             <button onClick={onEdit}

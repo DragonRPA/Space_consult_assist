@@ -26,15 +26,15 @@ const OVERLAY: React.CSSProperties = {
 };
 
 const MODAL: React.CSSProperties = {
-  background: '#ffffff', borderRadius: 10, width: '100%', maxWidth: 640,
+  background: '#fbf9f5', borderRadius: 10, width: '100%', maxWidth: 640,
   boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-  border: '1px solid #e2e8f0', color: '#0f172a',
+  border: '1px solid #dcd5c9', color: '#0f172a',
   fontFamily: "Pretendard, -apple-system, sans-serif",
 };
 
 const MODAL_HEAD: React.CSSProperties = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  padding: '14px 20px', borderBottom: '1px solid #e2e8f0',
+  padding: '14px 20px', borderBottom: '1px solid #dcd5c9',
 };
 
 const MODAL_BODY: React.CSSProperties = {
@@ -42,7 +42,7 @@ const MODAL_BODY: React.CSSProperties = {
 };
 
 const MODAL_FOOT: React.CSSProperties = {
-  display: 'flex', gap: 8, padding: '12px 20px', borderTop: '1px solid #e2e8f0', alignItems: 'center',
+  display: 'flex', gap: 8, padding: '12px 20px', borderTop: '1px solid #dcd5c9', alignItems: 'center',
 };
 
 const FIELD: React.CSSProperties = {
@@ -54,7 +54,7 @@ const LABEL: React.CSSProperties = {
 };
 
 const INPUT_STYLE: React.CSSProperties = {
-  background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6,
+  background: '#fbf9f5', border: '1px solid #dcd5c9', borderRadius: 6,
   padding: '6px 10px', fontSize: 14, color: '#0f172a', fontFamily: 'inherit', width: '100%',
   boxSizing: 'border-box', outline: 'none',
 };
@@ -65,7 +65,7 @@ const BTN_PRIMARY: React.CSSProperties = {
 };
 
 const BTN_LINE: React.CSSProperties = {
-  background: '#ffffff', color: '#475569', border: '1px solid #cbd5e1',
+  background: '#fbf9f5', color: '#475569', border: '1px solid #dcd5c9',
   padding: '7px 14px', borderRadius: 6, fontSize: 14, fontWeight: 500, cursor: 'pointer',
 };
 
@@ -143,7 +143,7 @@ function FieldRenderer({ fld, value, onChange, ctx }: FieldRendererProps) {
             style={{
               border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13.5, fontWeight: 600,
               cursor: 'pointer', width: 'auto', alignSelf: 'flex-start',
-              background: isOn ? '#2563eb' : '#27354f', color: isOn ? '#fff' : '#4b5563',
+              background: isOn ? '#2563eb' : '#e2e8f0', color: isOn ? '#ffffff' : '#475569',
             }}>
             {isOn ? fld.onText : fld.offText}
           </button>
@@ -168,9 +168,9 @@ function FieldRenderer({ fld, value, onChange, ctx }: FieldRendererProps) {
                     onChange(fld.key, { selected: next });
                   }}
                   style={{
-                    border: `1px solid ${isSel ? '#2563eb' : '#e5e7eb'}`,
-                    background: isSel ? '#2563eb22' : 'transparent',
-                    color: isSel ? '#2563eb' : '#4b5563',
+                    border: `1px solid ${isSel ? '#2563eb' : '#cbd5e1'}`,
+                    background: isSel ? '#eff6ff' : 'transparent',
+                    color: isSel ? '#1d4ed8' : '#334155',
                     borderRadius: 16, padding: '5px 12px', fontSize: 13.5, cursor: 'pointer',
                   }}>
                   {o}
@@ -376,7 +376,7 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
               <label style={LABEL}><span style={{ color: '#ef4444' }}>*</span> 업무카테고리</label>
               <select value={category} onChange={e => handleCategoryChange(e.target.value)}
                 style={{
-                  width: '100%', padding: '6px 10px', background: '#ffffff',
+                  width: '100%', padding: '6px 10px', background: '#fbf9f5',
                   border: '1px solid #334155', color: '#111827', borderRadius: 6, fontSize: 14,
                 }}
               >
@@ -389,7 +389,7 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
               <label style={LABEL}><span style={{ color: '#ef4444' }}>*</span> 업무</label>
               <select value={worktype} onChange={e => setWorktype(e.target.value)}
                 style={{
-                  width: '100%', padding: '6px 10px', background: '#ffffff',
+                  width: '100%', padding: '6px 10px', background: '#fbf9f5',
                   border: '1px solid #334155', color: '#111827', borderRadius: 6, fontSize: 14,
                 }}
               >
@@ -458,7 +458,7 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
                 <button key={label} type="button" onClick={() => set(!val)}
                   style={{
                     border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
-                    background: val ? '#2563eb' : '#27354f', color: val ? '#fff' : '#4b5563',
+                    background: val ? '#2563eb' : '#e2e8f0', color: val ? '#ffffff' : '#475569',
                   }}>
                   {label}
                 </button>
@@ -489,7 +489,7 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
           <div style={{ marginTop: 16 }}>
             {/* 탭 버튼 */}
             {activeTabs.length > 0 && (
-              <div style={{ display: 'flex', gap: 6, marginBottom: 14, borderBottom: '2px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 14, borderBottom: '2px solid #dcd5c9' }}>
                 {activeTabs.map(t => (
                   <button key={t.key} type="button" onClick={() => setActiveTab(t.key)}
                     style={{
