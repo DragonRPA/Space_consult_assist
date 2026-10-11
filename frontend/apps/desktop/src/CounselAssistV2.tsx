@@ -15,18 +15,113 @@ import {
   type ModelSpec,
   type SpecialGuide
 } from './manualKnowledgeData';
+import {
+  DispatchDocPackageModal,
+  type DispatchDoc1st,
+  type DispatchDoc2nd,
+  type SelfActionEvidenceItem
+} from './DispatchDocPackageModal';
 
 // ─── 타입 정의 ─────────────────────────────────────────────────────────────────
-interface Customer {
+export interface Customer {
   id: string;
-  name: string;
-  manager: string;
-  phone: string;
-  assetModel: string;
-  serialNumber: string;
-  salesType: string;
+  name: string;             // 원청 고객사 (예: 반포자이 아파트 관리사무소)
+  manager: string;          // 원청 결재권자 (예: 박시설 시설과장)
+  phone: string;            // 원청 결재자 연락처 (예: 010-9876-5432)
+  managerEmail?: string;    // 원청 결재자 이메일
+  useCompany?: string;      // 실사용처/하청 용역사 (예: (주)클린에코 청소용역)
+  siteWorkerName?: string;  // 현장 통화자/미화원 (예: 김순자 미화반장)
+  siteWorkerPhone?: string; // 현장 통화자 연락처 (예: 010-3456-7890)
+  assetModel: string;       // 보유 장비 모델 (예: J600T)
+  serialNumber: string;     // 일련번호 (예: J600T-2024-0812)
+  salesType: string;        // 계약구분 (예: 렌탈(임대))
   historyTimeline: { date: string; title: string; isWarning?: boolean }[];
 }
+
+// ─── 건물/아파트 관리사무소(원청) & 청소용역(하청) 기본 B2B 고객사 프리셋 ─────────────
+export const DEFAULT_B2B_CUSTOMERS: Customer[] = [
+  {
+    id: 'cust-001',
+    name: '반포자이 아파트 관리사무소',
+    manager: '박시설 시설과장',
+    phone: '010-9876-5432',
+    managerEmail: 'facility@banpojai.co.kr',
+    useCompany: '(주)클린에코 청소용역',
+    siteWorkerName: '김순자 미화반장',
+    siteWorkerPhone: '010-3456-7890',
+    assetModel: 'J600T',
+    serialNumber: 'J600T-2024-0812',
+    salesType: '렌탈(임대)',
+    historyTimeline: [
+      { date: '2026-09-15', title: '정기 소모품(스퀴지 러버) 납품 완료' },
+      { date: '2026-07-20', title: '배터리 증류수 보충 및 점검' }
+    ]
+  },
+  {
+    id: 'cust-002',
+    name: '래미안퍼스티지 관리지원센터',
+    manager: '이관리 관리소장',
+    phone: '010-8765-4321',
+    managerEmail: 'raemian.mgr@seoul.kr',
+    useCompany: '(주)삼원종합관리 미화팀',
+    siteWorkerName: '이영희 미화원',
+    siteWorkerPhone: '010-2345-6789',
+    assetModel: 'J800',
+    serialNumber: 'J800-2023-1104',
+    salesType: '렌탈(임대)',
+    historyTimeline: [
+      { date: '2026-08-10', title: '메인 브러시 모터 점검 정상' }
+    ]
+  },
+  {
+    id: 'cust-003',
+    name: '도곡렉슬아파트 관리사무소',
+    manager: '최기술 기술팀장',
+    phone: '010-7654-3210',
+    managerEmail: 'choi.tech@rexle.com',
+    useCompany: '(주)한결에프엠',
+    siteWorkerName: '박철수 조장',
+    siteWorkerPhone: '010-5678-1234',
+    assetModel: 'S7',
+    serialNumber: 'S7-2024-0309',
+    salesType: '직구매(유지보수계약)',
+    historyTimeline: [
+      { date: '2026-06-02', title: '필터 및 흡입 호스 정기 세척' }
+    ]
+  },
+  {
+    id: 'cust-004',
+    name: '송도더샵퍼스트월드 관리단',
+    manager: '정운영 운영총괄',
+    phone: '010-6543-2109',
+    managerEmail: 'songdo.thesharp@mgmt.com',
+    useCompany: '(주)대경종합개발',
+    siteWorkerName: '정명자 반장',
+    siteWorkerPhone: '010-4321-8765',
+    assetModel: 'J600T',
+    serialNumber: 'J600T-2025-0105',
+    salesType: '렌탈(임대)',
+    historyTimeline: [
+      { date: '2026-09-01', title: '정기 점검 및 구동 모터 체크' }
+    ]
+  },
+  {
+    id: 'cust-005',
+    name: '가산디지털엠타워 관리단',
+    manager: '강센터 관리실장',
+    phone: '010-5432-1098',
+    managerEmail: 'mtower.as@gasan.co.kr',
+    useCompany: '(주)피앤씨클린',
+    siteWorkerName: '최순덕 미화원',
+    siteWorkerPhone: '010-3210-9876',
+    assetModel: 'S5',
+    serialNumber: 'S5-2024-0518',
+    salesType: '렌탈(임대)',
+    historyTimeline: [
+      { date: '2026-08-25', title: '충전기 플러그 접촉 점검' }
+    ]
+  }
+];
 
 export interface DiagnosticStep {
   step_no: number;
@@ -78,6 +173,10 @@ export interface ConsultSessionRecord {
   customerName: string;
   manager: string;
   phone: string;
+  managerEmail?: string;
+  useCompany?: string;
+  siteWorkerName?: string;
+  siteWorkerPhone?: string;
   serialNumber: string;
   modelName: string;
   activeSymptomKey: string | null;
@@ -87,6 +186,8 @@ export interface ConsultSessionRecord {
   summaryText: string;
   currentStepSummary: string;
   selectedErrorCodes: string[];
+  doc1st?: DispatchDoc1st;
+  doc2nd?: DispatchDoc2nd;
 }
 
 
@@ -237,20 +338,28 @@ export function matchesIntegratedSessionQuery(record: ConsultSessionRecord, full
 
   const rawPhone = record.phone || '';
   const cleanDigitsPhone = rawPhone.replace(/\D/g, '');
+  const sitePhone = record.siteWorkerPhone || '';
+  const cleanDigitsSitePhone = sitePhone.replace(/\D/g, '');
 
   return tokens.every(token => {
     const tLower = token.toLowerCase();
     const tokenDigits = token.replace(/\D/g, '');
 
-    // ① 전화번호 매칭 (부분 일치, 숫자만 일치, 뒷자리 일치)
+    // ① 전화번호 매칭 (원청 결재자 및 현장 통화자 전화번호)
     if (rawPhone && rawPhone.toLowerCase().includes(tLower)) return true;
     if (tokenDigits.length >= 2 && cleanDigitsPhone.includes(tokenDigits)) return true;
+    if (sitePhone && sitePhone.toLowerCase().includes(tLower)) return true;
+    if (tokenDigits.length >= 2 && cleanDigitsSitePhone.includes(tokenDigits)) return true;
 
-    // ② 고객명 (초성 및 텍스트)
+    // ② 고객명 (원청 관리소명) (초성 및 텍스트)
     if (matchesChosungOrText(record.customerName, token)) return true;
 
-    // ③ 담당자 (초성 및 텍스트)
+    // ②-2 실사용처 (하청 용역사명)
+    if (record.useCompany && matchesChosungOrText(record.useCompany, token)) return true;
+
+    // ③ 담당자 (원청 결재자 및 현장 미화원) (초성 및 텍스트)
     if (matchesChosungOrText(record.manager, token)) return true;
+    if (record.siteWorkerName && matchesChosungOrText(record.siteWorkerName, token)) return true;
 
     // ④ 장비 모델명
     if (matchesChosungOrText(record.modelName, token)) return true;
@@ -304,9 +413,16 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
   const [searchResults, setSearchResults]           = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer]     = useState<Customer | null>(null);
   const [customerPhone, setCustomerPhone]           = useState('');
+  const [siteWorkerPhone, setSiteWorkerPhone]       = useState('');
   const [selectedModel, setSelectedModel]           = useState<string>('J600T');
   const [isSearching, setIsSearching]               = useState(false);
   const [dropdownOpen, setDropdownOpen]             = useState(false);
+
+  // ①-3 원청 결재 연계 2단계 AS 출장 행정 패키지 상태
+  const [showDispatchPackageModal, setShowDispatchPackageModal] = useState(false);
+  const [dispatchDoc1st, setDispatchDoc1st]         = useState<Partial<DispatchDoc1st> | null>(null);
+  const [dispatchDoc2nd, setDispatchDoc2nd]         = useState<Partial<DispatchDoc2nd> | null>(null);
+  const [dispatchModalTab, setDispatchModalTab]     = useState<'doc1' | 'doc2'>('doc1');
 
   // ①-2 모델 하드웨어 제원 & 상황별 매뉴얼 가이드
   const [currentModelSpec, setCurrentModelSpec]     = useState<ModelSpec | null>(() => DEFAULT_MODEL_SPECS['J600T'] || null);
@@ -461,24 +577,46 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
     fetchModelSymptoms(selectedModel);
   }, [selectedModel, fetchModelSymptoms]);
 
-  // ── 고객 검색 (한글 초성 검색 완벽 지원) ─────────────────────────────────────────
+  // ── 고객 검색 (한글 초성 검색 & B2B 관리사무소/용역사 다중 매칭) ──────────────
   const handleCustomerSearch = useCallback(async (q: string) => {
     setSearchText(q);
     if (q.trim().length < 1) { setSearchResults([]); setDropdownOpen(false); return; }
     setIsSearching(true);
     setDropdownOpen(true);
+
+    const query = q.trim();
+    // 1. 로컬 B2B 프리셋에서 원청명, 관리자, 실사용처, 현장통화자, 전화번호, 모델 초성 검색
+    const localMatches = DEFAULT_B2B_CUSTOMERS.filter(c => {
+      if (matchesChosungOrText(c.name, query)) return true;
+      if (matchesChosungOrText(c.manager, query)) return true;
+      if (c.useCompany && matchesChosungOrText(c.useCompany, query)) return true;
+      if (c.siteWorkerName && matchesChosungOrText(c.siteWorkerName, query)) return true;
+      if (c.phone && c.phone.replace(/\D/g, '').includes(query.replace(/\D/g, ''))) return true;
+      if (c.siteWorkerPhone && c.siteWorkerPhone.replace(/\D/g, '').includes(query.replace(/\D/g, ''))) return true;
+      if (matchesChosungOrText(c.assetModel, query)) return true;
+      return false;
+    });
+
     try {
       const res = await fetch(`${API}/schedule/customers?q=${encodeURIComponent(q)}&limit=10`);
       if (res.ok) {
         const data = await res.json();
         const items = Array.isArray(data) ? data : data.items ?? [];
-        setSearchResults(items);
-        setDropdownOpen(true);
+        const combined = [...localMatches];
+        items.forEach((item: any) => {
+          if (!combined.some(c => c.name === item.name)) {
+            combined.push(item);
+          }
+        });
+        setSearchResults(combined);
+      } else {
+        setSearchResults(localMatches);
       }
     } catch {
-      setSearchResults([]);
+      setSearchResults(localMatches);
     } finally {
       setIsSearching(false);
+      setDropdownOpen(true);
     }
   }, []);
 
@@ -486,6 +624,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
     setSelectedCustomer(c);
     setSearchText(c.name);
     setCustomerPhone(c.phone || '');
+    setSiteWorkerPhone(c.siteWorkerPhone || c.phone || '');
     setDropdownOpen(false);
     if (c.assetModel) {
       setSelectedModel(c.assetModel);
@@ -989,6 +1128,10 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
         customerName: selectedCustomer?.name ?? (searchText.trim() || '일반 고객'),
         manager: selectedCustomer?.manager ?? '',
         phone: customerPhone.trim() || selectedCustomer?.phone || '',
+        managerEmail: selectedCustomer?.managerEmail ?? '',
+        useCompany: selectedCustomer?.useCompany ?? '',
+        siteWorkerName: selectedCustomer?.siteWorkerName ?? '',
+        siteWorkerPhone: siteWorkerPhone.trim() || selectedCustomer?.siteWorkerPhone || '',
         serialNumber: selectedCustomer?.serialNumber ?? '',
         modelName: selectedModel,
         activeSymptomKey,
@@ -1051,6 +1194,10 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
       name: record.customerName,
       manager: record.manager,
       phone: record.phone,
+      managerEmail: record.managerEmail,
+      useCompany: record.useCompany,
+      siteWorkerName: record.siteWorkerName,
+      siteWorkerPhone: record.siteWorkerPhone,
       assetModel: record.modelName,
       serialNumber: record.serialNumber,
       salesType: '렌탈',
@@ -1058,6 +1205,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
     });
     setSearchText(record.customerName);
     setCustomerPhone(record.phone || '');
+    setSiteWorkerPhone(record.siteWorkerPhone || record.phone || '');
     setSelectedModel(record.modelName || 'J600T');
     fetchModelSymptoms(record.modelName || 'J600T');
 
@@ -1128,14 +1276,93 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
       const allSymptoms = sessionList.map(s => s.title).join(', ') || customSymptom;
       const finalAction = `${sessionSummaries}\n[상담원 메모] ${notes || '특이사항 없음'}`.trim();
 
+      // ── 1차 및 2차 AS 출장 행정 연계 문서 패키지 객체 생성 ──
+      const primeCompany = selectedCustomer?.name ?? (searchText.trim() || '일반 고객');
+      const primeManager = selectedCustomer?.manager ?? '관리소 시설과장';
+      const primePhone = customerPhone.trim() || selectedCustomer?.phone || '';
+      const subCompany = selectedCustomer?.useCompany || '(주)클린에코 청소용역';
+      const workerName = selectedCustomer?.siteWorkerName || '김순자 미화반장';
+      const workerPhone = siteWorkerPhone.trim() || selectedCustomer?.siteWorkerPhone || '';
+
+      const evidenceSteps: SelfActionEvidenceItem[] = (sessionList[0]?.steps || []).map(st => ({
+        stepNo: st.step_no,
+        title: st.title,
+        method: st.method || st.title,
+        result: (st.status === 'resolved' ? 'NORMAL' : st.status === 'unresolved' ? 'FAULT' : 'UNRESOLVED') as 'NORMAL' | 'FAULT' | 'UNRESOLVED',
+        note: st.status === 'resolved' ? '정상 해결 및 이상 없음 확인' : st.status === 'unresolved' ? '현장 조치 불가 / 불량 판정' : '안내 진행'
+      }));
+
+      const failureReasonText = `제조사 공식 매뉴얼에 의거하여 3단계 사전 자가점검(호스/필터/퓨즈)을 성실히 이행하였으나, [${allSymptoms}] 관련 현장 조치가 불가능하여 부품 지참 및 전문 기술 엔지니어 현장 출장 정비가 불가피함을 확인합니다.`;
+
+      const doc1Obj: DispatchDoc1st = {
+        docNo: `S-CHK-${nowIso.slice(0, 10).replace(/-/g, '')}-01`,
+        issuedAt: new Date().toLocaleDateString(),
+        recipientCompany: primeCompany,
+        recipientManager: primeManager,
+        recipientPhone: primePhone,
+        recipientEmail: selectedCustomer?.managerEmail || '',
+        siteCompany: subCompany,
+        siteWorkerName: workerName,
+        siteWorkerPhone: workerPhone,
+        equipmentModel: selectedModel,
+        serialNumber: selectedCustomer?.serialNumber || `${selectedModel}-2024-0812`,
+        salesType: selectedCustomer?.salesType || '렌탈(임대)',
+        symptoms: sessionList.map(s => s.title).length ? sessionList.map(s => s.title) : [allSymptoms],
+        selectedErrorCodes: selectedCodes,
+        evidenceSteps: evidenceSteps.length ? evidenceSteps : [
+          { stepNo: 1, title: '배터리 전압 및 메인 퓨즈 점검', method: '키 ON 통전 전압 확인', result: 'NORMAL', note: '24V 정상 확인' },
+          { stepNo: 2, title: '흡입 호스 및 플로트 점검', method: '호스 내 이물질 통수 점검', result: 'NORMAL', note: '호스 막힘 없음' },
+          { stepNo: 3, title: '모터 구동 및 통전 테스트', method: '모터 직결 회전 점검', result: 'FAULT', note: '모터 코일 소손 (조치 불가)' }
+        ],
+        failureReason: failureReasonText,
+        assignedEngineer: '이정민 주임',
+        engineerPhone: '010-4444-5555',
+        engineerCenter: '스페이스 수도권 AS 직영센터',
+        plannedVisitAt: `${new Date().toLocaleDateString()} 14:00 (사전 연락 후 방문)`,
+        sitePreparation: '장비 주변 작업 공간 확보 및 전원 키 보관 상태 유지 협조',
+        status: 'DRAFT'
+      };
+
+      const doc2Obj: DispatchDoc2nd = {
+        docNo: `S-EST-${nowIso.slice(0, 10).replace(/-/g, '')}-01`,
+        refDoc1stNo: doc1Obj.docNo,
+        issuedAt: new Date().toLocaleDateString(),
+        recipientCompany: primeCompany,
+        recipientManager: primeManager,
+        recipientPhone: primePhone,
+        recipientEmail: selectedCustomer?.managerEmail || '',
+        siteCompany: subCompany,
+        equipmentModel: selectedModel,
+        serialNumber: selectedCustomer?.serialNumber || `${selectedModel}-2024-0812`,
+        engineerName: '이정민 주임',
+        visitedAt: `${new Date().toLocaleDateString()} 14:30 ~ 15:40`,
+        rootCause: `${sessionList[0]?.title || '구동 모듈'} 내부 카본브러시 마모 및 회전자 코일 소손에 의한 구동 고착`,
+        actionTaken: '24V 신품 모터 어셈블리 교체, 방진 가스켓 교환, 시운전 진공 흡입 압력 정상치 복구 완료',
+        parts: [
+          { id: 'p1', name: '진공 흡입 모터 어셈블리 24V', partCode: `${selectedModel}-MOT-01`, qty: 1, unitPrice: 180000, supplyPrice: 180000 },
+          { id: 'p2', name: '방진 모터 실링 가스켓', partCode: `${selectedModel}-GSK-02`, qty: 1, unitPrice: 20000, supplyPrice: 20000 }
+        ],
+        techLaborFee: 80000,
+        travelFee: 50000,
+        supplyTotal: 330000,
+        vat: 33000,
+        grandTotal: 363000,
+        bankInfo: '신한은행 110-123-456789 (예금주: (주)스페이스)',
+        approvalStatus: 'PENDING'
+      };
+
       const newRecord: ConsultSessionRecord = {
         id: sessionId,
         timestamp: nowIso,
         updatedAt: nowIso,
         status: isVisit ? 'visit_required' : 'resolved_by_call',
-        customerName: selectedCustomer?.name ?? (searchText.trim() || '일반 고객'),
-        manager: selectedCustomer?.manager ?? '',
-        phone: customerPhone.trim() || selectedCustomer?.phone || '',
+        customerName: primeCompany,
+        manager: primeManager,
+        phone: primePhone,
+        managerEmail: selectedCustomer?.managerEmail || '',
+        useCompany: subCompany,
+        siteWorkerName: workerName,
+        siteWorkerPhone: workerPhone,
         serialNumber: selectedCustomer?.serialNumber ?? '',
         modelName: selectedModel,
         activeSymptomKey,
@@ -1143,8 +1370,10 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
         notes,
         counselorName: counselorName || '상담원',
         summaryText: allSymptoms,
-        currentStepSummary: isVisit ? 'AS 출장 접수 완료' : '직접 조치 종결 완료',
-        selectedErrorCodes: selectedCodes
+        currentStepSummary: isVisit ? 'AS 출장 접수 (1차 확인서 발행)' : '직접 조치 종결 완료',
+        selectedErrorCodes: selectedCodes,
+        doc1st: isVisit ? doc1Obj : undefined,
+        doc2nd: isVisit ? doc2Obj : undefined
       };
 
       const updatedPending = pendingSessions.filter(p => p.id !== sessionId);
@@ -1155,8 +1384,16 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
       setHistoryRecords(updatedHistory);
       try { localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory)); } catch {}
 
-      showToast(isVisit ? '복수 증상 AS 출동 예약 접수 완료' : '복수 증상 직접조치 완료 저장');
-      handleReset();
+      if (isVisit) {
+        setDispatchDoc1st(doc1Obj);
+        setDispatchDoc2nd(doc2Obj);
+        setDispatchModalTab('doc1');
+        setShowDispatchPackageModal(true);
+        showToast('AS 출장 접수 완료 ➔ 원청 결재 연계 [기술점검 확인서]가 자동 생성되었습니다.', 4000);
+      } else {
+        showToast('복수 증상 직접조치 완료 저장');
+        handleReset();
+      }
 
       try {
         await fetch(`${API}/counsel/`, {
@@ -1195,6 +1432,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
     setSearchText('');
     setSelectedCustomer(null);
     setCustomerPhone('');
+    setSiteWorkerPhone('');
     setCustomSymptom('');
     setSymptomSessions({});
     setActiveSymptomKey(null);
@@ -1320,6 +1558,57 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
         >
           <BookOpen size={13} />
           <span>상황별 수칙</span>
+        </button>
+
+        {/* 4. 원청 결재 연계 (1차·2차 행정 문서) 바로가기 버튼 */}
+        <button
+          onClick={() => {
+            if (!dispatchDoc1st) {
+              const evidenceSteps = (sessionList[0]?.steps || []).map(st => ({
+                stepNo: st.step_no,
+                title: st.title,
+                method: st.method || st.title,
+                result: (st.status === 'resolved' ? 'NORMAL' : st.status === 'unresolved' ? 'FAULT' : 'UNRESOLVED') as 'NORMAL' | 'FAULT' | 'UNRESOLVED',
+                note: st.status === 'resolved' ? '정상 해결 및 이상 없음' : st.status === 'unresolved' ? '현장 조치 불가 / 불량 판정' : '안내 진행'
+              }));
+              setDispatchDoc1st({
+                recipientCompany: selectedCustomer?.name || '반포자이 아파트 관리사무소',
+                recipientManager: selectedCustomer?.manager || '박시설 시설과장',
+                recipientPhone: customerPhone || selectedCustomer?.phone || '010-9876-5432',
+                siteCompany: selectedCustomer?.useCompany || '(주)클린에코 미화용역',
+                siteWorkerName: selectedCustomer?.siteWorkerName || '김순자 미화반장',
+                siteWorkerPhone: siteWorkerPhone || selectedCustomer?.siteWorkerPhone || '010-3456-7890',
+                equipmentModel: selectedModel,
+                serialNumber: selectedCustomer?.serialNumber || `${selectedModel}-2024-0812`,
+                symptoms: sessionList.map(s => s.title).length ? sessionList.map(s => s.title) : ['잔수 흡입 불량 및 오수 유출'],
+                selectedErrorCodes: sessionList.flatMap(s => s.selectedErrorCode ? [s.selectedErrorCode.code] : []),
+                evidenceSteps: evidenceSteps.length ? evidenceSteps : undefined
+              });
+            }
+            setDispatchModalTab('doc1');
+            setShowDispatchPackageModal(true);
+          }}
+          data-uia="btn-subtoolbar-dispatch-docs"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 12px',
+            borderRadius: 6,
+            fontSize: 13.5,
+            fontWeight: 700,
+            background: '#fef2f2',
+            color: '#b91c1c',
+            border: '1px solid #fecaca',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            height: 30,
+            boxShadow: '0 1px 2px rgba(220,38,38,0.08)',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <FileText size={13} color="#dc2626" />
+          <span>원청 결재 연계 (1차·2차)</span>
         </button>
 
         <div style={{ width: 1, height: 18, background: '#dcd5c9' }} />
@@ -1488,7 +1777,9 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                       onMouseLeave={e => (e.currentTarget.style.background = '#f5f2eb')}
                     >
                       <div style={{ fontWeight: 700, color: '#0f172a' }}>{c.name}</div>
-                      <div style={{ fontSize: 13.5, color: '#64748b' }}>{c.manager} · {c.phone} | 보유: {c.assetModel || '미지정'}</div>
+                      <div style={{ fontSize: 13.5, color: '#64748b' }}>
+                        {c.manager} · {c.phone} {c.useCompany ? `| 실사용: ${c.useCompany}` : ''} | 보유: {c.assetModel || '미지정'}
+                      </div>
                     </div>
                   ))}
                   {searchResults.length === 0 && !isSearching && (
@@ -1501,43 +1792,70 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
             </div>
 
             {selectedCustomer && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '4px 10px', fontSize: 13.5 }}>
-                <span style={{ fontWeight: 700, color: '#1e40af' }}>{selectedCustomer.name} ({selectedCustomer.manager})</span>
-                <button onClick={() => { setSelectedCustomer(null); setCustomerPhone(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 0 }}>
-                  <X size={13} />
-                </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '8px 10px', fontSize: 13.5 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 800, color: '#1e40af', background: '#dbeafe', padding: '1px 5px', borderRadius: 3 }}>원청</span>
+                      <span style={{ fontWeight: 800, color: '#0f172a' }}>{selectedCustomer.name}</span>
+                    </div>
+                    <div style={{ fontSize: 13.5, color: '#475569' }}>
+                      결재: <b>{selectedCustomer.manager}</b> ({selectedCustomer.phone})
+                    </div>
+                  </div>
+                  <button onClick={() => { setSelectedCustomer(null); setCustomerPhone(''); setSiteWorkerPhone(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 0 }}>
+                    <X size={13} />
+                  </button>
+                </div>
+
+                {selectedCustomer.useCompany && (
+                  <div style={{ borderTop: '1px dashed #bfdbfe', paddingTop: 4, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 800, color: '#047857', background: '#d1fae5', padding: '1px 5px', borderRadius: 3 }}>실사용처</span>
+                      <span style={{ fontWeight: 700, color: '#0f172a' }}>{selectedCustomer.useCompany}</span>
+                    </div>
+                    <div style={{ fontSize: 13.5, color: '#475569' }}>
+                      현장통화: <b>{selectedCustomer.siteWorkerName || '미화반장'}</b> ({selectedCustomer.siteWorkerPhone || selectedCustomer.phone})
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* 고객 연락처 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <label style={{ fontSize: 13.5, fontWeight: 700, color: '#334155', whiteSpace: 'nowrap' }}>연락처 (전화번호)</label>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            {/* 2-Track 연락처 입력 필드: 현장 통화자 vs 원청 결재권자 */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {/* ① 현장 통화자 연락처 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <label style={{ fontSize: 13.5, fontWeight: 700, color: '#047857', whiteSpace: 'nowrap' }}>
+                  현장통화 (미화원)
+                </label>
+                <input
+                  data-uia="input-site-worker-phone"
+                  value={siteWorkerPhone}
+                  onChange={e => setSiteWorkerPhone(e.target.value)}
+                  placeholder="010-3456-7890"
+                  style={{
+                    width: '100%', height: 32, border: '1px solid #dcd5c9', borderRadius: 5,
+                    padding: '0 6px', fontSize: 13.5, outline: 'none', background: '#f5f2eb', boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* ② 원청 결재자 연락처 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <label style={{ fontSize: 13.5, fontWeight: 700, color: '#1e40af', whiteSpace: 'nowrap' }}>
+                  원청결재 (관리소)
+                </label>
                 <input
                   data-uia="input-customer-phone"
                   value={customerPhone}
                   onChange={e => setCustomerPhone(e.target.value)}
-                  placeholder="전화번호 입력 (예: 010-9123-4567)"
+                  placeholder="010-9876-5432"
                   style={{
-                    width: '100%',
-                    height: 32,
-                    border: '1px solid #dcd5c9',
-                    borderRadius: 5,
-                    padding: '0 24px 0 8px',
-                    fontSize: 13.5,
-                    outline: 'none',
-                    background: '#f5f2eb',
-                    boxSizing: 'border-box'
+                    width: '100%', height: 32, border: '1px solid #dcd5c9', borderRadius: 5,
+                    padding: '0 6px', fontSize: 13.5, outline: 'none', background: '#f5f2eb', boxSizing: 'border-box'
                   }}
                 />
-                {customerPhone && (
-                  <button
-                    onClick={() => setCustomerPhone('')}
-                    style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 0 }}
-                  >
-                    <X size={13} />
-                  </button>
-                )}
               </div>
             </div>
 
@@ -3370,14 +3688,71 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                       </span>
                     </div>
 
-                    {selectedHistoryItem.status === 'in_progress' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {selectedHistoryItem.status === 'in_progress' && (
+                        <button
+                          onClick={() => handleResumeSession(selectedHistoryItem)}
+                          data-uia="btn-history-resume"
+                          style={{
+                            background: '#2563eb',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: 4,
+                            padding: '5px 12px',
+                            fontSize: 13.5,
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          상담 재개
+                        </button>
+                      )}
+
+                      {/* 원청 결재 연계 공문서 열기 버튼 */}
                       <button
-                        onClick={() => handleResumeSession(selectedHistoryItem)}
-                        data-uia="btn-history-resume"
+                        onClick={() => {
+                          const item = selectedHistoryItem;
+                          if (item.doc1st) {
+                            setDispatchDoc1st(item.doc1st);
+                          } else {
+                            const evidenceSteps = Object.values(item.symptomSessions || {}).flatMap(s =>
+                              s.steps.map(st => ({
+                                stepNo: st.step_no,
+                                title: st.title,
+                                method: st.method || st.title,
+                                result: (st.status === 'resolved' ? 'NORMAL' : st.status === 'unresolved' ? 'FAULT' : 'UNRESOLVED') as 'NORMAL' | 'FAULT' | 'UNRESOLVED',
+                                note: st.status === 'resolved' ? '정상 해결 및 이상 없음' : st.status === 'unresolved' ? '현장 조치 불가 / 불량 판정' : '안내 진행'
+                              }))
+                            );
+                            setDispatchDoc1st({
+                              recipientCompany: item.customerName,
+                              recipientManager: item.manager || '시설과장',
+                              recipientPhone: item.phone,
+                              siteCompany: item.useCompany || '(주)클린에코 미화용역',
+                              siteWorkerName: item.siteWorkerName || '김순자 미화반장',
+                              siteWorkerPhone: item.siteWorkerPhone || item.phone,
+                              equipmentModel: item.modelName,
+                              serialNumber: item.serialNumber,
+                              symptoms: [item.summaryText],
+                              selectedErrorCodes: item.selectedErrorCodes,
+                              evidenceSteps: evidenceSteps.length ? evidenceSteps : undefined
+                            });
+                          }
+
+                          if (item.doc2nd) {
+                            setDispatchDoc2nd(item.doc2nd);
+                          }
+                          setDispatchModalTab(item.status === 'resolved_by_call' ? 'doc2' : 'doc1');
+                          setShowDispatchPackageModal(true);
+                        }}
+                        data-uia="btn-history-open-dispatch-docs"
                         style={{
-                          background: '#2563eb',
-                          color: '#ffffff',
-                          border: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: '#fef2f2',
+                          color: '#b91c1c',
+                          border: '1px solid #fecaca',
                           borderRadius: 4,
                           padding: '5px 12px',
                           fontSize: 13.5,
@@ -3385,9 +3760,10 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                           cursor: 'pointer'
                         }}
                       >
-                        상담 재개
+                        <FileText size={13} color="#dc2626" />
+                        <span>원청 결재 공문서 (1차·2차)</span>
                       </button>
-                    )}
+                    </div>
                   </div>
 
                   {/* 증상별 단계 감사 기록 */}
@@ -3508,6 +3884,21 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
         </div>
       )}
 
+      {/* ── [모달 3: 원청 결재 연계 2단계 AS 출장 행정 패키지] ── */}
+      {showDispatchPackageModal && (
+        <DispatchDocPackageModal
+          initialDoc1st={dispatchDoc1st || undefined}
+          initialDoc2nd={dispatchDoc2nd || undefined}
+          initialTab={dispatchModalTab}
+          onClose={() => setShowDispatchPackageModal(false)}
+          onSave={(d1, d2) => {
+            setDispatchDoc1st(d1);
+            setDispatchDoc2nd(d2);
+            showToast('원청 결재 연계 문서 패키지가 성공적으로 저장되었습니다.');
+          }}
+          onToast={msg => showToast(msg, 3500)}
+        />
+      )}
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
