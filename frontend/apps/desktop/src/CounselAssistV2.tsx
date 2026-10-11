@@ -4,7 +4,8 @@ import {
   Loader2, RotateCcw, Wrench, CheckCircle2,
   History, Sparkles, X, ChevronDown,
   ChevronUp, Check, ArrowRight, RefreshCw, ShieldAlert,
-  Layers, Cpu, FileText, BookOpen, Copy, Clock
+  Layers, Cpu, FileText, BookOpen, Copy, Clock,
+  Package, Smartphone, Edit3
 } from 'lucide-react';
 import {
   DEFAULT_MODEL_SPECS,
@@ -21,6 +22,8 @@ import {
   type DispatchDoc2nd,
   type SelfActionEvidenceItem
 } from './DispatchDocPackageModal';
+import { PartsOrderQuotationModal } from './PartsOrderQuotationModal';
+import { SelfActionGuideModal, type SitePhotoSketchEvidence } from './SelfActionGuideModal';
 
 // ─── 타입 정의 ─────────────────────────────────────────────────────────────────
 export interface Customer {
@@ -424,6 +427,11 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
   const [dispatchDoc1st, setDispatchDoc1st]         = useState<Partial<DispatchDoc1st> | null>(null);
   const [dispatchDoc2nd, setDispatchDoc2nd]         = useState<Partial<DispatchDoc2nd> | null>(null);
   const [dispatchModalTab, setDispatchModalTab]     = useState<'doc1' | 'doc2'>('doc1');
+
+  // ①-4 현장 자가조치 모바일 가이드 & 소모품 견적서 상태
+  const [showSelfActionGuideModal, setShowSelfActionGuideModal] = useState(false);
+  const [showPartsOrderModal, setShowPartsOrderModal]           = useState(false);
+  const [photoEvidence, setPhotoEvidence]                       = useState<SitePhotoSketchEvidence | null>(null);
 
   // ①-2 모델 하드웨어 제원 & 상황별 매뉴얼 가이드
   const [currentModelSpec, setCurrentModelSpec]     = useState<ModelSpec | null>(() => DEFAULT_MODEL_SPECS['J600T'] || null);
@@ -1616,6 +1624,58 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
           <span>원청 결재 연계 (1차·2차)</span>
         </button>
 
+        {/* 5. 현장 자가조치 모바일 가이드 바로가기 버튼 */}
+        <button
+          onClick={() => setShowSelfActionGuideModal(true)}
+          data-uia="btn-subtoolbar-self-guide"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 12px',
+            borderRadius: 6,
+            fontSize: 13.5,
+            fontWeight: 700,
+            background: '#eff6ff',
+            color: '#1e40af',
+            border: '1px solid #bfdbfe',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            height: 30,
+            boxShadow: '0 1px 2px rgba(30,64,175,0.08)',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Smartphone size={13} color="#1d4ed8" />
+          <span>자가조치 가이드 (사진/영상)</span>
+        </button>
+
+        {/* 6. 원청 결재 소모품 견적서 발행 바로가기 버튼 */}
+        <button
+          onClick={() => setShowPartsOrderModal(true)}
+          data-uia="btn-subtoolbar-parts-quote"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 12px',
+            borderRadius: 6,
+            fontSize: 13.5,
+            fontWeight: 700,
+            background: '#fffbeb',
+            color: '#b45309',
+            border: '1px solid #fde68a',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            height: 30,
+            boxShadow: '0 1px 2px rgba(180,83,9,0.08)',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Package size={13} color="#b45309" />
+          <span>소모품 견적서 (원청 결재)</span>
+        </button>
+
         <div style={{ width: 1, height: 18, background: '#dcd5c9' }} />
 
         {/* 상담자 입력 */}
@@ -2446,6 +2506,140 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                 )}
               </div>
 
+              {/* [상단 파이프라인] 증상 판정 ➔ 자가조치 가이드 ➔ 현장 회신 대기 ➔ 종결 분기 4단계 스테퍼 */}
+              <div
+                style={{
+                  background: '#ece7de',
+                  borderRadius: 8,
+                  border: '1px solid #dcd5c9',
+                  padding: '8px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  flexShrink: 0
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, overflowX: 'auto' }}>
+                  {/* 단계 1: 증상 판정 */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: '#dbeafe',
+                      color: '#1e40af',
+                      padding: '4px 10px',
+                      borderRadius: 4,
+                      fontSize: 13.5,
+                      fontWeight: 800,
+                      border: '1px solid #93c5fd',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <span>1. 증상 판정</span>
+                    <CheckCircle2 size={13} color="#1d4ed8" />
+                  </div>
+
+                  <ChevronRight size={14} color="#94a3b8" />
+
+                  {/* 단계 2: 자가조치 가이드 (사진/영상) */}
+                  <button
+                    type="button"
+                    onClick={() => setShowSelfActionGuideModal(true)}
+                    data-uia="btn-stepper-self-guide"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: '#fef3c7',
+                      color: '#92400e',
+                      padding: '4px 10px',
+                      borderRadius: 4,
+                      fontSize: 13.5,
+                      fontWeight: 800,
+                      border: '1px solid #fcd34d',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Smartphone size={13} color="#b45309" />
+                    <span>2. 자가조치 가이드 (사진·영상 전송)</span>
+                  </button>
+
+                  <ChevronRight size={14} color="#94a3b8" />
+
+                  {/* 단계 3: 현장 사진 회신 대기 (스케치) */}
+                  <button
+                    type="button"
+                    onClick={() => setShowSelfActionGuideModal(true)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: photoEvidence ? '#fee2e2' : '#f5f2eb',
+                      color: photoEvidence ? '#b91c1c' : '#64748b',
+                      padding: '4px 10px',
+                      borderRadius: 4,
+                      fontSize: 13.5,
+                      fontWeight: 800,
+                      border: photoEvidence ? '1px solid #fecaca' : '1px solid #dcd5c9',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Edit3 size={13} />
+                    <span>3. 현장 회신 대기 {photoEvidence ? '(사진 접수됨)' : '(스케치 링크)'}</span>
+                  </button>
+
+                  <ChevronRight size={14} color="#94a3b8" />
+
+                  {/* 단계 4: 종결 분기 (해결 / 부품 / 출장) */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: '#f5f2eb',
+                      color: '#334155',
+                      padding: '4px 10px',
+                      borderRadius: 4,
+                      fontSize: 13.5,
+                      fontWeight: 800,
+                      border: '1px solid #dcd5c9',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <span>4. 결과 분기 (직접해결 / 소모품 / AS 출장)</span>
+                  </div>
+                </div>
+
+                {/* 우측 퀵 가이드 버튼 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowSelfActionGuideModal(true)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      background: '#1d4ed8',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 4,
+                      padding: '4px 10px',
+                      fontSize: 13.5,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Smartphone size={13} />
+                    <span>가이드 열기</span>
+                  </button>
+                </div>
+              </div>
+
               {/* [우측 1구역] 현재 활성 증상 헤더 & 표준 안내 스크립트 */}
               <div style={{ background: '#ece7de', borderRadius: 8, border: '1px solid #dcd5c9', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, boxShadow: '0 1px 2px rgba(40,30,20,0.05)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -2877,11 +3071,36 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
 
                     {/* 1. 조치 및 시험 방법 */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, background: '#f5f2eb', padding: '10px 14px', borderRadius: 6, border: '1px solid #dcd5c9' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Wrench size={13} color="#475569" />
-                        <label style={{ fontSize: 13.5, fontWeight: 800, color: '#334155' }}>
-                          조치 및 시험 방법
-                        </label>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Wrench size={13} color="#475569" />
+                          <label style={{ fontSize: 13.5, fontWeight: 800, color: '#334155' }}>
+                            조치 및 시험 방법
+                          </label>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowSelfActionGuideModal(true)}
+                          data-uia="btn-send-step-self-guide"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            borderRadius: 4,
+                            padding: '3px 10px',
+                            fontSize: 13.5,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <Smartphone size={13} />
+                          <span>자가조치 가이드 (사진/영상) 현장 전송</span>
+                        </button>
                       </div>
                       <p style={{ margin: 0, fontSize: 14, color: '#0f172a', fontWeight: 600, lineHeight: 1.5 }}>
                         {activeStep.method || activeStep.title}
@@ -3128,7 +3347,34 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   <span>고객 대기 등록</span>
                 </button>
 
-                {/* 2. 직접 조치 종결 버튼 (모든 증상이 해결되었을 때만 가능) */}
+                {/* 2. 자가조치 가이드 (사진·영상·스케치) 버튼 */}
+                <button
+                  type="button"
+                  onClick={() => setShowSelfActionGuideModal(true)}
+                  data-uia="btn-bottom-self-guide"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: '#eff6ff',
+                    color: '#1d4ed8',
+                    border: '1px solid #93c5fd',
+                    borderRadius: 5,
+                    padding: '0 14px',
+                    fontSize: 13.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    height: 34,
+                    boxShadow: '0 1px 2px rgba(29,78,216,0.12)',
+                    transition: 'all 0.1s ease'
+                  }}
+                >
+                  <Smartphone size={14} />
+                  <span>자가조치 가이드</span>
+                </button>
+
+                {/* 3. [분기 A] 직접 조치 종결 버튼 (모든 증상이 해결되었을 때만 가능) */}
                 <button
                   onClick={() => handleSave(false)}
                   disabled={isSaving || overallStatus === 'visit_required'}
@@ -3153,10 +3399,37 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   }}
                 >
                   <CheckCircle2 size={15} />
-                  <span>직접 조치 종결</span>
+                  <span>직접 조치 종결 (₩0)</span>
                 </button>
 
-                {/* 3. AS 출장 접수 버튼 (1개라도 출장 필요 시 강조) */}
+                {/* 4. [분기 B] 원청 결재 소모품/부품 견적 버튼 */}
+                <button
+                  type="button"
+                  onClick={() => setShowPartsOrderModal(true)}
+                  data-uia="btn-bottom-parts-quote"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: '#fef3c7',
+                    color: '#92400e',
+                    border: '1px solid #f59e0b',
+                    borderRadius: 5,
+                    padding: '0 16px',
+                    fontSize: 13.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    height: 34,
+                    boxShadow: '0 1px 3px rgba(245,158,11,0.2)',
+                    transition: 'all 0.1s ease'
+                  }}
+                >
+                  <Package size={15} />
+                  <span>소모품 견적서 발행</span>
+                </button>
+
+                {/* 5. [분기 C] AS 출장 접수 버튼 (1개라도 출장 필요 시 강조) */}
                 <button
                   onClick={() => handleSave(true)}
                   disabled={isSaving}
@@ -3918,6 +4191,56 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
             setDispatchDoc2nd(d2);
             showToast('원청 결재 연계 문서 패키지가 성공적으로 저장되었습니다.');
           }}
+          onToast={msg => showToast(msg, 3500)}
+        />
+      )}
+
+      {/* ── [모달 4: 현장 자가조치 모바일 가이드 패키지 (사진·동영상·스케치 접수)] ── */}
+      {showSelfActionGuideModal && (
+        <SelfActionGuideModal
+          equipmentModel={selectedModel}
+          customerName={selectedCustomer?.name || '반포자이 아파트 관리사무소'}
+          manager={selectedCustomer?.manager || '박시설 시설과장'}
+          phone={customerPhone || selectedCustomer?.phone || '010-9876-5432'}
+          email={customerEmail.trim() || selectedCustomer?.managerEmail || 'facility@banpojai.co.kr'}
+          siteCompany={selectedCustomer?.useCompany || '(주)클린에코 미화용역'}
+          siteWorkerName={selectedCustomer?.siteWorkerName || '김순자 미화반장'}
+          siteWorkerPhone={siteWorkerPhone || selectedCustomer?.siteWorkerPhone || '010-3456-7890'}
+          serialNumber={selectedCustomer?.serialNumber || `${selectedModel}-2024-0812`}
+          symptomTitle={currentSession?.title || '바닥 잔수 과다 / 흡입 불량'}
+          symptomSteps={currentSession?.steps}
+          onClose={() => setShowSelfActionGuideModal(false)}
+          onOpenPartsQuotation={(evidence) => {
+            if (evidence) setPhotoEvidence(evidence);
+            setShowSelfActionGuideModal(false);
+            setShowPartsOrderModal(true);
+          }}
+          onOpenDispatchPackage={() => {
+            setShowSelfActionGuideModal(false);
+            setShowDispatchPackageModal(true);
+          }}
+          onResolveDirect={() => {
+            setShowSelfActionGuideModal(false);
+            handleSave(false);
+          }}
+          onToast={msg => showToast(msg, 3500)}
+        />
+      )}
+
+      {/* ── [모달 5: 원청 결재 소모품/부품 견적 및 발주 관리 (분기 B)] ── */}
+      {showPartsOrderModal && (
+        <PartsOrderQuotationModal
+          equipmentModel={selectedModel}
+          customerName={selectedCustomer?.name || '반포자이 아파트 관리사무소'}
+          manager={selectedCustomer?.manager || '박시설 시설과장'}
+          phone={customerPhone || selectedCustomer?.phone || '010-9876-5432'}
+          email={customerEmail.trim() || selectedCustomer?.managerEmail || 'facility@banpojai.co.kr'}
+          siteCompany={selectedCustomer?.useCompany || '(주)클린에코 미화용역'}
+          siteWorkerName={selectedCustomer?.siteWorkerName || '김순자 미화반장'}
+          siteWorkerPhone={siteWorkerPhone || selectedCustomer?.siteWorkerPhone || '010-3456-7890'}
+          serialNumber={selectedCustomer?.serialNumber || `${selectedModel}-2024-0812`}
+          symptoms={sessionList.map(s => s.title).length ? sessionList.map(s => s.title) : ['잔수 흡입 불량 및 오수 유출']}
+          onClose={() => setShowPartsOrderModal(false)}
           onToast={msg => showToast(msg, 3500)}
         />
       )}
