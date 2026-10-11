@@ -5,9 +5,9 @@
   /* 🌟 라이트 테마 토큰: 프리미엄 웜 페이퍼(Warm Cotton Paper) 종이질감 및 5색 고시인성 표준 (eBro ERP 연계) */
   --bg-app: #f5f2eb;              /* 웜 코튼 페이퍼(종이질감) 캔버스 */
   --bg-sidebar: #ece7de;          /* 가죽 바인더/장부 표지 톤 사이드바 */
-  --bg-card: #fbf9f5;             /* 선명하고 깨끗한 장부 서식 표면 */
+  --bg-card: #f5f2eb;             /* 종이질감 캔버스와 통일된 편안한 서식 표면 */
   --bg-header: #ece7de;           /* 장부 상단 바인더 헤더 */
-  --bg-card-header: #f2eee6;      /* 카드 내부 헤더 */
+  --bg-card-header: #ece7de;      /* 카드 내부 헤더 */
   --border-color: #dcd5c9;        /* 정갈한 연필 그리드/장부 테두리선 */
   --table-border-color: #dcd5c9;
   --table-row-border: #e8e2d8;    /* 장부 괘선(미세 행 구분선) */
@@ -79,7 +79,16 @@ body {
 input, select, textarea {
   font-family: inherit;
   background-color: var(--bg-card);
+  background-image: var(--paper-texture);
+  background-repeat: repeat;
   color: var(--ink);
+}
+
+.paper-card,
+[data-card] {
+  background-color: var(--bg-app);
+  background-image: var(--paper-texture);
+  background-repeat: repeat;
 }
 
 button {

@@ -26,7 +26,7 @@ const OVERLAY: React.CSSProperties = {
 };
 
 const MODAL: React.CSSProperties = {
-  background: '#fbf9f5', borderRadius: 10, width: '100%', maxWidth: 640,
+  background: '#f5f2eb', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat', borderRadius: 10, width: '100%', maxWidth: 640,
   boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
   border: '1px solid #dcd5c9', color: '#0f172a',
   fontFamily: "Pretendard, -apple-system, sans-serif",
@@ -54,7 +54,7 @@ const LABEL: React.CSSProperties = {
 };
 
 const INPUT_STYLE: React.CSSProperties = {
-  background: '#fbf9f5', border: '1px solid #dcd5c9', borderRadius: 6,
+  background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 6,
   padding: '6px 10px', fontSize: 14, color: '#0f172a', fontFamily: 'inherit', width: '100%',
   boxSizing: 'border-box', outline: 'none',
 };
@@ -65,7 +65,7 @@ const BTN_PRIMARY: React.CSSProperties = {
 };
 
 const BTN_LINE: React.CSSProperties = {
-  background: '#fbf9f5', color: '#475569', border: '1px solid #dcd5c9',
+  background: '#f5f2eb', color: '#475569', border: '1px solid #dcd5c9',
   padding: '7px 14px', borderRadius: 6, fontSize: 14, fontWeight: 500, cursor: 'pointer',
 };
 
@@ -195,7 +195,7 @@ function FieldRenderer({ fld, value, onChange, ctx }: FieldRendererProps) {
                   onClick={() => onChange(fld.key, { ...statusObj, [s]: !done })}
                   style={{
                     border: `1px solid ${done ? '#10b981' : '#dcd5c9'}`,
-                    background: done ? '#ecfdf5' : '#fbf9f5',
+                    background: done ? '#ecfdf5' : '#f5f2eb',
                     color: done ? '#059669' : '#475569',
                     borderRadius: 16, padding: '4px 10px', fontSize: 13.5, cursor: 'pointer', fontWeight: done ? 600 : 400,
                     display: 'flex', alignItems: 'center', gap: 4
@@ -376,7 +376,7 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
               <label style={LABEL}><span style={{ color: '#ef4444' }}>*</span> 업무카테고리</label>
               <select value={category} onChange={e => handleCategoryChange(e.target.value)}
                 style={{
-                  width: '100%', padding: '6px 10px', background: '#fbf9f5',
+                  width: '100%', padding: '6px 10px', background: '#f5f2eb',
                   border: '1px solid #334155', color: '#111827', borderRadius: 6, fontSize: 14,
                 }}
               >
@@ -389,7 +389,7 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
               <label style={LABEL}><span style={{ color: '#ef4444' }}>*</span> 업무</label>
               <select value={worktype} onChange={e => setWorktype(e.target.value)}
                 style={{
-                  width: '100%', padding: '6px 10px', background: '#fbf9f5',
+                  width: '100%', padding: '6px 10px', background: '#f5f2eb',
                   border: '1px solid #334155', color: '#111827', borderRadius: 6, fontSize: 14,
                 }}
               >
@@ -493,7 +493,7 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
                 {activeTabs.map(t => (
                   <button key={t.key} type="button" onClick={() => setActiveTab(t.key)}
                     style={{
-                      background: activeTab === t.key ? '#fbf9f5' : '#ece7de',
+                      background: activeTab === t.key ? '#f5f2eb' : '#ece7de',
                       border: '1px solid #dcd5c9', borderBottom: 'none',
                       borderRadius: '6px 6px 0 0', padding: '7px 14px', marginBottom: -2,
                       fontSize: 14, fontWeight: 600, cursor: 'pointer',

@@ -84,13 +84,13 @@ export default function CounselCompare() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: accent }}>{Math.round(r.similarity * 100)}%</span>
           {r.equipment_model && r.equipment_model !== 'null' && (
-            <span style={{ fontSize: 13.5, fontWeight: 600, color: '#334155', background: '#fbf9f5', border: '1px solid #dcd5c9', borderRadius: 4, padding: '2px 8px', whiteSpace: 'nowrap' }}>{r.equipment_model}</span>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: '#334155', background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 4, padding: '2px 8px', whiteSpace: 'nowrap' }}>{r.equipment_model}</span>
           )}
           {r.urgency && (
             <span style={{ fontSize: 13.5, fontWeight: 600, padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap', ...urgencyColor(r.urgency) }}>{r.urgency}</span>
           )}
           <div style={{ flex: 1 }} />
-          <button onClick={() => handleExclude(r.id)} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13.5, fontWeight: 500, color: '#64748b', background: '#fbf9f5', border: '1px solid #dcd5c9', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <button onClick={() => handleExclude(r.id)} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13.5, fontWeight: 500, color: '#64748b', background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
             <X size={12} /> 제외
           </button>
         </div>
@@ -132,7 +132,7 @@ export default function CounselCompare() {
           <span style={{ fontSize: 13.5, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: '#f0fdf4', color: '#059669', border: '1px solid #a7f3d0', whiteSpace: 'nowrap' }}>OpenAI · 1536차원</span>
         </div>
         <div style={{ flex: 1 }} />
-        <button onClick={() => { setQueryText(''); setResult(null); }} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#fbf9f5', border: '1px solid #dcd5c9', borderRadius: 6, padding: '4px 10px', fontSize: 13.5, fontWeight: 500, color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+        <button onClick={() => { setQueryText(''); setResult(null); }} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 6, padding: '4px 10px', fontSize: 13.5, fontWeight: 500, color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap' }}>
           <RotateCcw size={13} /> 초기화
         </button>
       </div>
@@ -140,7 +140,7 @@ export default function CounselCompare() {
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* ① 쿼리 입력 (좌상단 Start) */}
-        <div style={{ background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9', padding: 16, boxShadow: '0 1px 3px rgba(40,30,20,0.05)' }}>
+        <div style={{ background: '#f5f2eb', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat', borderRadius: 8, border: '1px solid #dcd5c9', padding: 16, boxShadow: '0 1px 3px rgba(40,30,20,0.05)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 13.5, fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>비교 증상 검색어</label>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -149,7 +149,7 @@ export default function CounselCompare() {
                 onChange={e => setQueryText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
                 placeholder="비교할 증상 또는 키워드를 입력하세요 (Enter)"
-                style={{ flex: 1, border: '1px solid #dcd5c9', borderRadius: 6, padding: '8px 12px', fontSize: 14, outline: 'none', height: 38, boxSizing: 'border-box', background: '#fbf9f5' }}
+                style={{ flex: 1, border: '1px solid #dcd5c9', borderRadius: 6, padding: '8px 12px', fontSize: 14, outline: 'none', height: 38, boxSizing: 'border-box', background: '#f5f2eb' }}
               />
               <button
                 onClick={handleSearch}
@@ -200,7 +200,7 @@ export default function CounselCompare() {
                 result.nomic_results.length > 0 ? (
                   result.nomic_results.map(r => <ResultCard key={r.id} r={r} engine="nomic" />)
                 ) : (
-                  <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 14, background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9' }}>일치 결과 없음</div>
+                  <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 14, background: '#f5f2eb', borderRadius: 8, border: '1px solid #dcd5c9' }}>일치 결과 없음</div>
                 )
               ) : (
                 <div style={{ padding: 24, textAlign: 'center', color: '#2563eb', fontSize: 14, background: '#eff6ff', borderRadius: 8, border: '1px dashed #bfdbfe' }}>임베딩 배치 완료 후 활성화</div>
@@ -217,7 +217,7 @@ export default function CounselCompare() {
                 result.openai_results.length > 0 ? (
                   result.openai_results.map(r => <ResultCard key={r.id} r={r} engine="openai" />)
                 ) : (
-                  <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 14, background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9' }}>일치 결과 없음</div>
+                  <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 14, background: '#f5f2eb', borderRadius: 8, border: '1px solid #dcd5c9' }}>일치 결과 없음</div>
                 )
               ) : (
                 <div style={{ padding: 24, textAlign: 'center', color: '#059669', fontSize: 14, background: '#f0fdf4', borderRadius: 8, border: '1px dashed #a7f3d0' }}>OpenAI 임베딩 배치 완료 후 활성화</div>
@@ -227,7 +227,7 @@ export default function CounselCompare() {
         )}
 
         {!result && !isLoading && (
-          <div style={{ padding: 48, textAlign: 'center', color: '#64748b', fontSize: 14, background: '#fbf9f5', borderRadius: 8, border: '1px dashed #dcd5c9' }}>비교할 증상을 입력하고 비교 검색을 실행하세요</div>
+          <div style={{ padding: 48, textAlign: 'center', color: '#64748b', fontSize: 14, background: '#f5f2eb', borderRadius: 8, border: '1px dashed #dcd5c9' }}>비교할 증상을 입력하고 비교 검색을 실행하세요</div>
         )}
       </div>
 

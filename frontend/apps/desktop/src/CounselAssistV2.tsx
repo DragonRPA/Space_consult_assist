@@ -1241,7 +1241,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
             borderRadius: 6,
             fontSize: 13.5,
             fontWeight: 700,
-            background: pendingSessions.length > 0 ? '#fffbeb' : '#fbf9f5',
+            background: pendingSessions.length > 0 ? '#fffbeb' : '#f5f2eb',
             color: pendingSessions.length > 0 ? '#b45309' : '#475569',
             border: pendingSessions.length > 0 ? '1px solid #fde68a' : '1px solid #dcd5c9',
             cursor: 'pointer',
@@ -1278,7 +1278,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
             borderRadius: 6,
             fontSize: 13.5,
             fontWeight: 600,
-            background: '#fbf9f5',
+            background: '#f5f2eb',
             color: '#334155',
             border: '1px solid #dcd5c9',
             cursor: 'pointer',
@@ -1331,14 +1331,14 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
             value={counselorName}
             onChange={e => setCounselorName(e.target.value)}
             placeholder="성명"
-            style={{ border: '1px solid #dcd5c9', borderRadius: 4, padding: '2px 8px', fontSize: 13.5, width: 78, height: 28, outline: 'none', background: '#fbf9f5' }}
+            style={{ border: '1px solid #dcd5c9', borderRadius: 4, padding: '2px 8px', fontSize: 13.5, width: 78, height: 28, outline: 'none', background: '#f5f2eb' }}
           />
         </div>
 
         {/* 초기화 버튼 */}
         <button
           onClick={handleReset}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#fbf9f5', border: '1px solid #dcd5c9', borderRadius: 4, padding: '2px 10px', fontSize: 13.5, fontWeight: 600, color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap', height: 28 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 4, padding: '2px 10px', fontSize: 13.5, fontWeight: 600, color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap', height: 28 }}
         >
           <RotateCcw size={12} /> 초기화
         </button>
@@ -1353,7 +1353,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
         <div style={{ width: 380, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6, height: '100%', overflow: 'hidden' }}>
 
           {/* 좌측 상단: 장비 모델 및 고객사 조회 */}
-          <div style={{ background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, position: 'relative', zIndex: 50, boxShadow: '0 1px 2px rgba(40,30,20,0.05)' }}>
+          <div style={{ background: '#f5f2eb', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat', borderRadius: 8, border: '1px solid #dcd5c9', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, position: 'relative', zIndex: 50, boxShadow: '0 1px 2px rgba(40,30,20,0.05)' }}>
             {/* 장비 모델 칩 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1462,7 +1462,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   onChange={e => handleCustomerSearch(e.target.value)}
                   onFocus={() => searchText && setDropdownOpen(true)}
                   placeholder="고객사명, 담당자 또는 초성 검색 (예: ㅅㅍ)"
-                  style={{ width: '100%', paddingLeft: 28, paddingRight: 24, height: 32, border: '1px solid #dcd5c9', borderRadius: 5, fontSize: 13.5, outline: 'none', boxSizing: 'border-box', background: '#fbf9f5' }}
+                  style={{ width: '100%', paddingLeft: 28, paddingRight: 24, height: 32, border: '1px solid #dcd5c9', borderRadius: 5, fontSize: 13.5, outline: 'none', boxSizing: 'border-box', background: '#f5f2eb' }}
                 />
                 {searchText && (
                   <button
@@ -1477,7 +1477,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
 
               {/* 검색 결과 드롭다운 */}
               {dropdownOpen && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fbf9f5', border: '1px solid #1d4ed8', borderRadius: 6, boxShadow: '0 8px 24px rgba(40,30,20,0.15)', zIndex: 999, marginTop: 4, maxHeight: 200, overflowY: 'auto' }}>
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#f5f2eb', border: '1px solid #1d4ed8', borderRadius: 6, boxShadow: '0 8px 24px rgba(40,30,20,0.15)', zIndex: 999, marginTop: 4, maxHeight: 200, overflowY: 'auto' }}>
                   {searchResults.map(c => (
                     <div
                       key={c.id}
@@ -1485,7 +1485,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                       onClick={() => selectCustomer(c)}
                       style={{ padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid #e8e2d8', fontSize: 13.5 }}
                       onMouseEnter={e => (e.currentTarget.style.background = '#eff6ff')}
-                      onMouseLeave={e => (e.currentTarget.style.background = '#fbf9f5')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '#f5f2eb')}
                     >
                       <div style={{ fontWeight: 700, color: '#0f172a' }}>{c.name}</div>
                       <div style={{ fontSize: 13.5, color: '#64748b' }}>{c.manager} · {c.phone} | 보유: {c.assetModel || '미지정'}</div>
@@ -1526,7 +1526,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                     padding: '0 24px 0 8px',
                     fontSize: 13.5,
                     outline: 'none',
-                    background: '#fbf9f5',
+                    background: '#f5f2eb',
                     boxSizing: 'border-box'
                   }}
                 />
@@ -1602,7 +1602,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
 
 
           {/* 좌측 중단: 계통 필터 & 검색 */}
-          <div style={{ background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, boxShadow: '0 1px 2px rgba(40,30,20,0.05)' }}>
+          <div style={{ background: '#f5f2eb', borderRadius: 8, border: '1px solid #dcd5c9', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, boxShadow: '0 1px 2px rgba(40,30,20,0.05)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
               {SYMPTOM_CATEGORIES.map(cat => {
                 const isCatActive = selectedCategory === cat;
@@ -1634,7 +1634,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                 value={symptomSearchQuery}
                 onChange={e => setSymptomSearchQuery(e.target.value)}
                 placeholder="증상 검색 (초성: ㅅㅇ, ㅂㅌㄹ, 소음)"
-                style={{ flex: 1, height: 32, border: '1px solid #dcd5c9', borderRadius: 5, padding: '0 8px', fontSize: 13.5, outline: 'none', background: '#fbf9f5' }}
+                style={{ flex: 1, height: 32, border: '1px solid #dcd5c9', borderRadius: 5, padding: '0 8px', fontSize: 13.5, outline: 'none', background: '#f5f2eb' }}
               />
               {symptomSearchQuery && (
                 <button onClick={() => setSymptomSearchQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '0 2px' }}>
@@ -1643,7 +1643,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
               )}
               <button
                 onClick={() => setShowCustomInput(!showCustomInput)}
-                style={{ background: '#fbf9f5', border: '1px solid #dcd5c9', borderRadius: 5, padding: '0 10px', height: 32, color: '#1d4ed8', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                style={{ background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 5, padding: '0 10px', height: 32, color: '#1d4ed8', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
               >
                 {showCustomInput ? '닫기' : '직접입력'}
               </button>
@@ -1656,7 +1656,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   onChange={e => setCustomSymptom(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleCustomSearch()}
                   placeholder="증상 직접 입력"
-                  style={{ flex: 1, height: 32, border: '1px solid #dcd5c9', borderRadius: 5, padding: '0 8px', fontSize: 13.5, outline: 'none', background: '#fbf9f5' }}
+                  style={{ flex: 1, height: 32, border: '1px solid #dcd5c9', borderRadius: 5, padding: '0 8px', fontSize: 13.5, outline: 'none', background: '#f5f2eb' }}
                 />
                 <button
                   onClick={handleCustomSearch}
@@ -1670,7 +1670,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
           </div>
 
           {/* 좌측 하단: 16대 표준 장애 유형 리스트 (실시간 세션 상태 뱃지 탑재) */}
-          <div style={{ flex: 1, background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 1px 2px rgba(40,30,20,0.05)' }}>
+          <div style={{ flex: 1, background: '#f5f2eb', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat', borderRadius: 8, border: '1px solid #dcd5c9', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 1px 2px rgba(40,30,20,0.05)' }}>
             <div style={{ padding: '7px 10px', background: '#ece7de', borderBottom: '1px solid #dcd5c9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
                 표준 장애 유형 ({symptomPresets.length}건)
@@ -1733,12 +1733,12 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                           ? '#eff6ff'
                           : existingSession
                           ? '#f5f2eb'
-                          : '#fbf9f5',
+                          : '#f5f2eb',
                         cursor: 'pointer',
                         transition: 'all 0.12s ease'
                       }}
                       onMouseEnter={e => { if (!isCurrentActive) e.currentTarget.style.background = '#f5f2eb'; }}
-                      onMouseLeave={e => { if (!isCurrentActive && !existingSession) e.currentTarget.style.background = '#fbf9f5'; }}
+                      onMouseLeave={e => { if (!isCurrentActive && !existingSession) e.currentTarget.style.background = '#f5f2eb'; }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flex: 1 }}>
@@ -1817,7 +1817,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
             <div
               data-special-guides-panel
               style={{
-                background: '#fbf9f5',
+                background: '#f5f2eb',
                 border: '1px solid #bfdbfe',
                 borderRadius: 8,
                 padding: '8px 12px',
@@ -1901,7 +1901,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                           fontWeight: 700,
                           padding: '3px 8px',
                           borderRadius: 3,
-                          background: '#fbf9f5',
+                          background: '#f5f2eb',
                           border: '1px solid #bfdbfe',
                           color: '#1d4ed8',
                           cursor: 'pointer',
@@ -1925,7 +1925,9 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
           {sessionList.length === 0 && !isLoadingPlan && (
             <div style={{
               flex: 1,
-              background: '#fbf9f5',
+              background: '#f5f2eb',
+              backgroundImage: 'var(--paper-texture)',
+              backgroundRepeat: 'repeat',
               borderRadius: 8,
               border: '1px solid #dcd5c9',
               display: 'flex',
@@ -1964,7 +1966,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                 maxWidth: 620,
                 marginTop: 8
               }}>
-                <div style={{ background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 6, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ background: '#ece7de', border: '1px solid #dcd5c9', borderRadius: 6, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 800, color: '#1e40af' }}>
                     <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#dbeafe', color: '#1d4ed8', fontSize: 13.5, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>1</span>
                     <span>모델 및 고객 확인</span>
@@ -1972,7 +1974,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   <span style={{ fontSize: 13.5, color: '#64748b', lineHeight: 1.4 }}>장비 모델과 고객사 연락처를 좌측 상단에서 확인합니다.</span>
                 </div>
 
-                <div style={{ background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 6, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ background: '#ece7de', border: '1px solid #dcd5c9', borderRadius: 6, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 800, color: '#1e40af' }}>
                     <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#dbeafe', color: '#1d4ed8', fontSize: 13.5, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>2</span>
                     <span>증상 및 에러코드 선택</span>
@@ -1980,7 +1982,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   <span style={{ fontSize: 13.5, color: '#64748b', lineHeight: 1.4 }}>초성 검색 또는 퀵버튼으로 일치하는 증상을 선택합니다.</span>
                 </div>
 
-                <div style={{ background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 6, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ background: '#ece7de', border: '1px solid #dcd5c9', borderRadius: 6, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 800, color: '#1e40af' }}>
                     <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#dbeafe', color: '#1d4ed8', fontSize: 13.5, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>3</span>
                     <span>진단 및 종결</span>
@@ -1992,7 +1994,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
           )}
 
           {isLoadingPlan && (
-            <div style={{ flex: 1, background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <div style={{ flex: 1, background: '#f5f2eb', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat', borderRadius: 8, border: '1px solid #dcd5c9', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               <Loader2 size={24} color="#1d4ed8" style={{ animation: 'spin 1s linear infinite' }} />
               <span style={{ fontSize: 14, color: '#334155', fontWeight: 700 }}>대응 조치 계획 분석 중...</span>
             </div>
@@ -2003,7 +2005,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden' }}>
 
               {/* ── [우측 최상단: 다수 증상 세션 탭 바 + 상황별 매뉴얼 수칙 버튼] ── */}
-              <div style={{ background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9', padding: '6px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexShrink: 0 }}>
+              <div style={{ background: '#f5f2eb', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat', borderRadius: 8, border: '1px solid #dcd5c9', padding: '6px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto', flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginRight: 4, color: '#475569', fontSize: 13.5, fontWeight: 800, whiteSpace: 'nowrap' }}>
                     <Layers size={15} color="#2563eb" />
@@ -2044,7 +2046,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                             ? '#ecfdf5'
                             : isFault
                             ? '#fef2f2'
-                            : '#fbf9f5',
+                            : '#f5f2eb',
                           color: isCurrent
                             ? '#1d4ed8'
                             : isResolved
@@ -2107,7 +2109,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
               </div>
 
               {/* [우측 1구역] 현재 활성 증상 헤더 & 표준 안내 스크립트 */}
-              <div style={{ background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, boxShadow: '0 1px 2px rgba(40,30,20,0.05)' }}>
+              <div style={{ background: '#f5f2eb', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat', borderRadius: 8, border: '1px solid #dcd5c9', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, boxShadow: '0 1px 2px rgba(40,30,20,0.05)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <Layers size={15} color="#2563eb" />
@@ -2189,7 +2191,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                         display: 'flex',
                         alignItems: 'center',
                         gap: 4,
-                        background: '#fbf9f5',
+                        background: '#f5f2eb',
                         border: '1px solid #dcd5c9',
                         borderRadius: 5,
                         padding: '3px 8px',
@@ -2267,7 +2269,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                                 : '1px solid #dcd5c9',
                               background: isSelected
                                 ? '#1d4ed8'
-                                : '#fbf9f5',
+                                : '#f5f2eb',
                               color: isSelected
                                 ? '#ffffff'
                                 : '#1e293b',
@@ -2307,7 +2309,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   {/* 칩 선택 시 활성화되는 [원클릭 즉시 판정 카드] */}
                   {currentSession.selectedErrorCode && (
                     <div style={{
-                      background: '#fbf9f5',
+                      background: '#f5f2eb',
                       border: currentSession.selectedErrorCode.resolution_type === 'VISIT_REQUIRED' ? '1px solid #fca5a5' : '1px solid #86efac',
                       borderRadius: 6,
                       padding: '10px 12px',
@@ -2348,7 +2350,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                         <button
                           onClick={handleClearSelectedErrorCode}
                           style={{
-                            background: '#fbf9f5',
+                            background: '#f5f2eb',
                             border: '1px solid #dcd5c9',
                             borderRadius: 4,
                             cursor: 'pointer',
@@ -2444,7 +2446,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
               )}
 
               {/* [우측 2구역] 현재 증상의 스텝 네비게이션 프로그레스 바 */}
-              <div style={{ background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <div style={{ background: '#f5f2eb', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat', borderRadius: 8, border: '1px solid #dcd5c9', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 <span style={{ fontSize: 13.5, fontWeight: 800, color: '#475569', whiteSpace: 'nowrap' }}>진단 절차:</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, overflowX: 'auto' }}>
                   {currentSession.steps.map((st, idx) => {
@@ -2479,7 +2481,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                             ? '#f0fdf4'
                             : isUnresolved
                             ? '#fef2f2'
-                            : '#fbf9f5',
+                            : '#f5f2eb',
                           color: isSelected
                             ? '#1d4ed8'
                             : isResolved
@@ -2506,7 +2508,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto' }}>
 
                 {activeStep && (
-                  <div style={{ background: '#fbf9f5', borderRadius: 8, border: '1px solid #bfdbfe', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10, boxShadow: '0 1px 3px rgba(40,30,20,0.05)' }}>
+                  <div style={{ background: '#f5f2eb', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat', borderRadius: 8, border: '1px solid #bfdbfe', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10, boxShadow: '0 1px 3px rgba(40,30,20,0.05)' }}>
 
                     {/* 스텝 제목 & 현재 상태 */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e8e2d8', paddingBottom: 6 }}>
@@ -2639,7 +2641,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                 )}
 
                 {/* 현재 증상의 전체 진단 절차 타임라인 요약 */}
-                <div style={{ background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ background: '#f5f2eb', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat', borderRadius: 8, border: '1px solid #dcd5c9', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <span style={{ fontSize: 13.5, fontWeight: 800, color: '#334155' }}>
                     진단 단계 현황 ({currentSession.title})
                   </span>
@@ -2689,7 +2691,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                 </div>
 
                 {/* 과거 유사 상담 사례 */}
-                <div style={{ background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9', padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <div style={{ background: '#f5f2eb', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat', borderRadius: 8, border: '1px solid #dcd5c9', padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 5 }}>
                   <div
                     onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
@@ -2727,7 +2729,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
               </div>
 
               {/* [우측 4구역] 하단 종합 종결 바 (Terminal Action, 전체 증상 통합 판정) */}
-              <div style={{ background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, boxShadow: '0 -1px 3px rgba(40,30,20,0.05)' }}>
+              <div style={{ background: '#f5f2eb', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat', borderRadius: 8, border: '1px solid #dcd5c9', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, boxShadow: '0 -1px 3px rgba(40,30,20,0.05)' }}>
                 {/* 종합 상태 뱃지 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 140 }}>
                   <label style={{ fontSize: 13.5, fontWeight: 800, color: '#64748b' }}>종합 판정 ({sessionList.length}건)</label>
@@ -2756,7 +2758,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
                     placeholder="특이사항 및 추가 진단 메모"
-                    style={{ border: '1px solid #dcd5c9', borderRadius: 5, padding: '4px 10px', fontSize: 13.5, outline: 'none', height: 34, boxSizing: 'border-box', background: '#fbf9f5', transition: 'border-color 0.15s ease' }}
+                    style={{ border: '1px solid #dcd5c9', borderRadius: 5, padding: '4px 10px', fontSize: 13.5, outline: 'none', height: 34, boxSizing: 'border-box', background: '#f5f2eb', transition: 'border-color 0.15s ease' }}
                   />
                 </div>
 
@@ -2825,7 +2827,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
-                    background: overallStatus === 'visit_required' ? '#dc2626' : '#fbf9f5',
+                    background: overallStatus === 'visit_required' ? '#dc2626' : '#f5f2eb',
                     color: overallStatus === 'visit_required' ? '#ffffff' : '#dc2626',
                     border: overallStatus === 'visit_required' ? '1px solid #b91c1c' : '1px solid #f87171',
                     borderRadius: 5,
@@ -2873,7 +2875,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
               width: '90%',
               maxWidth: 900,
               maxHeight: '85vh',
-              background: '#fbf9f5',
+              background: '#f5f2eb',
               borderRadius: 10,
               backgroundImage: 'var(--paper-texture)',
               backgroundRepeat: 'repeat',
@@ -2915,7 +2917,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  background: '#fbf9f5',
+                  background: '#f5f2eb',
                   border: '1px solid #dcd5c9',
                   borderRadius: 5,
                   padding: '4px 10px',
@@ -2959,7 +2961,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                         border: '1px solid #dcd5c9',
                         borderRadius: 6,
                         padding: '10px 14px',
-                        background: '#fbf9f5',
+                        background: '#f5f2eb',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: 6,
@@ -3027,7 +3029,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                           <button
                             onClick={e => handleDeletePendingSession(record.id, e)}
                             style={{
-                              background: '#fbf9f5',
+                              background: '#f5f2eb',
                               color: '#dc2626',
                               border: '1px solid #fecaca',
                               borderRadius: 4,
@@ -3110,7 +3112,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
               <button
                 onClick={() => setShowPendingModal(false)}
                 style={{
-                  background: '#fbf9f5',
+                  background: '#f5f2eb',
                   border: '1px solid #dcd5c9',
                   borderRadius: 4,
                   padding: '6px 16px',
@@ -3147,7 +3149,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
               width: '94%',
               maxWidth: 1050,
               maxHeight: '88vh',
-              background: '#fbf9f5',
+              background: '#f5f2eb',
               borderRadius: 10,
               backgroundImage: 'var(--paper-texture)',
               backgroundRepeat: 'repeat',
@@ -3200,7 +3202,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                           fontSize: 13.5,
                           fontWeight: active ? 700 : 500,
                           border: active ? '1px solid #1d4ed8' : '1px solid #dcd5c9',
-                          background: active ? '#eff6ff' : '#fbf9f5',
+                          background: active ? '#eff6ff' : '#f5f2eb',
                           color: active ? '#1d4ed8' : '#64748b',
                           cursor: 'pointer',
                           transition: 'all 0.1s ease'
@@ -3216,7 +3218,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  background: '#fbf9f5',
+                  background: '#f5f2eb',
                   border: '1px solid #dcd5c9',
                   borderRadius: 5,
                   padding: '4px 10px',
@@ -3280,7 +3282,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                           border: isSelected ? '1px solid #1d4ed8' : '1px solid #dcd5c9',
                           borderRadius: 6,
                           padding: '10px 14px',
-                          background: isSelected ? '#eff6ff' : '#fbf9f5',
+                          background: isSelected ? '#eff6ff' : '#f5f2eb',
                           cursor: 'pointer',
                           display: 'flex',
                           flexDirection: 'column',
@@ -3397,7 +3399,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                     </span>
 
                     {Object.values(selectedHistoryItem.symptomSessions || {}).map(s => (
-                      <div key={s.key} style={{ background: '#fbf9f5', border: '1px solid #dcd5c9', borderRadius: 6, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div key={s.key} style={{ background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 6, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <span style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
                             증상: {s.title}
@@ -3463,7 +3465,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                     ))}
 
                     {Object.keys(selectedHistoryItem.symptomSessions || {}).length === 0 && (
-                      <div style={{ background: '#fbf9f5', border: '1px solid #dcd5c9', borderRadius: 6, padding: '10px 12px', fontSize: 13.5, color: '#334155' }}>
+                      <div style={{ background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 6, padding: '10px 12px', fontSize: 13.5, color: '#334155' }}>
                         {selectedHistoryItem.notes || selectedHistoryItem.summaryText || '상세 진단 내역이 기록되지 않은 레거시 데이터입니다.'}
                       </div>
                     )}
@@ -3471,7 +3473,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
 
                   {/* 상담원 메모 */}
                   {selectedHistoryItem.notes && (
-                    <div style={{ background: '#fbf9f5', border: '1px solid #dcd5c9', borderRadius: 6, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <div style={{ background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 6, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 3 }}>
                       <span style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a' }}>상담원 메모</span>
                       <span style={{ fontSize: 13.5, color: '#334155', lineHeight: 1.4 }}>{selectedHistoryItem.notes}</span>
                     </div>
@@ -3492,7 +3494,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
               <button
                 onClick={() => { setShowHistoryModal(false); setSelectedHistoryItem(null); }}
                 style={{
-                  background: '#fbf9f5',
+                  background: '#f5f2eb',
                   border: '1px solid #dcd5c9',
                   borderRadius: 4,
                   padding: '6px 16px',
