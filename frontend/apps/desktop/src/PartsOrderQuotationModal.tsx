@@ -1,11 +1,19 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  X, Check, Printer, Send,
-  FileText, CheckCircle2, Building, Package,
-  Truck, Edit3, Eye, MessageSquare, Smartphone, Mail, Plus, Camera
+  X, Printer, Send,
+  FileText, CheckCircle2, Truck, MessageSquare, Smartphone, Mail, Plus,
+  ShoppingCart, Trash2, Database, Search
 } from 'lucide-react';
+import {
+  type CatalogPartItem,
+  type PartsOrderRecord,
+  getAllPartsCatalog,
+  saveCatalogPart,
+  submitPartsOrder
+} from './partsCatalogApi';
 
 export type DispatchChannelType = 'KAKAO' | 'SMS' | 'EMAIL';
+export type PrimaryRecipientType = 'WORKER' | 'MANAGER';
 
 export interface ConsumablePartItem {
   id: string;
@@ -16,6 +24,8 @@ export interface ConsumablePartItem {
   unitPrice: number;
   supplyPrice: number;
   isSelected: boolean;
+  imageUrl?: string;
+  category?: string;
 }
 
 export interface PartsQuotationDoc {
@@ -28,6 +38,8 @@ export interface PartsQuotationDoc {
   siteCompany: string;      // 실사용처 (하청 용역사)
   siteWorkerName: string;   // 현장 요청자 (미화원)
   siteWorkerPhone: string;  // 현장 연락처
+  primaryRecipient: PrimaryRecipientType; // 1차 문서 수신인
+  isCcEnabled: boolean;     // 2차 참조인 전송 여부
   equipmentModel: string;
   serialNumber: string;
   symptoms: string[];
@@ -43,6 +55,7 @@ export interface PartsQuotationDoc {
   sentAt?: string;
   sentChannel?: DispatchChannelType;
   approvalStatus: 'PENDING' | 'SENT' | 'APPROVED' | 'DISPATCHED';
+  orderId?: string;
   photoEvidenceUrl?: string;
 }
 
@@ -61,36 +74,8 @@ interface PartsOrderQuotationModalProps {
   onToast?: (msg: string) => void;
 }
 
-// 모델별 전용 표준 소모품 카탈로그 데이터
-const MODEL_PARTS_CATALOG: Record<string, Omit<ConsumablePartItem, 'id' | 'isSelected'>[]> = {
-  'J600T': [
-    { name: '825mm 내유성 라텍스 스퀴지 블레이드 세트 (앞/뒤)', partCode: 'J600T-SQG-825', spec: '825mm 내마모 라텍스 고무', qty: 1, unitPrice: 45000, supplyPrice: 45000 },
-    { name: '22인치 바닥 세척 브러시 어셈블리', partCode: 'J600T-BRS-22', spec: '560mm 나일론 155rpm', qty: 1, unitPrice: 85000, supplyPrice: 85000 },
-    { name: '22인치 고밀도 바닥 광택/세척 패드 (흑색 5장입)', partCode: 'J600T-PAD-BLK', spec: '22인치 규격 패드 (스트립용)', qty: 1, unitPrice: 28000, supplyPrice: 28000 },
-    { name: '38mm 강화 오수 흡입 주름 호스 (1.5m)', partCode: 'J600T-HOS-38', spec: '38mm 연질 내유 호스', qty: 1, unitPrice: 35000, supplyPrice: 35000 },
-    { name: '오수탱크 플로트 역류 차단 밸브 필터', partCode: 'J600T-FLT-01', spec: '부구형 플로트 밸브', qty: 1, unitPrice: 24000, supplyPrice: 24000 },
-    { name: '24V 40A 메인 세라믹 전원 퓨즈 (5개입)', partCode: 'J600T-FUS-40', spec: '40A 고용량 세라믹관', qty: 1, unitPrice: 15000, supplyPrice: 15000 }
-  ],
-  'J800': [
-    { name: '1,190mm 내유성 스퀴지 블레이드 세트 (앞/뒤)', partCode: 'J800-SQG-1190', spec: '1,190mm 대형 탑승식 전용', qty: 1, unitPrice: 65000, supplyPrice: 65000 },
-    { name: '16인치 듀얼 바닥 세척 디스크 브러시 (2개 세트)', partCode: 'J800-BRS-16D', spec: '405mm 듀얼 브러시', qty: 1, unitPrice: 140000, supplyPrice: 140000 },
-    { name: '오수탱크 밀폐 실링 가스켓 고무 (140L용)', partCode: 'J800-GSK-140', spec: 'EPDM 발포 방진 가스켓', qty: 1, unitPrice: 38000, supplyPrice: 38000 },
-    { name: '24V 200A 산업용 메인 퓨즈 블록', partCode: 'J800-FUS-200', spec: '200A 볼트 체결형', qty: 1, unitPrice: 28000, supplyPrice: 28000 }
-  ],
-  'S7': [
-    { name: '1,120mm 탑승형 스퀴지 고무 블레이드 세트', partCode: 'S7-SQG-1120', spec: '1,120mm 라텍스 립', qty: 1, unitPrice: 58000, supplyPrice: 58000 },
-    { name: '22인치 고효율 세척 브러시', partCode: 'S7-BRS-22', spec: '560mm 표준 브러시', qty: 1, unitPrice: 88000, supplyPrice: 88000 },
-    { name: '24V 솔레노이드 청수 제어 밸브', partCode: 'S7-VAL-24V', spec: '전자식 차단 밸브', qty: 1, unitPrice: 42000, supplyPrice: 42000 }
-  ],
-  'S5': [
-    { name: '705mm 콤팩트 스퀴지 블레이드 세트', partCode: 'S5-SQG-705', spec: '705mm 소형 탑승형', qty: 1, unitPrice: 42000, supplyPrice: 42000 },
-    { name: '22인치 세척 브러시', partCode: 'S5-BRS-22', spec: '560mm 나일론', qty: 1, unitPrice: 82000, supplyPrice: 82000 }
-  ],
-  'S3': [
-    { name: '680mm 보행식 스퀴지 블레이드 세트', partCode: 'S3-SQG-680', spec: '680mm 표준 고무', qty: 1, unitPrice: 38000, supplyPrice: 38000 },
-    { name: '18인치 디스크 세척 브러시', partCode: 'S3-BRS-18', spec: '450mm 보행형', qty: 1, unitPrice: 75000, supplyPrice: 75000 }
-  ]
-};
+const CATEGORIES = ['전체', '스퀴지/고무', '브러시/패드', '호스/필터', '배터리/전원', '모터/밸브', '세제/소모품'];
+const MODELS = ['전체', 'J600T', 'J800', 'S7', 'S5', 'S3'];
 
 export function PartsOrderQuotationModal({
   equipmentModel,
@@ -106,698 +91,1259 @@ export function PartsOrderQuotationModal({
   onClose,
   onToast
 }: PartsOrderQuotationModalProps) {
-  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
-  const [sentChannel, setSentChannel] = useState<DispatchChannelType>('KAKAO');
-  const printAreaRef = useRef<HTMLDivElement>(null);
+  // ── 뷰 모드: 'shop' (온라인 쇼핑/조립) | 'db_admin' (카탈로그 DB 관리) | 'quote_a4' (원청 결재 A4) | 'mobile' (모바일 프리뷰)
+  const [viewMode, setViewMode] = useState<'shop' | 'db_admin' | 'quote_a4' | 'mobile'>('shop');
 
+  // ── 수신 수단 (카카오톡, 문자메세지, 이메일)
+  const [sentChannel, setSentChannel] = useState<DispatchChannelType>('KAKAO');
+
+  // ── 1차 문서 수신인 지정 (WORKER: 현장 미화원 | MANAGER: 원청 관리소장)
+  const [primaryRecipient, setPrimaryRecipient] = useState<PrimaryRecipientType>('WORKER');
+  const [isCcEnabled, setIsCcEnabled] = useState<boolean>(true);
+
+  // ── 카탈로그 DB 목록 & 로딩 상태
+  const [allCatalogList, setAllCatalogList] = useState<CatalogPartItem[]>([]);
+  const [catalogList, setCatalogList] = useState<CatalogPartItem[]>([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
+
+  // ── 카탈로그 필터 (모델, 카테고리, 검색어)
+  const [filterModel, setFilterModel] = useState<string>(equipmentModel || 'J600T');
+  const [filterCategory, setFilterCategory] = useState<string>('전체');
+  const [searchKeyword, setSearchKeyword] = useState<string>('');
+
+  // ── 장바구니에 담긴 품목 (Cart: partCode -> qty)
+  const [cartQuantities, setCartQuantities] = useState<Record<string, number>>({});
+
+  // ── 신규 부품 등록 모달 상태 (DB 관리용)
+  const [showAddPartModal, setShowAddPartModal] = useState(false);
+  const [newPartForm, setNewPartForm] = useState({
+    part_code: '',
+    part_name: '',
+    category: '스퀴지/고무',
+    applicable_models: [equipmentModel || 'J600T'],
+    unit_price: 35000,
+    spec: '',
+    description: '',
+    in_stock: true,
+    lead_time_days: 1
+  });
+
+  // ── 주문 접수 완료 상태
+  const [placedOrder, setPlacedOrder] = useState<PartsOrderRecord | null>(null);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+
+  // ── 날짜 포맷
   const now = new Date();
   const dateFormatted = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
 
-  // 모델별 초기 부품 리스트 로드 (첫 2개 품목 자동 선택)
-  const [parts, setParts] = useState<ConsumablePartItem[]>(() => {
-    const rawCatalog = MODEL_PARTS_CATALOG[equipmentModel] || MODEL_PARTS_CATALOG['J600T'];
-    return rawCatalog.map((item, idx) => ({
-      ...item,
-      id: `part-${idx + 1}`,
-      isSelected: idx === 0 // 1번째 품목 기본 선택
-    }));
-  });
+  // ── 배송지 정보
+  const [deliveryAddress, setDeliveryAddress] = useState<string>(
+    `${customerName || '관리사무소'} 방재실 / 청소장비 주기장 앞`
+  );
 
-  const [doc, setDoc] = useState<PartsQuotationDoc>(() => {
-    const selected = parts.filter(p => p.isSelected);
-    const supply = selected.reduce((sum, p) => sum + p.supplyPrice, 0);
-    const shipping = 3000;
-    const supplyWithShip = supply + shipping;
-    const vat = Math.round(supplyWithShip * 0.1);
+  // ── 1. 수파베이스 DB에서 부품 카탈로그 로드
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingCatalog(true);
+    getAllPartsCatalog()
+      .then(allData => {
+        if (!isMounted) return;
+        setAllCatalogList(allData);
 
-    return {
-      docNo: `S-PRT-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-01`,
-      issuedAt: dateFormatted,
-      recipientCompany: customerName || '반포자이 아파트 관리사무소',
-      recipientManager: manager || '박시설 시설과장',
-      recipientPhone: phone || '010-9876-5432',
-      recipientEmail: email || 'facility@banpojai.co.kr',
-      siteCompany: siteCompany || '(주)클린에코 청소용역',
-      siteWorkerName: siteWorkerName || '김순자 미화반장',
-      siteWorkerPhone: siteWorkerPhone || '010-3456-7890',
-      equipmentModel: equipmentModel || 'J600T',
-      serialNumber: serialNumber || `${equipmentModel}-2024-0812`,
-      symptoms: symptoms.length ? symptoms : ['잔수 흡입 불량 및 오수 유출'],
-      justificationReason: `제조사 공식 매뉴얼에 의거하여 현장 3단계 사전 자가점검(호스/플로트/스퀴지)을 성실히 수행한 결과, 장비 모터 본체 이상이 아닌 [스퀴지 마모 및 흡입 호스 크랙]으로 판정되었습니다. 엔지니어 출장비 부담 없이 정품 소모품 1:1 단순 교체만으로 정상 복구가 가능함을 확인하여 본 소모품 견적서를 제출합니다.`,
-      parts: parts,
-      shippingFee: shipping,
-      supplyTotal: supplyWithShip,
-      vat: vat,
-      grandTotal: supplyWithShip + vat,
-      bankInfo: '신한은행 110-123-456789 (예금주: (주)스페이스)',
-      deliveryMethod: '택배(CJ대한통운)',
-      deliveryAddress: `${customerName || '관리사무소'} 방재실 / 청소장비 보관주기장 앞`,
-      approvalStatus: 'PENDING',
-      photoEvidenceUrl: 'attached'
-    };
-  });
+        const filtered = allData.filter(p => {
+          const matchesModel = !filterModel || filterModel === '전체' || filterModel === 'ALL' || (p.applicable_models && p.applicable_models.includes(filterModel));
+          const matchesCat = !filterCategory || filterCategory === '전체' || filterCategory === 'ALL' || p.category === filterCategory;
+          return matchesModel && matchesCat;
+        });
 
-  // 부품 선택 토글 및 수량 변경 시 금액 재계산
-  const updatePartItem = (id: string, delta: Partial<ConsumablePartItem>) => {
-    setParts(prev => {
-      const next = prev.map(p => {
-        if (p.id !== id) return p;
-        const updated = { ...p, ...delta };
-        if (delta.qty !== undefined || delta.unitPrice !== undefined) {
-          const qty = updated.qty || 1;
-          const price = updated.unitPrice || 0;
-          updated.supplyPrice = qty * price;
+        setCatalogList(filtered);
+        setIsLoadingCatalog(false);
+
+        // 첫 진입 시 권장 품목 1개를 장바구니에 기본 선택 세팅
+        if (Object.keys(cartQuantities).length === 0 && filtered.length > 0) {
+          const recommended = filtered.find(p => p.is_recommended) || filtered[0];
+          if (recommended) {
+            setCartQuantities({ [recommended.part_code]: 1 });
+          }
         }
-        return updated;
+      })
+      .catch(err => {
+        console.error('[PartsOrderQuotationModal] Catalog load failed:', err);
+        if (isMounted) setIsLoadingCatalog(false);
       });
 
-      const selected = next.filter(p => p.isSelected);
-      const supply = selected.reduce((sum, p) => sum + p.supplyPrice, 0);
-      const supplyWithShip = supply + doc.shippingFee;
-      const vat = Math.round(supplyWithShip * 0.1);
+    return () => { isMounted = false; };
+  }, [filterModel, filterCategory]);
 
-      setDoc(d => ({
-        ...d,
-        parts: next,
-        supplyTotal: supplyWithShip,
-        vat,
-        grandTotal: supplyWithShip + vat
-      }));
-
-      return next;
+  // ── 2. 장바구니 수량 조절 핸들러
+  const handleUpdateQty = (partCode: string, delta: number) => {
+    setCartQuantities(prev => {
+      const cur = prev[partCode] || 0;
+      const next = cur + delta;
+      if (next <= 0) {
+        const copy = { ...prev };
+        delete copy[partCode];
+        return copy;
+      }
+      return { ...prev, [partCode]: next };
     });
   };
 
-  // 품목 신규 직접 추가
-  const handleAddCustomPart = () => {
-    const newId = `custom-${Date.now()}`;
-    const newItem: ConsumablePartItem = {
-      id: newId,
-      name: '신규 요청 소모품/부품',
-      partCode: `${equipmentModel}-CUSTOM`,
-      spec: '규격 직접 입력',
-      qty: 1,
-      unitPrice: 30000,
-      supplyPrice: 30000,
-      isSelected: true
+  const handleAddToCart = (part: CatalogPartItem) => {
+    setCartQuantities(prev => ({
+      ...prev,
+      [part.part_code]: (prev[part.part_code] || 0) + 1
+    }));
+    onToast?.(`[${part.part_name}] 품목이 장바구니에 담겼습니다.`);
+  };
+
+  const handleRemoveFromCart = (partCode: string) => {
+    setCartQuantities(prev => {
+      const copy = { ...prev };
+      delete copy[partCode];
+      return copy;
+    });
+  };
+
+  const handleClearCart = () => {
+    setCartQuantities({});
+  };
+
+  // ── 3. 장바구니 품목 배열 및 금액 계산
+  const cartItems: { part: CatalogPartItem; qty: number; subtotal: number }[] = Object.entries(cartQuantities)
+    .map(([code, qty]) => {
+      const part = allCatalogList.find(p => p.part_code === code) || catalogList.find(p => p.part_code === code) || {
+        id: code,
+        part_code: code,
+        part_name: code,
+        category: '기타',
+        applicable_models: [equipmentModel],
+        unit_price: 30000,
+        spec: '표준 규격',
+        description: '',
+        image_url: '',
+        in_stock: true,
+        lead_time_days: 1,
+        is_recommended: false
+      };
+      return {
+        part,
+        qty,
+        subtotal: part.unit_price * qty
+      };
+    });
+
+  const supplyTotal = cartItems.reduce((acc, item) => acc + item.subtotal, 0);
+  const shippingFee = supplyTotal >= 100000 || supplyTotal === 0 ? 0 : 3000;
+  const supplyWithShipping = supplyTotal + shippingFee;
+  const vat = Math.round(supplyWithShipping * 0.1);
+  const grandTotal = supplyWithShipping + vat;
+
+  // ── 4. 공식 A4 견적서 객체 파생
+  const doc: PartsQuotationDoc = {
+    docNo: `S-PRT-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-01`,
+    issuedAt: dateFormatted,
+    recipientCompany: customerName || '반포자이 아파트 관리사무소',
+    recipientManager: manager || '박시설 시설과장',
+    recipientPhone: phone || '010-9876-5432',
+    recipientEmail: email || 'facility@banpojai.co.kr',
+    siteCompany: siteCompany || '(주)클린에코 청소용역',
+    siteWorkerName: siteWorkerName || '김순자 미화반장',
+    siteWorkerPhone: siteWorkerPhone || '010-3456-7890',
+    primaryRecipient,
+    isCcEnabled,
+    equipmentModel: equipmentModel || 'J600T',
+    serialNumber: serialNumber || `${equipmentModel}-2024-0812`,
+    symptoms: symptoms.length ? symptoms : ['잔수 흡입 불량 및 오수 유출'],
+    justificationReason: `제조사 공식 매뉴얼에 의거하여 현장 3단계 사전 자가점검(스퀴지 립 마모/호스 부압/가스켓 밀폐)을 성실히 수행한 결과, 장비 모터 본체 고장이 아닌 [스퀴지 마모 및 소모품 노후]로 판정되었습니다. 엔지니어 출장비 부담 없이 정품 소모품 1:1 단순 교체만으로 정상 복구가 가능함을 확인하여 본 온라인 소모품 견적 및 발주서를 제출합니다.`,
+    parts: cartItems.map((ci, idx) => ({
+      id: `part-${idx + 1}`,
+      name: ci.part.part_name,
+      partCode: ci.part.part_code,
+      spec: ci.part.spec,
+      qty: ci.qty,
+      unitPrice: ci.part.unit_price,
+      supplyPrice: ci.subtotal,
+      isSelected: true,
+      imageUrl: ci.part.image_url,
+      category: ci.part.category
+    })),
+    shippingFee,
+    supplyTotal: supplyWithShipping,
+    vat,
+    grandTotal,
+    bankInfo: '신한은행 110-123-456789 (예금주: (주)스페이스)',
+    deliveryMethod: '택배(CJ대한통운)',
+    deliveryAddress,
+    approvalStatus: placedOrder ? 'APPROVED' : 'PENDING',
+    orderId: placedOrder?.order_id,
+    photoEvidenceUrl: 'attached'
+  };
+
+  // ── 5. 온라인 쇼핑 주문하기 실행 (수파베이스 DB 저장)
+  const handlePlaceOrder = async () => {
+    if (cartItems.length === 0) {
+      alert('장바구니에 소모품을 1개 이상 담아주십시오.');
+      return;
+    }
+
+    setIsSubmittingOrder(true);
+    const orderId = `ORD-${Date.now().toString().slice(-8)}`;
+
+    const orderPayload: PartsOrderRecord = {
+      order_id: orderId,
+      doc_no: doc.docNo,
+      customer_name: doc.recipientCompany,
+      manager: doc.recipientManager,
+      phone: doc.recipientPhone,
+      site_company: doc.siteCompany,
+      site_worker_name: doc.siteWorkerName,
+      site_worker_phone: doc.siteWorkerPhone,
+      primary_recipient: primaryRecipient,
+      dispatch_channel: sentChannel,
+      equipment_model: equipmentModel,
+      items: cartItems.map(ci => ({
+        part_code: ci.part.part_code,
+        part_name: ci.part.part_name,
+        unit_price: ci.part.unit_price,
+        qty: ci.qty,
+        total: ci.subtotal
+      })),
+      supply_total: supplyTotal,
+      shipping_fee: shippingFee,
+      vat,
+      grand_total: grandTotal,
+      shipping_address: deliveryAddress
     };
-    setParts(prev => [...prev, newItem]);
-    updatePartItem(newId, {});
+
+    try {
+      await submitPartsOrder(orderPayload);
+      setPlacedOrder(orderPayload);
+      const recipientName = primaryRecipient === 'WORKER'
+        ? `현장 실사용자(${doc.siteWorkerName})`
+        : `원청 관리사무소(${doc.recipientManager})`;
+      const channelLabel = sentChannel === 'KAKAO' ? '카톡 알림톡' : sentChannel === 'SMS' ? '문자메세지(LMS)' : '이메일';
+      onToast?.(`주문 완료! [주문번호: ${orderId}] ${recipientName}에게 ${channelLabel}로 발주 및 배송 안내가 전송되었습니다.`);
+    } catch (err) {
+      console.error('[PartsOrderQuotationModal] Order submission failed:', err);
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
-  // 부품 발송 핸들러
-  const handleSendQuotation = () => {
-    const sendTime = new Date().toLocaleString();
-    setDoc(prev => ({
-      ...prev,
-      sentAt: sendTime,
-      sentChannel,
-      approvalStatus: 'SENT'
-    }));
-    const channelName = sentChannel === 'KAKAO'
-      ? '카톡(알림톡)'
-      : sentChannel === 'SMS'
-        ? '문자메세지(LMS)'
-        : `이메일(${doc.recipientEmail})`;
-    onToast?.(`원청 결재권자(${doc.recipientCompany} ${doc.recipientManager} 귀하)에게 [소모품 부품 견적서]가 ${channelName}으로 발송되었습니다.`);
+  // ── 6. 신규 부품 DB 등록 저장
+  const handleSaveNewPart = async () => {
+    if (!newPartForm.part_code.trim() || !newPartForm.part_name.trim()) {
+      alert('부품코드와 품목명을 입력하십시오.');
+      return;
+    }
+
+    const newPart: CatalogPartItem = {
+      id: `part-${Date.now()}`,
+      part_code: newPartForm.part_code.trim().toUpperCase(),
+      part_name: newPartForm.part_name.trim(),
+      category: newPartForm.category,
+      applicable_models: newPartForm.applicable_models,
+      unit_price: Number(newPartForm.unit_price) || 0,
+      spec: newPartForm.spec || '표준 규격',
+      description: newPartForm.description || '',
+      image_url: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="280"><rect width="400" height="280" fill="%231e293b"/><text x="200" y="140" fill="%23ffffff" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle">${encodeURIComponent(newPartForm.part_name)}</text></svg>`,
+      in_stock: newPartForm.in_stock,
+      lead_time_days: Number(newPartForm.lead_time_days) || 1,
+      is_recommended: false
+    };
+
+    try {
+      await saveCatalogPart(newPart);
+      setAllCatalogList(prev => [newPart, ...prev]);
+      setCatalogList(prev => [newPart, ...prev]);
+      setShowAddPartModal(false);
+      onToast?.(`[${newPart.part_name}] 품목이 수파베이스 parts_catalog DB에 신규 저장되었습니다.`);
+    } catch (err) {
+      console.error('Failed to save part:', err);
+    }
   };
 
-  // 원청 결재 승인 핸들러
-  const handleApprove = () => {
-    setDoc(prev => ({
-      ...prev,
-      approvalStatus: 'APPROVED'
-    }));
-    onToast?.(`원청 관리사무소 소모품 발주 승인이 완료되었습니다. 배송 출고 지시가 생성됩니다.`);
-  };
-
-  // 출고 배송 지시 완료 핸들러
-  const handleDispatch = () => {
-    setDoc(prev => ({
-      ...prev,
-      approvalStatus: 'DISPATCHED'
-    }));
-    onToast?.(`[택배 배송 지시 완료] 운송장 연계 및 부품이 ${doc.recipientCompany} 현장으로 출고되었습니다.`);
-  };
-
-  const selectedPartsCount = parts.filter(p => p.isSelected).length;
+  // ── 필터링된 카탈로그 목록
+  const filteredCatalog = catalogList.filter(p => {
+    if (searchKeyword.trim()) {
+      const kw = searchKeyword.toLowerCase();
+      const matchCode = p.part_code.toLowerCase().includes(kw);
+      const matchName = p.part_name.toLowerCase().includes(kw);
+      const matchSpec = p.spec.toLowerCase().includes(kw);
+      if (!matchCode && !matchName && !matchSpec) return false;
+    }
+    return true;
+  });
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.65)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 10000, padding: 16, backdropFilter: 'blur(2px)'
-    }}>
-      <div style={{
-        width: '100%', maxWidth: 1060, height: '92vh',
-        background: '#ece7de',
-        borderRadius: 10, border: '1px solid #dcd5c9',
-        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif"
-      }}>
-        {/* ── [헤더 바] ── */}
-        <div style={{
-          background: '#ece7de', borderBottom: '1px solid #dcd5c9',
-          padding: '12px 20px', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', flexShrink: 0
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Package size={18} color="#059669" />
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15, 23, 42, 0.75)',
+        backdropFilter: 'blur(3px)',
+        zIndex: 10000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 1360,
+          height: '94vh',
+          maxHeight: 920,
+          background: '#ece7de',
+          borderRadius: 8,
+          border: '1px solid #dcd5c9',
+          boxShadow: '0 25px 50px rgba(0,0,0,0.35)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
+        }}
+      >
+        {/* ── [헤더 바 (Header)] ── */}
+        <div
+          style={{
+            background: '#ece7de',
+            borderBottom: '1px solid #dcd5c9',
+            padding: '12px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 6,
+                background: '#059669',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <ShoppingCart size={20} />
+            </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
-                  소모품·부품 발주 및 원청 견적서 연계 (분기 B)
+                <span style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>
+                  소모품·부품 카탈로그 온라인 주문 및 원청 견적 연계
                 </span>
-                <span style={{
-                  fontSize: 13.5, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-                  background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0'
-                }}>
-                  자가조치 후 부품교체 전용
+                <span
+                  style={{
+                    background: '#059669',
+                    color: '#ffffff',
+                    fontSize: 13.5,
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: 4
+                  }}
+                >
+                  모델: {equipmentModel}
+                </span>
+                <span
+                  style={{
+                    background: '#ecfdf5',
+                    color: '#065f46',
+                    border: '1px solid #a7f3d0',
+                    fontSize: 13.5,
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 4
+                  }}
+                >
+                  수파베이스 DB 카탈로그 실시간 연동
                 </span>
               </div>
               <div style={{ fontSize: 13.5, color: '#64748b', marginTop: 2 }}>
-                하청(현장 미화원) 점검 확인 ➔ 원청(관리사무소 결재권자) 직인 견적서 발송 및 택배 배송 연계
+                사진 보며 장바구니 담기 ➔ 1차 수신인 지정 ➔ 3대 채널 발송 ➔ 원청 결재 A4 연계
               </div>
             </div>
           </div>
 
+          {/* 4대 뷰 모드 탭 & 인쇄 & 닫기 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* 뷰 모드 토글 */}
             <div style={{ display: 'flex', background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 5, padding: 2 }}>
               <button
-                onClick={() => setViewMode('edit')}
-                data-uia="btn-parts-tab-edit"
+                type="button"
+                onClick={() => setViewMode('shop')}
+                data-uia="btn-parts-tab-shop"
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px',
-                  borderRadius: 4, fontSize: 13.5, fontWeight: viewMode === 'edit' ? 800 : 600,
-                  border: 'none', background: viewMode === 'edit' ? '#059669' : 'transparent',
-                  color: viewMode === 'edit' ? '#ffffff' : '#64748b', cursor: 'pointer'
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '5px 12px',
+                  borderRadius: 4,
+                  fontSize: 13.5,
+                  fontWeight: viewMode === 'shop' ? 800 : 600,
+                  border: 'none',
+                  background: viewMode === 'shop' ? '#059669' : 'transparent',
+                  color: viewMode === 'shop' ? '#ffffff' : '#64748b',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                <Edit3 size={13} />
-                <span>작업/견적</span>
+                <ShoppingCart size={14} />
+                <span>카탈로그 쇼핑/주문</span>
               </button>
+
               <button
-                onClick={() => setViewMode('preview')}
+                type="button"
+                onClick={() => setViewMode('db_admin')}
+                data-uia="btn-parts-tab-db"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '5px 12px',
+                  borderRadius: 4,
+                  fontSize: 13.5,
+                  fontWeight: viewMode === 'db_admin' ? 800 : 600,
+                  border: 'none',
+                  background: viewMode === 'db_admin' ? '#1d4ed8' : 'transparent',
+                  color: viewMode === 'db_admin' ? '#ffffff' : '#64748b',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Database size={14} />
+                <span>카탈로그 DB 관리</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('quote_a4')}
                 data-uia="btn-parts-tab-a4"
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px',
-                  borderRadius: 4, fontSize: 13.5, fontWeight: viewMode === 'preview' ? 800 : 600,
-                  border: 'none', background: viewMode === 'preview' ? '#059669' : 'transparent',
-                  color: viewMode === 'preview' ? '#ffffff' : '#64748b', cursor: 'pointer'
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '5px 12px',
+                  borderRadius: 4,
+                  fontSize: 13.5,
+                  fontWeight: viewMode === 'quote_a4' ? 800 : 600,
+                  border: 'none',
+                  background: viewMode === 'quote_a4' ? '#0f172a' : 'transparent',
+                  color: viewMode === 'quote_a4' ? '#ffffff' : '#64748b',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                <Eye size={13} />
-                <span>공식 A4 서식</span>
+                <FileText size={14} />
+                <span>공식 A4 견적서</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('mobile')}
+                data-uia="btn-parts-tab-mobile"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '5px 12px',
+                  borderRadius: 4,
+                  fontSize: 13.5,
+                  fontWeight: viewMode === 'mobile' ? 800 : 600,
+                  border: 'none',
+                  background: viewMode === 'mobile' ? '#b45309' : 'transparent',
+                  color: viewMode === 'mobile' ? '#ffffff' : '#64748b',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Smartphone size={14} />
+                <span>모바일 프리뷰</span>
               </button>
             </div>
 
+            {viewMode === 'quote_a4' && (
+              <button
+                type="button"
+                onClick={() => window.print()}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '5px 12px',
+                  borderRadius: 5,
+                  fontSize: 13.5,
+                  fontWeight: 700,
+                  background: '#f5f2eb',
+                  border: '1px solid #dcd5c9',
+                  color: '#0f172a',
+                  cursor: 'pointer'
+                }}
+              >
+                <Printer size={14} />
+                <span>인쇄 / PDF</span>
+              </button>
+            )}
+
             <button
-              onClick={() => window.print()}
+              type="button"
+              onClick={onClose}
+              aria-label="닫기"
               style={{
-                display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px',
-                borderRadius: 5, fontSize: 13.5, fontWeight: 700,
-                background: '#f5f2eb', border: '1px solid #dcd5c9', color: '#0f172a',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#64748b',
+                padding: 6,
+                borderRadius: 4
+              }}
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+        {/* ── [2-Track R&R 수신인 지정 & 발송 채널 선택 배너] ── */}
+        <div
+          style={{
+            background: '#f5f2eb',
+            borderBottom: '1px solid #dcd5c9',
+            padding: '10px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            flexShrink: 0
+          }}
+        >
+          {/* 1차 문서 수신인 지정 라디오 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
+              1차 문서 수신인 지정:
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  background: primaryRecipient === 'WORKER' ? '#ecfdf5' : '#ffffff',
+                  border: primaryRecipient === 'WORKER' ? '1.5px solid #059669' : '1px solid #cbd5e1',
+                  borderRadius: 4,
+                  padding: '4px 10px',
+                  fontSize: 13.5,
+                  fontWeight: primaryRecipient === 'WORKER' ? 800 : 600,
+                  color: primaryRecipient === 'WORKER' ? '#065f46' : '#475569'
+                }}
+              >
+                <input
+                  type="radio"
+                  name="primaryRecipient"
+                  checked={primaryRecipient === 'WORKER'}
+                  onChange={() => setPrimaryRecipient('WORKER')}
+                />
+                <span>현장 실사용자 (하청 미화원: {doc.siteWorkerName} {doc.siteWorkerPhone})</span>
+              </label>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  background: primaryRecipient === 'MANAGER' ? '#eff6ff' : '#ffffff',
+                  border: primaryRecipient === 'MANAGER' ? '1.5px solid #1d4ed8' : '1px solid #cbd5e1',
+                  borderRadius: 4,
+                  padding: '4px 10px',
+                  fontSize: 13.5,
+                  fontWeight: primaryRecipient === 'MANAGER' ? 800 : 600,
+                  color: primaryRecipient === 'MANAGER' ? '#1e40af' : '#475569'
+                }}
+              >
+                <input
+                  type="radio"
+                  name="primaryRecipient"
+                  checked={primaryRecipient === 'MANAGER'}
+                  onChange={() => setPrimaryRecipient('MANAGER')}
+                />
+                <span>원청 결재권자 (관리소 시설과장: {doc.recipientManager} {doc.recipientPhone})</span>
+              </label>
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13.5, color: '#64748b', cursor: 'pointer', marginLeft: 6 }}>
+              <input
+                type="checkbox"
+                checked={isCcEnabled}
+                onChange={e => setIsCcEnabled(e.target.checked)}
+              />
+              <span>참조인 동시 공유</span>
+            </label>
+          </div>
+
+          {/* 3대 발송 수단 선택 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#475569', marginRight: 4 }}>
+              발송 수단:
+            </span>
+            <button
+              type="button"
+              onClick={() => setSentChannel('KAKAO')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '4px 10px',
+                borderRadius: 4,
+                border: sentChannel === 'KAKAO' ? '2px solid #eab308' : '1px solid #dcd5c9',
+                background: sentChannel === 'KAKAO' ? '#fef08a' : '#ffffff',
+                color: '#854d0e',
+                fontSize: 13.5,
+                fontWeight: 800,
                 cursor: 'pointer'
               }}
             >
-              <Printer size={13} />
-              <span>인쇄 / PDF</span>
+              <MessageSquare size={14} />
+              <span>카카오톡</span>
             </button>
 
             <button
-              onClick={onClose}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 4 }}
+              type="button"
+              onClick={() => setSentChannel('SMS')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '4px 10px',
+                borderRadius: 4,
+                border: sentChannel === 'SMS' ? '2px solid #2563eb' : '1px solid #dcd5c9',
+                background: sentChannel === 'SMS' ? '#dbeafe' : '#ffffff',
+                color: '#1e40af',
+                fontSize: 13.5,
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
             >
-              <X size={18} />
+              <Smartphone size={14} />
+              <span>문자메세지</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSentChannel('EMAIL')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '4px 10px',
+                borderRadius: 4,
+                border: sentChannel === 'EMAIL' ? '2px solid #059669' : '1px solid #dcd5c9',
+                background: sentChannel === 'EMAIL' ? '#d1fae5' : '#ffffff',
+                color: '#065f46',
+                fontSize: 13.5,
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              <Mail size={14} />
+              <span>이메일</span>
             </button>
           </div>
         </div>
 
-        {/* ── [2-Track 수신자 요약 띠 배너] ── */}
-        <div style={{
-          background: '#f5f2eb', borderBottom: '1px solid #dcd5c9',
-          padding: '10px 20px', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', gap: 16, flexShrink: 0
-        }}>
-          {/* 원청 결재권자 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-            <Building size={16} color="#1d4ed8" style={{ flexShrink: 0 }} />
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 13.5, fontWeight: 800, color: '#1e40af', background: '#eff6ff', padding: '1px 6px', borderRadius: 3 }}>
-                  최종 견적 수신인 (원청 결재권자)
-                </span>
-                <span style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
-                  {doc.recipientCompany}
-                </span>
-                <span style={{ fontSize: 13.5, fontWeight: 700, color: '#475569' }}>
-                  {doc.recipientManager} ({doc.recipientPhone})
-                </span>
-              </div>
-              <div style={{ fontSize: 13.5, color: '#64748b' }}>
-                품의서/지출결의서 첨부용 공식 소모품 견적서 수신처
-              </div>
-            </div>
-          </div>
+        {/* ── [본문 뷰 분기 영역] ── */}
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex' }}>
 
-          <div style={{ width: 1, height: 28, background: '#dcd5c9' }} />
+          {/* ══════════════════════════════════════════════════════════════════
+              VIEW 1: 카탈로그 쇼핑 & 주문 조립 ('shop')
+          ══════════════════════════════════════════════════════════════════ */}
+          {viewMode === 'shop' && (
+            <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
 
-          {/* 실사용처 미화원 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-            <Package size={16} color="#059669" style={{ flexShrink: 0 }} />
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 13.5, fontWeight: 800, color: '#047857', background: '#ecfdf5', padding: '1px 6px', borderRadius: 3 }}>
-                  실사용처 (현장 수령처)
-                </span>
-                <span style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
-                  {doc.siteCompany}
-                </span>
-                <span style={{ fontSize: 13.5, fontWeight: 700, color: '#475569' }}>
-                  {doc.siteWorkerName} ({doc.siteWorkerPhone})
-                </span>
-              </div>
-              <div style={{ fontSize: 13.5, color: '#64748b' }}>
-                소모품 택배 수령 및 1:1 장착 담당 (고장 부위 사진 촬영 회신 완료)
-              </div>
-            </div>
-          </div>
-        </div>
+              {/* [좌측 패널 63%]: 시각적 부품 카탈로그 그리드 */}
+              <div
+                style={{
+                  flex: '0 0 63%',
+                  borderRight: '1px solid #dcd5c9',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  background: '#f5f2eb',
+                  minHeight: 0
+                }}
+              >
+                {/* 필터 및 검색 바 */}
+                <div
+                  style={{
+                    background: '#ece7de',
+                    borderBottom: '1px solid #dcd5c9',
+                    padding: '10px 16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    flexShrink: 0
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    {/* 모델 필터 칩 */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 800, color: '#334155' }}>모델:</span>
+                      {MODELS.map(m => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setFilterModel(m)}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: 4,
+                            border: filterModel === m ? '1.5px solid #1d4ed8' : '1px solid #cbd5e1',
+                            background: filterModel === m ? '#1d4ed8' : '#ffffff',
+                            color: filterModel === m ? '#ffffff' : '#334155',
+                            fontSize: 13.5,
+                            fontWeight: filterModel === m ? 800 : 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
 
-        {/* ── [본문 작업 영역] ── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 60px 20px', background: '#f5f2eb' }}>
-          {viewMode === 'edit' ? (
-            /* ── 부품 작업/편집 폼 ── */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 960, margin: '0 auto' }}>
-
-              {/* 1. 현장 자가점검 확인 및 부품 교체 사유 소명문 */}
-              <div style={{ background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 6, padding: '14px 16px' }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <FileText size={16} color="#1d4ed8" />
-                    <span>1. 자가점검 결과 및 부품 교체 사유 소명문 (원청 내부 기안용)</span>
-                  </div>
-                  <span style={{ fontSize: 13.5, color: '#64748b', fontFamily: 'monospace' }}>
-                    문서번호: {doc.docNo}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <textarea
-                    rows={2}
-                    value={doc.justificationReason}
-                    onChange={e => setDoc(prev => ({ ...prev, justificationReason: e.target.value }))}
-                    style={{ border: '1px solid #bfdbfe', borderRadius: 4, padding: '8px 10px', fontSize: 13.5, background: '#eff6ff', color: '#0f172a', lineHeight: 1.45 }}
-                  />
-                  <span style={{ fontSize: 13.5, color: '#64748b' }}>
-                    * 관리소장/입대의 감사 시 "불필요한 출장비를 지출하지 않고 소모품 자가교체로 해결함"을 증빙하는 소명 문안입니다.
-                  </span>
-                </div>
-
-                {/* 고객 현장 사진 & 적색 스케치 회신 증빙 바 */}
-                <div style={{
-                  marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  background: '#fef2f2', border: '1px dashed #fca5a5', borderRadius: 5, padding: '8px 12px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Camera size={16} color="#dc2626" />
-                    <span style={{ fontSize: 13.5, fontWeight: 800, color: '#b91c1c' }}>
-                      현장 미화원 전송 사진 증빙: 적색 펜 스케치(동그라미) 고장 부위 회신 접수됨
-                    </span>
-                  </div>
-                  <span style={{ fontSize: 13.5, fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: 4, border: '1px solid #a7f3d0' }}>
-                    ✓ 스퀴지 라텍스 찢김 부품 매핑 완료
-                  </span>
-                </div>
-              </div>
-
-              {/* 2. 장비 모델 전용 소모품 카탈로그 선택 그리드 */}
-              <div style={{ background: '#f5f2eb', border: '1.5px solid #059669', borderRadius: 6, padding: '14px 16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Package size={16} color="#059669" />
-                    <span style={{ fontSize: 14.5, fontWeight: 800, color: '#065f46' }}>
-                      2. {equipmentModel} 전용 정품 소모품 카탈로그 ({selectedPartsCount}개 품목 선택됨)
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={handleAddCustomPart}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
-                      borderRadius: 4, fontSize: 13.5, fontWeight: 700,
-                      background: '#f5f2eb', color: '#047857', border: '1px solid #059669', cursor: 'pointer'
-                    }}
-                  >
-                    <Plus size={13} />
-                    <span>기타 부품 직접 추가</span>
-                  </button>
-                </div>
-
-                {/* 부품 테이블 */}
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, marginBottom: 12 }}>
-                  <thead>
-                    <tr style={{ background: '#ece7de', borderBottom: '1px solid #dcd5c9', color: '#475569' }}>
-                      <th style={{ width: '6%', padding: '6px 4px', textAlign: 'center' }}>선택</th>
-                      <th style={{ width: '38%', padding: '6px 8px', textAlign: 'left' }}>소모품명 / 부품코드</th>
-                      <th style={{ width: '22%', padding: '6px 8px', textAlign: 'left' }}>규격</th>
-                      <th style={{ width: '12%', padding: '6px 8px', textAlign: 'center' }}>수량</th>
-                      <th style={{ width: '11%', padding: '6px 8px', textAlign: 'right' }}>단가 (원)</th>
-                      <th style={{ width: '11%', padding: '6px 8px', textAlign: 'right' }}>공급가액 (원)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parts.map(p => (
-                      <tr
-                        key={p.id}
+                    {/* 검색 인풋 */}
+                    <div style={{ position: 'relative', width: 220 }}>
+                      <Search size={14} color="#64748b" style={{ position: 'absolute', left: 8, top: 9 }} />
+                      <input
+                        value={searchKeyword}
+                        onChange={e => setSearchKeyword(e.target.value)}
+                        placeholder="부품명, 규격, 코드 검색"
                         style={{
-                          borderBottom: '1px solid #e8e2d8',
-                          background: p.isSelected ? '#f0fdf4' : 'transparent'
+                          width: '100%',
+                          padding: '5px 8px 5px 28px',
+                          borderRadius: 4,
+                          border: '1px solid #cbd5e1',
+                          fontSize: 13.5,
+                          background: '#ffffff',
+                          color: '#0f172a'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 카테고리 필터 탭 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 800, color: '#334155', whiteSpace: 'nowrap' }}>분류:</span>
+                    {CATEGORIES.map(cat => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setFilterCategory(cat)}
+                        style={{
+                          padding: '3px 9px',
+                          borderRadius: 14,
+                          border: filterCategory === cat ? '1px solid #059669' : '1px solid #cbd5e1',
+                          background: filterCategory === cat ? '#059669' : '#ffffff',
+                          color: filterCategory === cat ? '#ffffff' : '#475569',
+                          fontSize: 13.5,
+                          fontWeight: filterCategory === cat ? 800 : 600,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
                         }}
                       >
-                        <td style={{ textAlign: 'center', padding: '6px 4px' }}>
-                          <input
-                            type="checkbox"
-                            checked={p.isSelected}
-                            onChange={e => updatePartItem(p.id, { isSelected: e.target.checked })}
-                            style={{ cursor: 'pointer', width: 16, height: 16 }}
-                          />
-                        </td>
-                        <td style={{ padding: '6px 8px' }}>
-                          <div style={{ fontWeight: 700, color: p.isSelected ? '#0f172a' : '#64748b' }}>{p.name}</div>
-                          <div style={{ fontSize: 13.5, color: '#64748b', fontFamily: 'monospace' }}>{p.partCode}</div>
-                        </td>
-                        <td style={{ padding: '6px 8px', color: '#475569' }}>
-                          {p.spec}
-                        </td>
-                        <td style={{ padding: '6px 8px', textAlign: 'center' }}>
-                          <input
-                            type="number"
-                            min={1}
-                            value={p.qty}
-                            disabled={!p.isSelected}
-                            onChange={e => updatePartItem(p.id, { qty: Math.max(1, parseInt(e.target.value) || 1) })}
-                            style={{
-                              width: 50, textAlign: 'center', border: '1px solid #dcd5c9',
-                              borderRadius: 4, padding: '2px 4px', fontSize: 13.5, background: p.isSelected ? '#ffffff' : '#f5f2eb'
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding: '6px 8px', textAlign: 'right', color: '#334155' }}>
-                          {p.unitPrice.toLocaleString()}
-                        </td>
-                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: p.isSelected ? '#0f172a' : '#94a3b8' }}>
-                          {p.supplyPrice.toLocaleString()}
-                        </td>
-                      </tr>
+                        {cat}
+                      </button>
                     ))}
-
-                    {/* 배송비 행 */}
-                    <tr style={{ borderBottom: '1px solid #dcd5c9', background: '#fafaf9' }}>
-                      <td style={{ textAlign: 'center', padding: '6px 4px' }}>
-                        <span style={{ fontSize: 13.5, color: '#059669', fontWeight: 800 }}>배송</span>
-                      </td>
-                      <td style={{ padding: '6px 8px', fontWeight: 700, color: '#0f172a' }}>
-                        기본 안심 화물/택배 배송비 ({doc.deliveryMethod})
-                      </td>
-                      <td style={{ padding: '6px 8px', color: '#64748b' }}>수도권 당일/익일 출고</td>
-                      <td style={{ padding: '6px 8px', textAlign: 'center' }}>1</td>
-                      <td style={{ padding: '6px 8px', textAlign: 'right' }}>{doc.shippingFee.toLocaleString()}</td>
-                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>{doc.shippingFee.toLocaleString()}</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                {/* 금액 집계 박스 */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#ece7de', border: '1px solid #dcd5c9', borderRadius: 5, padding: '10px 14px' }}>
-                  <div style={{ fontSize: 13.5, color: '#475569' }}>
-                    입금 계좌: <span style={{ fontWeight: 700, color: '#0f172a' }}>{doc.bankInfo}</span>
                   </div>
+                </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ fontSize: 13.5, color: '#64748b' }}>
-                      공급가액: <span style={{ fontWeight: 700, color: '#0f172a' }}>₩{doc.supplyTotal.toLocaleString()}</span>
+                {/* 부품 카드 그리드 본문 */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
+                  {isLoadingCatalog ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 10, color: '#64748b' }}>
+                      <span style={{ fontSize: 14, fontWeight: 700 }}>수파베이스 부품 카탈로그를 불러오는 중...</span>
                     </div>
-                    <div style={{ fontSize: 13.5, color: '#64748b' }}>
-                      부가세 (10%): <span style={{ fontWeight: 700, color: '#0f172a' }}>₩{doc.vat.toLocaleString()}</span>
+                  ) : filteredCatalog.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: 40, color: '#64748b', fontSize: 14 }}>
+                      조건에 부합하는 부품이 없습니다.
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 900, color: '#047857' }}>
-                      최종 견적 총액: ₩{doc.grandTotal.toLocaleString()}
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                      {filteredCatalog.map(part => {
+                        const inCartQty = cartQuantities[part.part_code] || 0;
+                        return (
+                          <div
+                            key={part.id}
+                            style={{
+                              background: '#ffffff',
+                              border: inCartQty > 0 ? '2px solid #059669' : '1px solid #cbd5e1',
+                              borderRadius: 6,
+                              overflow: 'hidden',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              boxShadow: inCartQty > 0 ? '0 4px 10px rgba(5,150,105,0.15)' : '0 1px 3px rgba(0,0,0,0.05)',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            {/* 부품 이미지 썸네일 */}
+                            <div style={{ position: 'relative', height: 130, background: '#0f172a', overflow: 'hidden' }}>
+                              <img
+                                src={part.image_url}
+                                alt={part.part_name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                              <div style={{ position: 'absolute', top: 6, left: 6, display: 'flex', gap: 4 }}>
+                                <span style={{ background: '#059669', color: '#ffffff', fontSize: 13.5, fontWeight: 800, padding: '1px 6px', borderRadius: 3 }}>
+                                  {part.category}
+                                </span>
+                                {part.is_recommended && (
+                                  <span style={{ background: '#d97706', color: '#ffffff', fontSize: 13.5, fontWeight: 800, padding: '1px 6px', borderRadius: 3 }}>
+                                    ⭐ 추천 정품
+                                  </span>
+                                )}
+                              </div>
+                              <span style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.7)', color: '#ffffff', fontSize: 13.5, padding: '1px 6px', borderRadius: 3, fontFamily: 'monospace' }}>
+                                {part.part_code}
+                              </span>
+                            </div>
+
+                            {/* 부품 정보 본문 */}
+                            <div style={{ padding: 10, display: 'flex', flexDirection: 'column', flex: 1, gap: 4 }}>
+                              <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', lineHeight: 1.35 }}>
+                                {part.part_name}
+                              </div>
+                              <div style={{ fontSize: 13.5, color: '#64748b' }}>
+                                규격: {part.spec}
+                              </div>
+                              <div style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.35, marginTop: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                {part.description}
+                              </div>
+
+                              {/* 가격 및 수량/담기 바 */}
+                              <div style={{ marginTop: 'auto', paddingTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9' }}>
+                                <div>
+                                  <span style={{ fontSize: 15, fontWeight: 900, color: '#059669' }}>
+                                    ₩{part.unit_price.toLocaleString()}
+                                  </span>
+                                </div>
+
+                                {inCartQty > 0 ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 4, padding: 2 }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateQty(part.part_code, -1)}
+                                      style={{ width: 24, height: 24, border: 'none', background: '#ffffff', color: '#065f46', borderRadius: 3, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    >
+                                      -
+                                    </button>
+                                    <span style={{ minWidth: 24, textAlign: 'center', fontSize: 13.5, fontWeight: 900, color: '#065f46' }}>
+                                      {inCartQty}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateQty(part.part_code, 1)}
+                                      style={{ width: 24, height: 24, border: 'none', background: '#059669', color: '#ffffff', borderRadius: 3, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddToCart(part)}
+                                    data-uia={`btn-add-cart-${part.part_code}`}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                      background: '#059669',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      borderRadius: 4,
+                                      padding: '5px 10px',
+                                      fontSize: 13.5,
+                                      fontWeight: 800,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <Plus size={14} />
+                                    <span>장바구니 담기</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
-              {/* 3. 배송 수령지 정보 */}
-              <div style={{ background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 6, padding: '12px 16px' }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Truck size={16} color="#475569" />
-                  <span>3. 부품 배송 수령지 정보</span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <label style={{ fontSize: 13.5, fontWeight: 700, color: '#64748b' }}>배송 방법</label>
-                    <select
-                      value={doc.deliveryMethod}
-                      onChange={e => setDoc(prev => ({ ...prev, deliveryMethod: e.target.value as any }))}
-                      style={{ border: '1px solid #dcd5c9', borderRadius: 4, padding: '4px 8px', fontSize: 13.5, background: '#f5f2eb' }}
-                    >
-                      <option value="택배(CJ대한통운)">택배 (CJ대한통운 - 익일 도착)</option>
-                      <option value="화물직배송">화물 직배송 (당일 긴급 배송)</option>
-                      <option value="엔지니어직접수령">스페이스 직영센터 직접 수령</option>
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <label style={{ fontSize: 13.5, fontWeight: 700, color: '#64748b' }}>배송 상세 주소</label>
-                    <input
-                      value={doc.deliveryAddress}
-                      onChange={e => setDoc(prev => ({ ...prev, deliveryAddress: e.target.value }))}
-                      style={{ border: '1px solid #dcd5c9', borderRadius: 4, padding: '4px 8px', fontSize: 13.5, background: '#f5f2eb' }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 4. 문서 발송 수단 3가지 선택기 (카톡 / 문자 / 이메일) */}
-              <div style={{
-                background: '#ece7de', border: '1px solid #dcd5c9', borderRadius: 6, padding: '10px 14px',
-                display: 'flex', flexDirection: 'column', gap: 8
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+              {/* [우측 패널 37%]: 실시간 장바구니 & 주문서 완결 터미널 */}
+              <div
+                style={{
+                  flex: '0 0 37%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  background: '#ece7de',
+                  minHeight: 0
+                }}
+              >
+                {/* 장바구니 헤더 */}
+                <div
+                  style={{
+                    padding: '10px 16px',
+                    borderBottom: '1px solid #dcd5c9',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexShrink: 0
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a' }}>견적서 발송 수단 선택</span>
-                    <span style={{ fontSize: 13.5, color: '#64748b' }}>(소모품 부품 견적서)</span>
-                  </div>
-                  <div style={{ fontSize: 13.5, color: '#334155', fontWeight: 600 }}>
-                    {sentChannel === 'KAKAO' && <span>수신처: <b>{doc.recipientManager}</b> ({doc.recipientPhone}) · 카톡 알림톡</span>}
-                    {sentChannel === 'SMS' && <span>수신처: <b>{doc.recipientManager}</b> ({doc.recipientPhone}) · LMS 장문 문자</span>}
-                    {sentChannel === 'EMAIL' && <span>수신처: <b>{doc.recipientEmail || '이메일 주소 필요'}</b> · 전자공문 PDF</span>}
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                  <button
-                    type="button"
-                    data-channel-option="KAKAO"
-                    onClick={() => setSentChannel('KAKAO')}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      padding: '7px 12px', borderRadius: 5, fontSize: 13.5,
-                      fontWeight: sentChannel === 'KAKAO' ? 800 : 600,
-                      border: sentChannel === 'KAKAO' ? '1px solid #ca8a04' : '1px solid #dcd5c9',
-                      background: sentChannel === 'KAKAO' ? '#fef08a' : '#f5f2eb',
-                      color: sentChannel === 'KAKAO' ? '#713f12' : '#475569',
-                      cursor: 'pointer', whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <MessageSquare size={14} color={sentChannel === 'KAKAO' ? '#713f12' : '#64748b'} />
-                    <span>카톡으로 보내기</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-channel-option="SMS"
-                    onClick={() => setSentChannel('SMS')}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      padding: '7px 12px', borderRadius: 5, fontSize: 13.5,
-                      fontWeight: sentChannel === 'SMS' ? 800 : 600,
-                      border: sentChannel === 'SMS' ? '1px solid #0f172a' : '1px solid #dcd5c9',
-                      background: sentChannel === 'SMS' ? '#0f172a' : '#f5f2eb',
-                      color: sentChannel === 'SMS' ? '#ffffff' : '#475569',
-                      cursor: 'pointer', whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <Smartphone size={14} color={sentChannel === 'SMS' ? '#ffffff' : '#64748b'} />
-                    <span>문자메세지로 보내기</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-channel-option="EMAIL"
-                    onClick={() => setSentChannel('EMAIL')}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      padding: '7px 12px', borderRadius: 5, fontSize: 13.5,
-                      fontWeight: sentChannel === 'EMAIL' ? 800 : 600,
-                      border: sentChannel === 'EMAIL' ? '1px solid #1d4ed8' : '1px solid #dcd5c9',
-                      background: sentChannel === 'EMAIL' ? '#1d4ed8' : '#f5f2eb',
-                      color: sentChannel === 'EMAIL' ? '#ffffff' : '#475569',
-                      cursor: 'pointer', whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <Mail size={14} color={sentChannel === 'EMAIL' ? '#ffffff' : '#64748b'} />
-                    <span>이메일로 보내기</span>
-                  </button>
-                </div>
-
-                {sentChannel === 'EMAIL' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, background: '#eff6ff', padding: '6px 10px', borderRadius: 4, border: '1px solid #bfdbfe' }}>
-                    <label style={{ fontSize: 13.5, fontWeight: 700, color: '#1e40af', whiteSpace: 'nowrap' }}>수신 이메일 주소:</label>
-                    <input
-                      value={doc.recipientEmail}
-                      onChange={e => setDoc(prev => ({ ...prev, recipientEmail: e.target.value }))}
-                      placeholder="원청 관리사무소 시설과장/소장 이메일 입력"
-                      style={{ flex: 1, border: '1px solid #93c5fd', borderRadius: 4, padding: '3px 8px', fontSize: 13.5, background: '#ffffff', outline: 'none' }}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* 하단 발송 및 결재 액션 바 */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {doc.sentAt && (
-                    <span style={{ fontSize: 13.5, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <CheckCircle2 size={14} />
-                      원청({doc.recipientManager}) {doc.sentChannel === 'KAKAO' ? '카톡(알림톡)' : doc.sentChannel === 'SMS' ? '문자메세지' : '이메일'} 발송 완료 ({doc.sentAt})
+                    <ShoppingCart size={16} color="#059669" />
+                    <span style={{ fontSize: 14, fontWeight: 900, color: '#0f172a' }}>
+                      온라인 장바구니 ({cartItems.length}개 품목)
                     </span>
+                  </div>
+                  {cartItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearCart}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#64748b',
+                        fontSize: 13.5,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      전체 비우기
+                    </button>
                   )}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button
-                    onClick={handleSendQuotation}
-                    data-uia="btn-send-parts-quote"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px',
-                      borderRadius: 5, fontSize: 14, fontWeight: 800,
-                      background: sentChannel === 'KAKAO' ? '#ca8a04' : sentChannel === 'SMS' ? '#0f172a' : '#1d4ed8',
-                      color: '#ffffff', border: 'none', cursor: 'pointer',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.18)'
-                    }}
-                  >
-                    <Send size={14} />
-                    <span>
-                      원청 결재자에게 견적서 발송 ({sentChannel === 'KAKAO' ? '카톡으로 보내기' : sentChannel === 'SMS' ? '문자메세지로 보내기' : '이메일로 보내기'})
+                {/* 장바구니 품목 리스트 */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {cartItems.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px 10px', color: '#64748b', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                      <ShoppingCart size={32} color="#94a3b8" />
+                      <span style={{ fontSize: 13.5, fontWeight: 700 }}>장바구니가 비어 있습니다.</span>
+                      <span style={{ fontSize: 13.5 }}>왼쪽 카탈로그에서 필요한 소모품을 담아주십시오.</span>
+                    </div>
+                  ) : (
+                    cartItems.map(item => (
+                      <div
+                        key={item.part.part_code}
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: 6,
+                          padding: 10,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a' }}>
+                            {item.part.part_name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFromCart(item.part.part_code)}
+                            style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', padding: 2 }}
+                            title="삭제"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13.5 }}>
+                          <span style={{ color: '#64748b', fontFamily: 'monospace' }}>{item.part.part_code}</span>
+                          <span style={{ color: '#0f172a' }}>단가: ₩{item.part.unit_price.toLocaleString()}</span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4, borderTop: '1px dashed #e2e8f0' }}>
+                          {/* 수량 조절 */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#f1f5f9', borderRadius: 4, padding: 2 }}>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQty(item.part.part_code, -1)}
+                              style={{ width: 22, height: 22, border: 'none', background: '#ffffff', borderRadius: 3, fontWeight: 800, cursor: 'pointer' }}
+                            >
+                              -
+                            </button>
+                            <span style={{ minWidth: 20, textAlign: 'center', fontSize: 13.5, fontWeight: 800 }}>
+                              {item.qty}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQty(item.part.part_code, 1)}
+                              style={{ width: 22, height: 22, border: 'none', background: '#ffffff', borderRadius: 3, fontWeight: 800, cursor: 'pointer' }}
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          <span style={{ fontSize: 14, fontWeight: 900, color: '#059669' }}>
+                            소계: ₩{item.subtotal.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+
+                  {/* 배송지 인라인 확인 */}
+                  <div style={{ background: '#f5f2eb', border: '1px solid #dcd5c9', borderRadius: 6, padding: '8px 10px', marginTop: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      <Truck size={14} color="#1d4ed8" />
+                      <span>배송지 (택배/화물):</span>
+                    </div>
+                    <input
+                      value={deliveryAddress}
+                      onChange={e => setDeliveryAddress(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '6px 8px',
+                        borderRadius: 4,
+                        border: '1px solid #cbd5e1',
+                        fontSize: 13.5,
+                        background: '#ffffff',
+                        color: '#0f172a'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* 결제 요약 및 주문하기 버튼군 */}
+                <div
+                  style={{
+                    background: '#f5f2eb',
+                    borderTop: '1px solid #dcd5c9',
+                    padding: '12px 16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    flexShrink: 0
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, color: '#475569' }}>
+                    <span>공급가액 합계:</span>
+                    <span style={{ fontWeight: 700 }}>₩{supplyTotal.toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, color: '#475569' }}>
+                    <span>배송비 (10만원 이상 무료):</span>
+                    <span style={{ fontWeight: 700, color: shippingFee === 0 ? '#059669' : '#0f172a' }}>
+                      {shippingFee === 0 ? '무료 (₩0)' : `₩${shippingFee.toLocaleString()}`}
                     </span>
-                  </button>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, color: '#475569' }}>
+                    <span>부가가치세 (VAT 10%):</span>
+                    <span style={{ fontWeight: 700 }}>₩{vat.toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 900, color: '#0f172a', paddingTop: 6, borderTop: '1px solid #dcd5c9' }}>
+                    <span>최종 발주 금액:</span>
+                    <span style={{ color: '#059669' }}>₩{grandTotal.toLocaleString()}</span>
+                  </div>
 
-                  <button
-                    onClick={handleApprove}
-                    disabled={doc.approvalStatus === 'APPROVED' || doc.approvalStatus === 'DISPATCHED'}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
-                      borderRadius: 5, fontSize: 13.5, fontWeight: 800,
-                      background: doc.approvalStatus === 'APPROVED' || doc.approvalStatus === 'DISPATCHED' ? '#dcd5c9' : '#059669',
-                      color: '#ffffff', border: 'none',
-                      cursor: (doc.approvalStatus === 'APPROVED' || doc.approvalStatus === 'DISPATCHED') ? 'default' : 'pointer'
-                    }}
-                  >
-                    <Check size={14} />
-                    <span>{doc.approvalStatus === 'APPROVED' || doc.approvalStatus === 'DISPATCHED' ? '관리소 발주승인 완료' : '관리소 최종 발주승인'}</span>
-                  </button>
+                  {placedOrder && (
+                    <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 4, padding: '6px 10px', fontSize: 13.5, color: '#065f46', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <CheckCircle2 size={16} color="#059669" />
+                      <span>수파베이스 DB 주문 저장 완료 (주문번호: {placedOrder.order_id})</span>
+                    </div>
+                  )}
 
-                  <button
-                    onClick={handleDispatch}
-                    disabled={doc.approvalStatus === 'DISPATCHED'}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
-                      borderRadius: 5, fontSize: 13.5, fontWeight: 800,
-                      background: doc.approvalStatus === 'DISPATCHED' ? '#dcd5c9' : '#0f172a',
-                      color: '#ffffff', border: 'none', cursor: doc.approvalStatus === 'DISPATCHED' ? 'default' : 'pointer'
-                    }}
-                  >
-                    <Truck size={14} />
-                    <span>{doc.approvalStatus === 'DISPATCHED' ? '택배 출고완료됨' : '출고 배송 지시'}</span>
-                  </button>
+                  {/* 최종 주문하기 버튼 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
+                    <button
+                      type="button"
+                      disabled={isSubmittingOrder || cartItems.length === 0}
+                      onClick={handlePlaceOrder}
+                      data-uia="btn-submit-parts-order"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        background: '#059669',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: 5,
+                        padding: '10px 12px',
+                        fontSize: 14,
+                        fontWeight: 900,
+                        cursor: isSubmittingOrder || cartItems.length === 0 ? 'not-allowed' : 'pointer',
+                        boxShadow: '0 2px 4px rgba(5,150,105,0.25)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      <Send size={15} />
+                      <span>{isSubmittingOrder ? '주문 저장 중...' : '온라인 주문하기'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('quote_a4')}
+                      data-uia="btn-goto-a4-quote"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        background: '#0f172a',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: 5,
+                        padding: '10px 12px',
+                        fontSize: 14,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      <FileText size={15} />
+                      <span>원청 공식 A4 견적서 ➔</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-
             </div>
-          ) : (
-            /* ── 공식 A4 서식 인쇄 미리보기 모드 ── */
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-              {/* 인쇄 제외 영역: 발송 수단 선택 및 즉시 발송 바 */}
-              <div className="no-print" style={{ width: 794, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  background: '#ece7de', border: '1px solid #dcd5c9', borderRadius: 6, padding: '8px 14px'
-                }}>
-                  <div style={{ fontSize: 13.5, color: '#059669', fontWeight: 700 }}>
-                    {doc.sentAt ? (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <CheckCircle2 size={14} />
-                        원청({doc.recipientManager}) {doc.sentChannel === 'KAKAO' ? '카톡(알림톡)' : doc.sentChannel === 'SMS' ? '문자메세지(LMS)' : '이메일'} 발송 완료 ({doc.sentAt})
-                      </span>
-                    ) : (
-                      <span style={{ color: '#64748b' }}>발송 상태: 발송 대기중</span>
-                    )}
-                  </div>
+          )}
 
-                  <button
-                    onClick={handleSendQuotation}
-                    data-uia="btn-send-preview"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6, padding: '7px 18px',
-                      borderRadius: 5, fontSize: 13.5, fontWeight: 800,
-                      background: sentChannel === 'KAKAO' ? '#ca8a04' : sentChannel === 'SMS' ? '#0f172a' : '#1d4ed8',
-                      color: '#ffffff', border: 'none', cursor: 'pointer'
-                    }}
-                  >
-                    <Send size={13} />
-                    <span>
-                      공식 A4 견적서 바로 발송 ({sentChannel === 'KAKAO' ? '카톡으로 보내기' : sentChannel === 'SMS' ? '문자메세지로 보내기' : '이메일로 보내기'})
-                    </span>
-                  </button>
+          {/* ══════════════════════════════════════════════════════════════════
+              VIEW 2: 카탈로그 DB 마스터 관리 ('db_admin')
+          ══════════════════════════════════════════════════════════════════ */}
+          {viewMode === 'db_admin' && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#f5f2eb', overflow: 'hidden' }}>
+              {/* 상단 툴바 */}
+              <div style={{ padding: '12px 20px', background: '#ece7de', borderBottom: '1px solid #dcd5c9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Database size={18} color="#1d4ed8" />
+                  <span style={{ fontSize: 15, fontWeight: 900, color: '#0f172a' }}>
+                    전사 부품 카탈로그 마스터 DB (수파베이스 parts_catalog 테이블)
+                  </span>
+                  <span style={{ background: '#dbeafe', color: '#1e40af', fontSize: 13.5, fontWeight: 700, padding: '2px 8px', borderRadius: 4 }}>
+                    총 {allCatalogList.length}건 등록됨
+                  </span>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAddPartModal(true)}
+                  data-uia="btn-open-add-part-modal"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: '#1d4ed8',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 5,
+                    padding: '6px 14px',
+                    fontSize: 13.5,
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Plus size={15} />
+                  <span>신규 부품 DB 등록</span>
+                </button>
               </div>
 
-              {/* 실제 A4 인쇄 대상 컨테이너 */}
-              <div ref={printAreaRef} style={{
-                width: 794, minHeight: 1123, margin: '0 auto', padding: '40px 48px',
-                background: '#ffffff', border: '1px solid #cbd5e1', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                fontFamily: "'Batang', 'KoPubBatang', 'Pretendard', serif", color: '#000000', boxSizing: 'border-box'
-              }}>
-                {/* 상단 공문서 헤더 */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: 10, marginBottom: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '0.1em' }}>(주) 스 페 이 스</div>
-                    <div style={{ fontSize: 13.5, color: '#475569', marginTop: 2 }}>SPACE ENGINEERING CO., LTD. | 소모품공급사업부</div>
+              {/* 고밀도 테이블 그리드 */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', background: '#ffffff', borderRadius: 6, overflow: 'hidden', border: '1px solid #cbd5e1', fontSize: 13.5 }}>
+                  <thead>
+                    <tr style={{ background: '#0f172a', color: '#ffffff', textAlign: 'left' }}>
+                      <th style={{ padding: '8px 12px', width: 90 }}>사진</th>
+                      <th style={{ padding: '8px 12px', width: 140 }}>부품코드</th>
+                      <th style={{ padding: '8px 12px' }}>품목명</th>
+                      <th style={{ padding: '8px 12px', width: 110 }}>분류</th>
+                      <th style={{ padding: '8px 12px', width: 130 }}>적용모델</th>
+                      <th style={{ padding: '8px 12px', width: 110, textAlign: 'right' }}>단가</th>
+                      <th style={{ padding: '8px 12px', width: 90, textAlign: 'center' }}>재고</th>
+                      <th style={{ padding: '8px 12px', width: 90, textAlign: 'center' }}>추천</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allCatalogList.map((part, idx) => (
+                      <tr key={part.id} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                        <td style={{ padding: 6 }}>
+                          <img src={part.image_url} alt="" style={{ width: 64, height: 44, objectFit: 'cover', borderRadius: 4, border: '1px solid #cbd5e1' }} />
+                        </td>
+                        <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 800, color: '#1e40af' }}>
+                          {part.part_code}
+                        </td>
+                        <td style={{ padding: '8px 12px' }}>
+                          <div style={{ fontWeight: 800, color: '#0f172a' }}>{part.part_name}</div>
+                          <div style={{ fontSize: 13.5, color: '#64748b' }}>규격: {part.spec}</div>
+                        </td>
+                        <td style={{ padding: '8px 12px' }}>
+                          <span style={{ background: '#e2e8f0', color: '#334155', padding: '2px 6px', borderRadius: 3, fontSize: 13.5 }}>
+                            {part.category}
+                          </span>
+                        </td>
+                        <td style={{ padding: '8px 12px' }}>
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            {part.applicable_models.map(m => (
+                              <span key={m} style={{ background: '#ecfdf5', color: '#065f46', fontSize: 13.5, fontWeight: 700, padding: '1px 5px', borderRadius: 3 }}>
+                                {m}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                          ₩{part.unit_price.toLocaleString()}
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                          <span style={{ color: part.in_stock ? '#059669' : '#dc2626', fontWeight: 700 }}>
+                            {part.in_stock ? '보유' : '품절'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                          {part.is_recommended ? '⭐' : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════════
+              VIEW 3: 공식 A4 소모품 견적서 ('quote_a4')
+          ══════════════════════════════════════════════════════════════════ */}
+          {viewMode === 'quote_a4' && (
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 60px 20px', background: '#f5f2eb' }}>
+              <div
+                style={{
+                  maxWidth: 860,
+                  margin: '0 auto',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 4,
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.08)',
+                  padding: '36px 40px',
+                  color: '#000000',
+                  fontFamily: "'Nanum Myeongjo', serif, -apple-system, sans-serif"
+                }}
+              >
+                {/* 견적서 타이틀 */}
+                <div style={{ textAlign: 'center', marginBottom: 24, borderBottom: '2px solid #000', paddingBottom: 14 }}>
+                  <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: '0.25em' }}>
+                    소 모 품   공 급   견 적 서
                   </div>
-                  <div style={{ textAlign: 'right', fontSize: 13.5, lineHeight: 1.5 }}>
-                    <div>문서번호: <b>{doc.docNo}</b></div>
-                    <div>발행일자: {doc.issuedAt}</div>
-                    <div>수신담당: <b>{doc.recipientManager} 귀하</b></div>
+                  <div style={{ fontSize: 13.5, color: '#475569', marginTop: 4, letterSpacing: '0.05em' }}>
+                    (현장 자가조치 점검 완료 및 소모품 1:1 교체 신청용)
                   </div>
                 </div>
 
-                {/* 공문서 타이틀 */}
-                <div style={{ textAlign: 'center', margin: '24px 0 20px' }}>
-                  <span style={{
-                    fontSize: 22, fontWeight: 900, textDecoration: 'underline', textUnderlineOffset: 6,
-                    letterSpacing: '0.05em'
-                  }}>
-                    소모품·부품 공급 견적서
-                  </span>
-                  <div style={{ fontSize: 13.5, color: '#64748b', marginTop: 8 }}>
-                    본 문서는 현장 사전 자가점검 확인에 의거한 정품 소모품 공급 및 구매 품의를 위한 공식 견적서입니다.
-                  </div>
-                </div>
-
-                {/* 수신처 / 발신처 그리드 테이블 */}
+                {/* 견적서 상단 헤더 표 */}
                 <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #000', fontSize: 13.5, marginBottom: 16 }}>
                   <tbody>
                     <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
@@ -817,13 +1363,13 @@ export function PartsOrderQuotationModal({
                       <td style={{ padding: '6px 8px' }}>1588-0000 (부품관리 02-123-4568)</td>
                     </tr>
                     <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
-                      <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>발송 수단</th>
-                      <td style={{ padding: '6px 8px', borderRight: '1px solid #cbd5e1', fontWeight: 700 }}>
-                        {sentChannel === 'KAKAO' ? '카톡 (카카오 알림톡)' : sentChannel === 'SMS' ? '문자메세지 (LMS 웹문서)' : `전자우편 (이메일: ${doc.recipientEmail})`}
+                      <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>1차 수신인</th>
+                      <td style={{ padding: '6px 8px', borderRight: '1px solid #cbd5e1', fontWeight: 700, color: '#1d4ed8' }}>
+                        {doc.primaryRecipient === 'WORKER' ? `현장 미화원 (${doc.siteWorkerName})` : `원청 결재권자 (${doc.recipientManager})`}
                       </td>
-                      <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>발송 상태</th>
-                      <td style={{ padding: '6px 8px', fontWeight: 700, color: doc.sentAt ? '#059669' : '#b91c1c' }}>
-                        {doc.sentAt ? `발송 완료 (${doc.sentAt})` : '발송 대기'}
+                      <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>발송 수단</th>
+                      <td style={{ padding: '6px 8px', fontWeight: 700 }}>
+                        {sentChannel === 'KAKAO' ? '카카오 알림톡' : sentChannel === 'SMS' ? '문자메세지(LMS)' : `이메일 (${doc.recipientEmail})`}
                       </td>
                     </tr>
                     <tr>
@@ -843,7 +1389,7 @@ export function PartsOrderQuotationModal({
                   {doc.justificationReason}
                 </div>
 
-                {/* 견적 품목 표 */}
+                {/* 견적 품목 명세 표 */}
                 <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>
                   2. 정비 소모품 공급 견적 명세 (공급가액 및 세액)
                 </div>
@@ -858,7 +1404,7 @@ export function PartsOrderQuotationModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {parts.filter(p => p.isSelected).map(p => (
+                    {doc.parts.map(p => (
                       <tr key={p.id} style={{ borderBottom: '1px solid #cbd5e1' }}>
                         <td style={{ padding: '6px', borderRight: '1px solid #cbd5e1', fontWeight: 600 }}>{p.name}</td>
                         <td style={{ padding: '6px', borderRight: '1px solid #cbd5e1', fontFamily: 'monospace' }}>{p.partCode}</td>
@@ -868,7 +1414,7 @@ export function PartsOrderQuotationModal({
                       </tr>
                     ))}
                     <tr style={{ borderBottom: '1px solid #000' }}>
-                      <td style={{ padding: '6px', borderRight: '1px solid #cbd5e1', fontWeight: 600 }}>기본 안심 화물/택배 배송비</td>
+                      <td style={{ padding: '6px', borderRight: '1px solid #cbd5e1', fontWeight: 600 }}>배송비 (10만원 이상 무료)</td>
                       <td style={{ padding: '6px', borderRight: '1px solid #cbd5e1' }}>{doc.deliveryMethod}</td>
                       <td style={{ padding: '6px', borderRight: '1px solid #cbd5e1', textAlign: 'right' }}>1</td>
                       <td style={{ padding: '6px', borderRight: '1px solid #cbd5e1', textAlign: 'right' }}>{doc.shippingFee.toLocaleString()}</td>
@@ -885,9 +1431,8 @@ export function PartsOrderQuotationModal({
                   </tbody>
                 </table>
 
-                {/* 하단 공식 직인 날인 및 원청 결재란 */}
+                {/* 하단 공식 직인 및 결재란 */}
                 <div style={{ marginTop: 24, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                  {/* 발신자 직인 */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ lineHeight: 1.6, fontSize: 13.5 }}>
                       <div><b>주식회사 스페이스</b></div>
@@ -896,18 +1441,27 @@ export function PartsOrderQuotationModal({
                       <div>입금계좌: <b>{doc.bankInfo}</b></div>
                     </div>
 
-                    {/* 공식 직인 인장 SVG */}
                     <div style={{
-                      width: 66, height: 66, border: '2px solid #dc2626', borderRadius: '50%',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: '#dc2626', fontWeight: 900, fontSize: 13.5, textAlign: 'center', lineHeight: 1.2,
-                      transform: 'rotate(-5deg)', opacity: 0.88, flexShrink: 0
+                      width: 66,
+                      height: 66,
+                      border: '2px solid #dc2626',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#dc2626',
+                      fontWeight: 900,
+                      fontSize: 13.5,
+                      textAlign: 'center',
+                      lineHeight: 1.2,
+                      transform: 'rotate(-5deg)',
+                      opacity: 0.88,
+                      flexShrink: 0
                     }}>
                       (주)스페이스<br />대표이사<br />인
                     </div>
                   </div>
 
-                  {/* 원청 관리사무소 결재란 박스 */}
                   <div style={{ border: '1px solid #000', fontSize: 13.5 }}>
                     <table style={{ borderCollapse: 'collapse', textAlign: 'center' }}>
                       <tbody>
@@ -926,22 +1480,132 @@ export function PartsOrderQuotationModal({
                     </table>
                   </div>
                 </div>
-
               </div>
             </div>
           )}
+
+          {/* ══════════════════════════════════════════════════════════════════
+              VIEW 4: 모바일 수신 화면 미리보기 ('mobile')
+          ══════════════════════════════════════════════════════════════════ */}
+          {viewMode === 'mobile' && (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#cbd5e1', padding: 20, overflowY: 'auto' }}>
+              <div
+                style={{
+                  width: 380,
+                  background: '#ffffff',
+                  borderRadius: 28,
+                  border: '8px solid #0f172a',
+                  boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}
+              >
+                {/* 상단 노치 */}
+                <div style={{ height: 24, background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 44, height: 4, background: '#334155', borderRadius: 2 }} />
+                </div>
+
+                {/* 모바일 화면 내용 */}
+                <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, background: '#f8fafc', maxHeight: '75vh', overflowY: 'auto' }}>
+                  <div
+                    style={{
+                      background: sentChannel === 'KAKAO' ? '#fee500' : '#059669',
+                      color: sentChannel === 'KAKAO' ? '#000000' : '#ffffff',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <span style={{ fontSize: 13.5, fontWeight: 900 }}>
+                      (주)스페이스 정품 소모품 주문
+                    </span>
+                    <span style={{ fontSize: 13.5, opacity: 0.85 }}>공식 알림톡</span>
+                  </div>
+
+                  <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 6, padding: 10, fontSize: 13.5, color: '#0f172a', lineHeight: 1.45 }}>
+                    <div style={{ fontWeight: 800, color: '#047857', marginBottom: 2 }}>
+                      [{equipmentModel}] 소모품 주문 카탈로그
+                    </div>
+                    {doc.siteWorkerName} 반장님, 자가점검 결과에 따른 추천 소모품 목록입니다. 수량을 확인하고 주문하기를 눌러주십시오.
+                  </div>
+
+                  {/* 모바일 담긴 품목 카드 */}
+                  {cartItems.map(item => (
+                    <div key={item.part.part_code} style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: 8, display: 'flex', gap: 8 }}>
+                      <img src={item.part.image_url} alt="" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4, border: '1px solid #e2e8f0' }} />
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a' }}>{item.part.part_name}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 13.5, color: '#64748b' }}>수량: {item.qty}개</span>
+                          <span style={{ fontSize: 13.5, fontWeight: 800, color: '#059669' }}>₩{item.subtotal.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 6, padding: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 900, color: '#065f46' }}>
+                      <span>최종 주문금액:</span>
+                      <span>₩{grandTotal.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handlePlaceOrder}
+                    style={{
+                      background: '#059669',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: 12,
+                      fontSize: 14,
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      textAlign: 'center'
+                    }}
+                  >
+                    이 품목으로 주문하기 ➔
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
 
-        {/* ── [하단 닫기 바] ── */}
-        <div className="no-print" style={{
-          background: '#ece7de', borderTop: '1px solid #dcd5c9',
-          padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexShrink: 0
-        }}>
+        {/* ── [하단 닫기 및 상태 바] ── */}
+        <div
+          style={{
+            background: '#ece7de',
+            borderTop: '1px solid #dcd5c9',
+            padding: '10px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0
+          }}
+        >
+          <div style={{ fontSize: 13.5, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <CheckCircle2 size={16} color="#059669" />
+            <span>온라인 주문 완료 시 수파베이스 DB 무누락 보존 및 택배 송장 배송 연계</span>
+          </div>
+
           <button
+            type="button"
             onClick={onClose}
             style={{
-              padding: '6px 16px', borderRadius: 4, fontSize: 13.5, fontWeight: 700,
-              background: '#f5f2eb', border: '1px solid #dcd5c9', color: '#0f172a', cursor: 'pointer'
+              padding: '6px 16px',
+              borderRadius: 4,
+              fontSize: 13.5,
+              fontWeight: 700,
+              background: '#f5f2eb',
+              border: '1px solid #dcd5c9',
+              color: '#0f172a',
+              cursor: 'pointer'
             }}
           >
             닫기
@@ -949,11 +1613,137 @@ export function PartsOrderQuotationModal({
         </div>
       </div>
 
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-        }
-      `}</style>
+      {/* ── [모달: 신규 부품 DB 등록] ── */}
+      {showAddPartModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            zIndex: 10005,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
+        >
+          <div
+            style={{
+              background: '#f5f2eb',
+              borderRadius: 8,
+              maxWidth: 520,
+              width: '100%',
+              overflow: 'hidden',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+              border: '1px solid #dcd5c9',
+              padding: 20,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #dcd5c9', paddingBottom: 8 }}>
+              <span style={{ fontSize: 15, fontWeight: 900, color: '#0f172a' }}>
+                신규 부품 카탈로그 DB 등록
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAddPartModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13.5 }}>
+              <div>
+                <label style={{ fontWeight: 700, color: '#334155', display: 'block', marginBottom: 2 }}>
+                  부품 코드:
+                </label>
+                <input
+                  value={newPartForm.part_code}
+                  onChange={e => setNewPartForm(prev => ({ ...prev, part_code: e.target.value }))}
+                  placeholder="예: J600T-FLT-NEW"
+                  style={{ width: '100%', padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 13.5 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontWeight: 700, color: '#334155', display: 'block', marginBottom: 2 }}>
+                  품목명:
+                </label>
+                <input
+                  value={newPartForm.part_name}
+                  onChange={e => setNewPartForm(prev => ({ ...prev, part_name: e.target.value }))}
+                  placeholder="예: 오수 거름망 카트리지 필터"
+                  style={{ width: '100%', padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 13.5 }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <label style={{ fontWeight: 700, color: '#334155', display: 'block', marginBottom: 2 }}>
+                    카테고리:
+                  </label>
+                  <select
+                    value={newPartForm.category}
+                    onChange={e => setNewPartForm(prev => ({ ...prev, category: e.target.value }))}
+                    style={{ width: '100%', padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 13.5 }}
+                  >
+                    {CATEGORIES.filter(c => c !== '전체').map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontWeight: 700, color: '#334155', display: 'block', marginBottom: 2 }}>
+                    공급 단가 (원):
+                  </label>
+                  <input
+                    type="number"
+                    value={newPartForm.unit_price}
+                    onChange={e => setNewPartForm(prev => ({ ...prev, unit_price: Number(e.target.value) }))}
+                    style={{ width: '100%', padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 13.5 }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontWeight: 700, color: '#334155', display: 'block', marginBottom: 2 }}>
+                  규격 및 설명:
+                </label>
+                <input
+                  value={newPartForm.spec}
+                  onChange={e => setNewPartForm(prev => ({ ...prev, spec: e.target.value }))}
+                  placeholder="예: 38mm 내경, 스테인리스 304"
+                  style={{ width: '100%', padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 13.5 }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => setShowAddPartModal(false)}
+                style={{ padding: '6px 12px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#ffffff', fontSize: 13.5, cursor: 'pointer' }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveNewPart}
+                style={{ padding: '6px 14px', borderRadius: 4, border: 'none', background: '#1d4ed8', color: '#ffffff', fontSize: 13.5, fontWeight: 800, cursor: 'pointer' }}
+              >
+                수파베이스 DB 저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+export default PartsOrderQuotationModal;
