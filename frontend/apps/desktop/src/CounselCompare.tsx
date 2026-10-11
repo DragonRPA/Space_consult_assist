@@ -227,7 +227,7 @@ export default function CounselCompare() {
         )}
 
         {!result && !isLoading && (
-          <div style={{ padding: 48, textAlign: 'center', color: '#94a3b8', fontSize: 14, background: '#ffffff', borderRadius: 8, border: '1px dashed #cbd5e1' }}>비교할 증상을 입력하고 비교 검색을 실행하세요</div>
+          <div style={{ padding: 48, textAlign: 'center', color: '#64748b', fontSize: 14, background: '#fbf9f5', borderRadius: 8, border: '1px dashed #dcd5c9' }}>비교할 증상을 입력하고 비교 검색을 실행하세요</div>
         )}
       </div>
 

@@ -90,7 +90,7 @@ function MiniCal({ value, selected, onSelect, eventsByDate }: MiniCalProps) {
   }, [cur]);
 
   return (
-    <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 8, marginBottom: 14, background: '#ffffff' }}>
+    <div style={{ border: '1px solid #dcd5c9', borderRadius: 8, padding: 8, marginBottom: 14, background: '#fbf9f5' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
         <button onClick={() => setCur(new Date(cur.getFullYear(), cur.getMonth() - 1, 1))}
           style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 15 }}>‹</button>
@@ -374,14 +374,14 @@ function ListView({ events, cats, onClickEvent }: ListViewProps) {
   
   if (grouped.length === 0) {
     return (
-      <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+      <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', background: '#fbf9f5', borderRadius: 10, border: '1px solid #dcd5c9' }}>
         표시할 일정이 없습니다.
       </div>
     );
   }
 
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '16px 24px', overflowY: 'auto', minHeight: 400 }}>
+    <div style={{ background: '#fbf9f5', border: '1px solid #dcd5c9', borderRadius: 10, padding: '16px 24px', overflowY: 'auto', minHeight: 400 }}>
       {grouped.map(({ date, events: dayEvs }) => {
         const dObj = new Date(date);
         const dateLabel = `${date.replace(/-/g, '.')} (${DOW[dObj.getDay()]})`;
@@ -796,9 +796,9 @@ export default function SchedulePage() {
                 const isToday = sameDay(d, new Date());
                 const dow = i;
                 return (
-                  <div key={i} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 8, minHeight: 320 }}>
+                  <div key={i} style={{ background: '#fbf9f5', border: '1px solid #dcd5c9', borderRadius: 8, padding: 8, minHeight: 320 }}>
                     <div style={{
-                      textAlign: 'center', fontSize: 13.5, fontWeight: 700, marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid #f1f5f9',
+                      textAlign: 'center', fontSize: 13.5, fontWeight: 700, marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid #dcd5c9',
                       color: isToday ? '#2563eb' : dow === 0 ? '#ef4444' : dow === 6 ? '#2563eb' : '#475569',
                     }}>
                       {['일','월','화','수','목','금','토'][i]} <span style={{ fontSize: 13.5, fontWeight: 600 }}>({d.getDate()})</span>

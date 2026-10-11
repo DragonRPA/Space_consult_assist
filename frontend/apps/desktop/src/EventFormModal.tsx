@@ -194,8 +194,8 @@ function FieldRenderer({ fld, value, onChange, ctx }: FieldRendererProps) {
                 <button key={s} type="button"
                   onClick={() => onChange(fld.key, { ...statusObj, [s]: !done })}
                   style={{
-                    border: `1px solid ${done ? '#10b981' : '#cbd5e1'}`,
-                    background: done ? '#ecfdf5' : '#ffffff',
+                    border: `1px solid ${done ? '#10b981' : '#dcd5c9'}`,
+                    background: done ? '#ecfdf5' : '#fbf9f5',
                     color: done ? '#059669' : '#475569',
                     borderRadius: 16, padding: '4px 10px', fontSize: 13.5, cursor: 'pointer', fontWeight: done ? 600 : 400,
                     display: 'flex', alignItems: 'center', gap: 4
@@ -493,8 +493,8 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
                 {activeTabs.map(t => (
                   <button key={t.key} type="button" onClick={() => setActiveTab(t.key)}
                     style={{
-                      background: activeTab === t.key ? '#ffffff' : '#f8fafc',
-                      border: '1px solid #e2e8f0', borderBottom: 'none',
+                      background: activeTab === t.key ? '#fbf9f5' : '#ece7de',
+                      border: '1px solid #dcd5c9', borderBottom: 'none',
                       borderRadius: '6px 6px 0 0', padding: '7px 14px', marginBottom: -2,
                       fontSize: 14, fontWeight: 600, cursor: 'pointer',
                       color: activeTab === t.key ? '#2563eb' : '#64748b',

@@ -1992,8 +1992,8 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
           )}
 
           {isLoadingPlan && (
-            <div style={{ flex: 1, background: '#ffffff', borderRadius: 8, border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <Loader2 size={24} color="#2563eb" style={{ animation: 'spin 1s linear infinite' }} />
+            <div style={{ flex: 1, background: '#fbf9f5', borderRadius: 8, border: '1px solid #dcd5c9', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <Loader2 size={24} color="#1d4ed8" style={{ animation: 'spin 1s linear infinite' }} />
               <span style={{ fontSize: 14, color: '#334155', fontWeight: 700 }}>대응 조치 계획 분석 중...</span>
             </div>
           )}
@@ -3027,7 +3027,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                           <button
                             onClick={e => handleDeletePendingSession(record.id, e)}
                             style={{
-                              background: '#ffffff',
+                              background: '#fbf9f5',
                               color: '#dc2626',
                               border: '1px solid #fecaca',
                               borderRadius: 4,

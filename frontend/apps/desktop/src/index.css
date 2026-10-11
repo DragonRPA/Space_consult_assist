@@ -76,8 +76,19 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-input, select, textarea, button {
+input, select, textarea {
   font-family: inherit;
+  background-color: var(--bg-card);
+  color: var(--ink);
+}
+
+button {
+  font-family: inherit;
+}
+
+::placeholder {
+  color: var(--ink-subtle);
+  opacity: 0.85;
 }
 
 /* Custom Sleek Scrollbar */
