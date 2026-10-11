@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import {
   X, Check, Printer, Send,
   FileText, ShieldCheck, CheckCircle2, ChevronRight, User, Building,
-  Camera, Edit3, Eye
+  Camera, Edit3, Eye, MessageSquare, Smartphone, Mail
 } from 'lucide-react';
 
 export interface SelfActionEvidenceItem {
@@ -74,6 +74,149 @@ export interface DispatchDoc2nd {
   sentAt?: string;
   sentChannel?: 'KAKAO' | 'SMS' | 'EMAIL';
   approvalStatus: 'PENDING' | 'SENT' | 'APPROVED';
+}
+
+export type DispatchChannelType = 'KAKAO' | 'SMS' | 'EMAIL';
+
+interface DispatchChannelSelectorProps {
+  channel: DispatchChannelType;
+  onChangeChannel: (ch: DispatchChannelType) => void;
+  phone: string;
+  email: string;
+  onChangeEmail?: (email: string) => void;
+  managerName: string;
+  docTitle: string;
+}
+
+function DispatchChannelSelector({
+  channel,
+  onChangeChannel,
+  phone,
+  email,
+  onChangeEmail,
+  managerName,
+  docTitle
+}: DispatchChannelSelectorProps) {
+  return (
+    <div style={{
+      background: '#f5f2eb',
+      border: '1px solid #dcd5c9',
+      borderRadius: 6,
+      padding: '10px 14px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a' }}>문서 발송 수단 선택</span>
+          <span style={{ fontSize: 13.5, color: '#64748b' }}>({docTitle})</span>
+        </div>
+        <div style={{ fontSize: 13.5, color: '#334155', fontWeight: 600 }}>
+          {channel === 'KAKAO' && <span>수신처: <b>{managerName}</b> ({phone}) · 카카오톡 알림톡</span>}
+          {channel === 'SMS' && <span>수신처: <b>{managerName}</b> ({phone}) · LMS 장문 문자</span>}
+          {channel === 'EMAIL' && <span>수신처: <b>{email || '이메일 주소 필요'}</b> · 전자공문 PDF</span>}
+        </div>
+      </div>
+
+      {/* 3가지 발송 옵션 선택 버튼군 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {/* ① 카톡으로 보내기 */}
+        <button
+          type="button"
+          data-channel-option="KAKAO"
+          onClick={() => onChangeChannel('KAKAO')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '7px 12px',
+            borderRadius: 5,
+            fontSize: 13.5,
+            fontWeight: channel === 'KAKAO' ? 800 : 600,
+            border: channel === 'KAKAO' ? '1px solid #ca8a04' : '1px solid #dcd5c9',
+            background: channel === 'KAKAO' ? '#fef08a' : '#ece7de',
+            color: channel === 'KAKAO' ? '#713f12' : '#475569',
+            cursor: 'pointer',
+            boxShadow: channel === 'KAKAO' ? '0 1px 2px rgba(202,138,4,0.18)' : 'none',
+            transition: 'all 0.1s ease',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <MessageSquare size={14} color={channel === 'KAKAO' ? '#713f12' : '#64748b'} />
+          <span>카톡으로 보내기</span>
+        </button>
+
+        {/* ② 문자메세지로 보내기 */}
+        <button
+          type="button"
+          data-channel-option="SMS"
+          onClick={() => onChangeChannel('SMS')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '7px 12px',
+            borderRadius: 5,
+            fontSize: 13.5,
+            fontWeight: channel === 'SMS' ? 800 : 600,
+            border: channel === 'SMS' ? '1px solid #0f172a' : '1px solid #dcd5c9',
+            background: channel === 'SMS' ? '#0f172a' : '#ece7de',
+            color: channel === 'SMS' ? '#ffffff' : '#475569',
+            cursor: 'pointer',
+            boxShadow: channel === 'SMS' ? '0 1px 2px rgba(15,23,42,0.18)' : 'none',
+            transition: 'all 0.1s ease',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Smartphone size={14} color={channel === 'SMS' ? '#ffffff' : '#64748b'} />
+          <span>문자메세지로 보내기</span>
+        </button>
+
+        {/* ③ 이메일로 보내기 */}
+        <button
+          type="button"
+          data-channel-option="EMAIL"
+          onClick={() => onChangeChannel('EMAIL')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '7px 12px',
+            borderRadius: 5,
+            fontSize: 13.5,
+            fontWeight: channel === 'EMAIL' ? 800 : 600,
+            border: channel === 'EMAIL' ? '1px solid #1d4ed8' : '1px solid #dcd5c9',
+            background: channel === 'EMAIL' ? '#1d4ed8' : '#ece7de',
+            color: channel === 'EMAIL' ? '#ffffff' : '#475569',
+            cursor: 'pointer',
+            boxShadow: channel === 'EMAIL' ? '0 1px 2px rgba(29,78,216,0.18)' : 'none',
+            transition: 'all 0.1s ease',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Mail size={14} color={channel === 'EMAIL' ? '#ffffff' : '#64748b'} />
+          <span>이메일로 보내기</span>
+        </button>
+      </div>
+
+      {/* 이메일 선택 시 수신 메일 주소 확인/수정 */}
+      {channel === 'EMAIL' && onChangeEmail && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, background: '#eff6ff', padding: '6px 10px', borderRadius: 4, border: '1px solid #bfdbfe' }}>
+          <label style={{ fontSize: 13.5, fontWeight: 700, color: '#1e40af', whiteSpace: 'nowrap' }}>수신 이메일 주소:</label>
+          <input
+            value={email}
+            onChange={e => onChangeEmail(e.target.value)}
+            placeholder="원청 관리사무소 시설과장/소장 이메일 입력 (예: admin@apt.co.kr)"
+            style={{ flex: 1, border: '1px solid #93c5fd', borderRadius: 4, padding: '3px 8px', fontSize: 13.5, background: '#ffffff', outline: 'none' }}
+          />
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface DispatchDocPackageModalProps {
@@ -207,6 +350,10 @@ export function DispatchDocPackageModal({
     };
   });
 
+  // 발송 수단 선택 상태 (카톡 / 문자메세지 / 이메일 3가지 선택)
+  const [doc1Channel, setDoc1Channel] = useState<'KAKAO' | 'SMS' | 'EMAIL'>(initialDoc1st?.sentChannel || 'KAKAO');
+  const [doc2Channel, setDoc2Channel] = useState<'KAKAO' | 'SMS' | 'EMAIL'>(initialDoc2nd?.sentChannel || 'KAKAO');
+
   // 부품 합계 재계산 헬퍼
   const recalculateAmounts = (parts: EstimatePartItem[], techFee: number, travelFee: number) => {
     const partsSum = parts.reduce((acc, p) => acc + (p.qty * p.unitPrice), 0);
@@ -224,28 +371,38 @@ export function DispatchDocPackageModal({
     }));
   };
 
-  // 1차 발송 핸들러
+  // 1차 발송 핸들러 (카톡 / 문자메세지 / 이메일 선택)
   const handleSendDoc1 = () => {
     const sendTime = new Date().toLocaleString();
     setDoc1(prev => ({
       ...prev,
       sentAt: sendTime,
-      sentChannel: 'KAKAO',
+      sentChannel: doc1Channel,
       status: 'SENT'
     }));
-    onToast?.(`원청 결재권자(${doc1.recipientCompany} ${doc1.recipientManager} 귀하)에게 1차 [기술점검 확인 및 방문안내서] 알림톡 및 전자문서가 성공적으로 발송되었습니다.`);
+    const channelName = doc1Channel === 'KAKAO'
+      ? '카톡(알림톡)'
+      : doc1Channel === 'SMS'
+        ? '문자메세지(LMS)'
+        : `이메일(${doc1.recipientEmail || '기본메일'})`;
+    onToast?.(`원청 결재권자(${doc1.recipientCompany} ${doc1.recipientManager} 귀하)에게 1차 [기술점검 확인 및 방문안내서]가 ${channelName}으로 성공적으로 발송되었습니다.`);
   };
 
-  // 2차 발송 핸들러
+  // 2차 발송 핸들러 (카톡 / 문자메세지 / 이메일 선택)
   const handleSendDoc2 = () => {
     const sendTime = new Date().toLocaleString();
     setDoc2(prev => ({
       ...prev,
       sentAt: sendTime,
-      sentChannel: 'KAKAO',
+      sentChannel: doc2Channel,
       approvalStatus: 'SENT'
     }));
-    onToast?.(`원청 결재권자(${doc2.recipientCompany} ${doc2.recipientManager} 귀하)에게 2차 [AS 완료보고 및 통합 정산 견적서] 알림톡 및 전자결재 링크가 발송되었습니다.`);
+    const channelName = doc2Channel === 'KAKAO'
+      ? '카톡(알림톡)'
+      : doc2Channel === 'SMS'
+        ? '문자메세지(LMS)'
+        : `이메일(${doc2.recipientEmail || '기본메일'})`;
+    onToast?.(`원청 결재권자(${doc2.recipientCompany} ${doc2.recipientManager} 귀하)에게 2차 [AS 완료보고 및 통합 정산 견적서]가 ${channelName}으로 발송되었습니다.`);
   };
 
   // 원청 결재 승인 종결 핸들러
@@ -457,7 +614,7 @@ export function DispatchDocPackageModal({
         </div>
 
         {/* ── [본문 작업 영역] ── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20, background: '#f5f2eb' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 60px 20px', background: '#f5f2eb' }}>
           {viewMode === 'edit' ? (
             activeTab === 'doc1' ? (
               /* ── 1차 문서 작업/편집 폼 ── */
@@ -694,13 +851,24 @@ export function DispatchDocPackageModal({
                   </div>
                 </div>
 
+                {/* 1차 문서 발송 수단 선택 (카톡 / 문자메세지 / 이메일 3가지 방법 중 선택) */}
+                <DispatchChannelSelector
+                  channel={doc1Channel}
+                  onChangeChannel={setDoc1Channel}
+                  phone={doc1.recipientPhone}
+                  email={doc1.recipientEmail}
+                  onChangeEmail={em => setDoc1(prev => ({ ...prev, recipientEmail: em }))}
+                  managerName={doc1.recipientManager}
+                  docTitle="1차: 기술점검 확인 및 방문안내서"
+                />
+
                 {/* 1차 하단 발송 액션 바 */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {doc1.sentAt && (
                       <span style={{ fontSize: 13.5, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
                         <CheckCircle2 size={14} />
-                        원청({doc1.recipientManager}) 카카오 알림톡 발송 완료 ({doc1.sentAt})
+                        원청({doc1.recipientManager}) {doc1.sentChannel === 'KAKAO' ? '카톡(알림톡)' : doc1.sentChannel === 'SMS' ? '문자메세지(LMS)' : '이메일'} 발송 완료 ({doc1.sentAt})
                       </span>
                     )}
                   </div>
@@ -708,15 +876,19 @@ export function DispatchDocPackageModal({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <button
                       onClick={handleSendDoc1}
+                      data-uia="btn-send-doc1"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px',
                         borderRadius: 5, fontSize: 14, fontWeight: 800,
-                        background: '#2563eb', color: '#ffffff', border: 'none', cursor: 'pointer',
-                        boxShadow: '0 1px 3px rgba(37,99,235,0.2)'
+                        background: doc1Channel === 'KAKAO' ? '#ca8a04' : doc1Channel === 'SMS' ? '#0f172a' : '#1d4ed8',
+                        color: '#ffffff', border: 'none', cursor: 'pointer',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.18)'
                       }}
                     >
                       <Send size={14} />
-                      <span>원청 결재자에게 1차 발송 (알림톡/문자)</span>
+                      <span>
+                        원청 결재자에게 1차 발송 ({doc1Channel === 'KAKAO' ? '카톡으로 보내기' : doc1Channel === 'SMS' ? '문자메세지로 보내기' : '이메일로 보내기'})
+                      </span>
                     </button>
 
                     <button
@@ -910,13 +1082,24 @@ export function DispatchDocPackageModal({
                   </div>
                 </div>
 
+                {/* 2차 문서 발송 수단 선택 (카톡 / 문자메세지 / 이메일 3가지 방법 중 선택) */}
+                <DispatchChannelSelector
+                  channel={doc2Channel}
+                  onChangeChannel={setDoc2Channel}
+                  phone={doc2.recipientPhone}
+                  email={doc2.recipientEmail}
+                  onChangeEmail={em => setDoc2(prev => ({ ...prev, recipientEmail: em }))}
+                  managerName={doc2.recipientManager}
+                  docTitle="2차: AS 완료보고 및 통합 정산 견적서"
+                />
+
                 {/* 2차 하단 발송 및 결재 액션 바 */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {doc2.sentAt && (
                       <span style={{ fontSize: 13.5, color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
                         <CheckCircle2 size={14} />
-                        원청({doc2.recipientManager}) 견적서 알림톡 발송 완료 ({doc2.sentAt})
+                        원청({doc2.recipientManager}) {doc2.sentChannel === 'KAKAO' ? '카톡(알림톡)' : doc2.sentChannel === 'SMS' ? '문자메세지(LMS)' : '이메일'} 발송 완료 ({doc2.sentAt})
                       </span>
                     )}
                   </div>
@@ -924,15 +1107,19 @@ export function DispatchDocPackageModal({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <button
                       onClick={handleSendDoc2}
+                      data-uia="btn-send-doc2"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px',
                         borderRadius: 5, fontSize: 14, fontWeight: 800,
-                        background: '#059669', color: '#ffffff', border: 'none', cursor: 'pointer',
-                        boxShadow: '0 1px 3px rgba(5,150,105,0.2)'
+                        background: doc2Channel === 'KAKAO' ? '#ca8a04' : doc2Channel === 'SMS' ? '#0f172a' : '#1d4ed8',
+                        color: '#ffffff', border: 'none', cursor: 'pointer',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.18)'
                       }}
                     >
                       <Send size={14} />
-                      <span>원청 결재자에게 2차 견적서 발송 (알림톡/문자)</span>
+                      <span>
+                        원청 결재자에게 2차 견적서 발송 ({doc2Channel === 'KAKAO' ? '카톡으로 보내기' : doc2Channel === 'SMS' ? '문자메세지로 보내기' : '이메일로 보내기'})
+                      </span>
                     </button>
 
                     <button
@@ -954,66 +1141,128 @@ export function DispatchDocPackageModal({
             )
           ) : (
             /* ── 공식 A4 서식 인쇄 미리보기 모드 ── */
-            <div ref={printAreaRef} style={{
-              width: 794, minHeight: 1123, margin: '0 auto', padding: '40px 48px',
-              background: '#ffffff', border: '1px solid #cbd5e1', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-              fontFamily: "'Batang', 'KoPubBatang', 'Pretendard', serif", color: '#000000', boxSizing: 'border-box'
-            }}>
-              {/* 상단 공문서 헤더 */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: 10, marginBottom: 16 }}>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '0.1em' }}>(주) 스 페 이 스</div>
-                  <div style={{ fontSize: 13.5, color: '#475569', marginTop: 2 }}>SPACE ENGINEERING CO., LTD. | 기술지원본부</div>
-                </div>
-                <div style={{ textAlign: 'right', fontSize: 13.5, lineHeight: 1.5 }}>
-                  <div>문서번호: <b>{activeTab === 'doc1' ? doc1.docNo : doc2.docNo}</b></div>
-                  <div>발행일자: {activeTab === 'doc1' ? doc1.issuedAt : doc2.issuedAt}</div>
-                  <div>수신담당: <b>{doc1.recipientManager} 귀하</b></div>
-                </div>
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+              {/* 인쇄 제외 영역: 발송 수단 선택 및 즉시 발송 바 */}
+              <div className="no-print" style={{ width: 794, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <DispatchChannelSelector
+                  channel={activeTab === 'doc1' ? doc1Channel : doc2Channel}
+                  onChangeChannel={activeTab === 'doc1' ? setDoc1Channel : setDoc2Channel}
+                  phone={doc1.recipientPhone}
+                  email={activeTab === 'doc1' ? doc1.recipientEmail : doc2.recipientEmail}
+                  onChangeEmail={activeTab === 'doc1' ? (em) => setDoc1(p => ({ ...p, recipientEmail: em })) : (em) => setDoc2(p => ({ ...p, recipientEmail: em }))}
+                  managerName={doc1.recipientManager}
+                  docTitle={activeTab === 'doc1' ? '1차: 기술점검 확인 및 방문안내서' : '2차: AS 완료보고 및 통합 정산 견적서'}
+                />
 
-              {/* 공문서 타이틀 */}
-              <div style={{ textAlign: 'center', margin: '24px 0 20px' }}>
-                <span style={{
-                  fontSize: 22, fontWeight: 900, textDecoration: 'underline', textUnderlineOffset: 6,
-                  letterSpacing: '0.05em'
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: '#ece7de', border: '1px solid #dcd5c9', borderRadius: 6, padding: '8px 14px'
                 }}>
-                  {activeTab === 'doc1' ? '기술점검 확인 및 AS 방문예정 안내서' : 'AS 정비 완료보고 및 통합 정산 견적서'}
-                </span>
-                <div style={{ fontSize: 13.5, color: '#64748b', marginTop: 8 }}>
-                  {activeTab === 'doc1'
-                    ? '본 문서는 현장 3단계 사전 자가점검 결과 및 불가피한 방문 출장 사유를 입증하는 공식 점검확인서입니다.'
-                    : '본 문서는 현장 정비 조치 결과 및 소요 부품·공임 일체의 최종 정산 승인을 위한 공식 견적서입니다.'}
+                  <div style={{ fontSize: 13.5, color: '#059669', fontWeight: 700 }}>
+                    {(activeTab === 'doc1' ? doc1.sentAt : doc2.sentAt) ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <CheckCircle2 size={14} />
+                        원청({doc1.recipientManager}) {(activeTab === 'doc1' ? doc1.sentChannel : doc2.sentChannel) === 'KAKAO' ? '카톡(알림톡)' : (activeTab === 'doc1' ? doc1.sentChannel : doc2.sentChannel) === 'SMS' ? '문자메세지(LMS)' : '이메일'} 발송 완료 ({(activeTab === 'doc1' ? doc1.sentAt : doc2.sentAt)})
+                      </span>
+                    ) : (
+                      <span style={{ color: '#64748b' }}>발송 상태: 발송 대기중</span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={activeTab === 'doc1' ? handleSendDoc1 : handleSendDoc2}
+                    data-uia="btn-send-preview"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6, padding: '7px 18px',
+                      borderRadius: 5, fontSize: 13.5, fontWeight: 800,
+                      background: (activeTab === 'doc1' ? doc1Channel : doc2Channel) === 'KAKAO' ? '#ca8a04' : (activeTab === 'doc1' ? doc1Channel : doc2Channel) === 'SMS' ? '#0f172a' : '#1d4ed8',
+                      color: '#ffffff', border: 'none', cursor: 'pointer',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.18)'
+                    }}
+                  >
+                    <Send size={13} />
+                    <span>
+                      공식 A4 서식 바로 발송 ({(activeTab === 'doc1' ? doc1Channel : doc2Channel) === 'KAKAO' ? '카톡으로 보내기' : (activeTab === 'doc1' ? doc1Channel : doc2Channel) === 'SMS' ? '문자메세지로 보내기' : '이메일로 보내기'})
+                    </span>
+                  </button>
                 </div>
               </div>
 
-              {/* 수신처 / 발신처 그리드 테이블 */}
-              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #000', fontSize: 13.5, marginBottom: 16 }}>
-                <tbody>
-                  <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
-                    <th style={{ width: '15%', background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>수 신</th>
-                    <td style={{ width: '35%', padding: '6px 8px', borderRight: '1px solid #cbd5e1', fontWeight: 700 }}>
-                      {doc1.recipientCompany} ({doc1.recipientManager})
-                    </td>
-                    <th style={{ width: '15%', background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>발 신</th>
-                    <td style={{ width: '35%', padding: '6px 8px', fontWeight: 700 }}>
-                      (주)스페이스 기술지원본부 CS센터
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
-                    <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>연락처</th>
-                    <td style={{ padding: '6px 8px', borderRight: '1px solid #cbd5e1' }}>{doc1.recipientPhone}</td>
-                    <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>대표전화</th>
-                    <td style={{ padding: '6px 8px' }}>1588-0000 (직통 02-123-4567)</td>
-                  </tr>
-                  <tr>
-                    <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>실사용처(하청)</th>
-                    <td style={{ padding: '6px 8px', borderRight: '1px solid #cbd5e1' }}>{doc1.siteCompany} ({doc1.siteWorkerName})</td>
-                    <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>대상 장비</th>
-                    <td style={{ padding: '6px 8px' }}><b>{doc1.equipmentModel}</b> (S/N: {doc1.serialNumber})</td>
-                  </tr>
-                </tbody>
-              </table>
+              {/* 실제 A4 인쇄 대상 컨테이너 */}
+              <div ref={printAreaRef} style={{
+                width: 794, minHeight: 1123, margin: '0 auto', padding: '40px 48px',
+                background: '#ffffff', border: '1px solid #cbd5e1', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                fontFamily: "'Batang', 'KoPubBatang', 'Pretendard', serif", color: '#000000', boxSizing: 'border-box'
+              }}>
+                {/* 상단 공문서 헤더 */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: 10, marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '0.1em' }}>(주) 스 페 이 스</div>
+                    <div style={{ fontSize: 13.5, color: '#475569', marginTop: 2 }}>SPACE ENGINEERING CO., LTD. | 기술지원본부</div>
+                  </div>
+                  <div style={{ textAlign: 'right', fontSize: 13.5, lineHeight: 1.5 }}>
+                    <div>문서번호: <b>{activeTab === 'doc1' ? doc1.docNo : doc2.docNo}</b></div>
+                    <div>발행일자: {activeTab === 'doc1' ? doc1.issuedAt : doc2.issuedAt}</div>
+                    <div>수신담당: <b>{doc1.recipientManager} 귀하</b></div>
+                  </div>
+                </div>
+
+                {/* 공문서 타이틀 */}
+                <div style={{ textAlign: 'center', margin: '24px 0 20px' }}>
+                  <span style={{
+                    fontSize: 22, fontWeight: 900, textDecoration: 'underline', textUnderlineOffset: 6,
+                    letterSpacing: '0.05em'
+                  }}>
+                    {activeTab === 'doc1' ? '기술점검 확인 및 AS 방문예정 안내서' : 'AS 정비 완료보고 및 통합 정산 견적서'}
+                  </span>
+                  <div style={{ fontSize: 13.5, color: '#64748b', marginTop: 8 }}>
+                    {activeTab === 'doc1'
+                      ? '본 문서는 현장 3단계 사전 자가점검 결과 및 불가피한 방문 출장 사유를 입증하는 공식 점검확인서입니다.'
+                      : '본 문서는 현장 정비 조치 결과 및 소요 부품·공임 일체의 최종 정산 승인을 위한 공식 견적서입니다.'}
+                  </div>
+                </div>
+
+                {/* 수신처 / 발신처 그리드 테이블 */}
+                <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #000', fontSize: 13.5, marginBottom: 16 }}>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+                      <th style={{ width: '15%', background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>수 신</th>
+                      <td style={{ width: '35%', padding: '6px 8px', borderRight: '1px solid #cbd5e1', fontWeight: 700 }}>
+                        {doc1.recipientCompany} ({doc1.recipientManager})
+                      </td>
+                      <th style={{ width: '15%', background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>발 신</th>
+                      <td style={{ width: '35%', padding: '6px 8px', fontWeight: 700 }}>
+                        (주)스페이스 기술지원본부 CS센터
+                      </td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+                      <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>연락처</th>
+                      <td style={{ padding: '6px 8px', borderRight: '1px solid #cbd5e1' }}>{doc1.recipientPhone}</td>
+                      <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>대표전화</th>
+                      <td style={{ padding: '6px 8px' }}>1588-0000 (직통 02-123-4567)</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+                      <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>발송 수단</th>
+                      <td style={{ padding: '6px 8px', borderRight: '1px solid #cbd5e1', fontWeight: 700 }}>
+                        {(activeTab === 'doc1' ? doc1Channel : doc2Channel) === 'KAKAO'
+                          ? '카톡 (카카오 알림톡)'
+                          : (activeTab === 'doc1' ? doc1Channel : doc2Channel) === 'SMS'
+                            ? '문자메세지 (LMS 웹문서)'
+                            : `전자우편 (이메일: ${(activeTab === 'doc1' ? doc1.recipientEmail : doc2.recipientEmail) || '미등록'})`}
+                      </td>
+                      <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>발송 상태</th>
+                      <td style={{ padding: '6px 8px', fontWeight: 700, color: (activeTab === 'doc1' ? doc1.sentAt : doc2.sentAt) ? '#059669' : '#b91c1c' }}>
+                        {(activeTab === 'doc1' ? doc1.sentAt : doc2.sentAt) ? `발송 완료 (${activeTab === 'doc1' ? doc1.sentAt : doc2.sentAt})` : '발송 대기'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>실사용처(하청)</th>
+                      <td style={{ padding: '6px 8px', borderRight: '1px solid #cbd5e1' }}>{doc1.siteCompany} ({doc1.siteWorkerName})</td>
+                      <th style={{ background: '#f1f5f9', padding: '6px 8px', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>대상 장비</th>
+                      <td style={{ padding: '6px 8px' }}><b>{doc1.equipmentModel}</b> (S/N: {doc1.serialNumber})</td>
+                    </tr>
+                  </tbody>
+                </table>
 
               {activeTab === 'doc1' ? (
                 <>
@@ -1199,13 +1448,13 @@ export function DispatchDocPackageModal({
                   </table>
                 </div>
               </div>
-
             </div>
-          )}
+          </div>
+        )}
         </div>
 
         {/* ── [하단 닫기 바] ── */}
-        <div style={{
+        <div className="no-print" style={{
           background: '#ece7de', borderTop: '1px solid #dcd5c9',
           padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexShrink: 0
         }}>
@@ -1223,6 +1472,12 @@ export function DispatchDocPackageModal({
           </button>
         </div>
       </div>
+
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 }

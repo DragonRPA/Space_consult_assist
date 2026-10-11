@@ -414,6 +414,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
   const [selectedCustomer, setSelectedCustomer]     = useState<Customer | null>(null);
   const [customerPhone, setCustomerPhone]           = useState('');
   const [siteWorkerPhone, setSiteWorkerPhone]       = useState('');
+  const [customerEmail, setCustomerEmail]           = useState('');
   const [selectedModel, setSelectedModel]           = useState<string>('J600T');
   const [isSearching, setIsSearching]               = useState(false);
   const [dropdownOpen, setDropdownOpen]             = useState(false);
@@ -625,6 +626,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
     setSearchText(c.name);
     setCustomerPhone(c.phone || '');
     setSiteWorkerPhone(c.siteWorkerPhone || c.phone || '');
+    setCustomerEmail(c.managerEmail || '');
     setDropdownOpen(false);
     if (c.assetModel) {
       setSelectedModel(c.assetModel);
@@ -1206,6 +1208,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
     setSearchText(record.customerName);
     setCustomerPhone(record.phone || '');
     setSiteWorkerPhone(record.siteWorkerPhone || record.phone || '');
+    setCustomerEmail(record.managerEmail || '');
     setSelectedModel(record.modelName || 'J600T');
     fetchModelSymptoms(record.modelName || 'J600T');
 
@@ -1300,7 +1303,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
         recipientCompany: primeCompany,
         recipientManager: primeManager,
         recipientPhone: primePhone,
-        recipientEmail: selectedCustomer?.managerEmail || '',
+        recipientEmail: customerEmail.trim() || selectedCustomer?.managerEmail || '',
         siteCompany: subCompany,
         siteWorkerName: workerName,
         siteWorkerPhone: workerPhone,
@@ -1330,7 +1333,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
         recipientCompany: primeCompany,
         recipientManager: primeManager,
         recipientPhone: primePhone,
-        recipientEmail: selectedCustomer?.managerEmail || '',
+        recipientEmail: customerEmail.trim() || selectedCustomer?.managerEmail || '',
         siteCompany: subCompany,
         equipmentModel: selectedModel,
         serialNumber: selectedCustomer?.serialNumber || `${selectedModel}-2024-0812`,
@@ -1433,6 +1436,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
     setSelectedCustomer(null);
     setCustomerPhone('');
     setSiteWorkerPhone('');
+    setCustomerEmail('');
     setCustomSymptom('');
     setSymptomSessions({});
     setActiveSymptomKey(null);
@@ -1575,6 +1579,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                 recipientCompany: selectedCustomer?.name || '반포자이 아파트 관리사무소',
                 recipientManager: selectedCustomer?.manager || '박시설 시설과장',
                 recipientPhone: customerPhone || selectedCustomer?.phone || '010-9876-5432',
+                recipientEmail: customerEmail.trim() || selectedCustomer?.managerEmail || 'facility@banpojai.co.kr',
                 siteCompany: selectedCustomer?.useCompany || '(주)클린에코 미화용역',
                 siteWorkerName: selectedCustomer?.siteWorkerName || '김순자 미화반장',
                 siteWorkerPhone: siteWorkerPhone || selectedCustomer?.siteWorkerPhone || '010-3456-7890',
@@ -1857,6 +1862,23 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   }}
                 />
               </div>
+            </div>
+
+            {/* ③ 원청 결재 이메일 (공문서/견적서 이메일 발송용) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <label style={{ fontSize: 13.5, fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
+                원청 결재 이메일 (공문서/견적서 수신)
+              </label>
+              <input
+                data-uia="input-customer-email"
+                value={customerEmail}
+                onChange={e => setCustomerEmail(e.target.value)}
+                placeholder="facility@apt.co.kr (이메일 발송용)"
+                style={{
+                  width: '100%', height: 30, border: '1px solid #dcd5c9', borderRadius: 5,
+                  padding: '0 8px', fontSize: 13.5, outline: 'none', background: '#f5f2eb', boxSizing: 'border-box'
+                }}
+              />
             </div>
 
             {/* 해당 고객사의 진행 중인 상담 자동 감지 배너 */}
