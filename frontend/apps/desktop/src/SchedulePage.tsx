@@ -159,16 +159,17 @@ function EventBar({ ev, cats, onClick }: EventBarProps) {
       onClick={e => { e.stopPropagation(); onClick(); }}
       title={ev.title || cat?.label || ''}
       style={{
-        fontSize: 13.5, padding: '2px 5px', borderRadius: 4,
-        borderLeft: `3px solid ${color}`,
+        fontSize: 13.5, padding: '2px 6px', borderRadius: 4,
+        border: `1px solid ${color}40`,
         background: `${color}18`,
         color: ev.is_done ? '#64748b' : '#0f172a',
         textDecoration: ev.is_done ? 'line-through' : 'none',
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         cursor: 'pointer', marginBottom: 2,
         opacity: ev.is_done ? 0.6 : 1,
-        display: 'flex', alignItems: 'center', gap: 3
+        display: 'flex', alignItems: 'center', gap: 4
       }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
       {ev.is_important && <Star size={10} fill="#f59e0b" color="#f59e0b" style={{ flexShrink: 0 }} />}
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {ev.title || cat?.label || ev.category}

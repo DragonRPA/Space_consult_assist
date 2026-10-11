@@ -2033,7 +2033,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   zIndex: 20,
                   borderRadius: '6px'
                 }}>
-                  <Upload size={32} className="animate-bounce" style={{ marginBottom: '8px', color: '#93c5fd' }} />
+                  <Upload size={32} style={{ marginBottom: '8px', color: '#93c5fd' }} />
                   <span>대화록(.txt) 또는 음성(.m4a) 파일을 놓으면 분석됩니다.</span>
                 </div>
               )}
@@ -2218,7 +2218,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                           fontSize: '13.5px',
                           fontWeight: 700,
                           cursor: 'pointer',
-                          boxShadow: isSelected ? '0 0 10px rgba(37, 99, 235, 0.5)' : 'none',
+                          boxShadow: isSelected ? '0 1px 3px rgba(0, 0, 0, 0.2)' : 'none',
                           transition: 'all 0.15s ease'
                         }}
                       >
@@ -2228,8 +2228,8 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                     );
                   })
                 ) : (
-                  <div style={{ fontSize: '13.5px', color: 'var(--ink-subtle)', fontStyle: 'italic', padding: '4px 0' }}>
-                    상담 대화 중 고객이 언급한 고장 증상이 실시간으로 여기에 자동 포착됩니다.
+                  <div style={{ fontSize: '13.5px', color: 'var(--ink-subtle)', padding: '4px 0' }}>
+                    포착된 증상 키워드가 없습니다.
                   </div>
                 )}
               </div>
@@ -2276,9 +2276,9 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 backgroundColor: 'var(--surface-2)', 
                 padding: '12px', 
                 borderRadius: '6px', 
-                border: '1px solid var(--hairline)',
-                boxShadow: justTriggeredKeyword ? '0 0 16px rgba(37, 99, 235, 0.4)' : 'none',
-                transition: 'box-shadow 0.3s ease',
+                border: justTriggeredKeyword ? '1px solid var(--accent-primary)' : '1px solid var(--hairline)',
+                boxShadow: justTriggeredKeyword ? '0 2px 8px rgba(37, 99, 235, 0.25)' : 'none',
+                transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
                 flexShrink: 0
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -2439,7 +2439,6 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                     borderRadius: '6px',
                     backgroundColor: item.checked ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface-2)',
                     border: item.checked ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid var(--hairline)',
-                    boxShadow: item.checked ? '0 0 10px rgba(16, 185, 129, 0.2)' : 'none',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                     flexShrink: 0
@@ -2852,7 +2851,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   fontSize: '14px',
                   fontWeight: 700,
                   cursor: pastedInputText.trim() ? 'pointer' : 'not-allowed',
-                  boxShadow: pastedInputText.trim() ? '0 0 12px rgba(37, 99, 235, 0.4)' : 'none'
+                  boxShadow: pastedInputText.trim() ? '0 1px 3px rgba(0, 0, 0, 0.2)' : 'none'
                 }}
               >
                 분석 실행

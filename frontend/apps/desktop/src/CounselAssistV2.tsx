@@ -1725,15 +1725,10 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                         padding: '6px 8px',
                         borderRadius: 5,
                         border: isCurrentActive
-                          ? '1px solid #93c5fd'
+                          ? '1.5px solid #2563eb'
                           : existingSession
-                          ? '1px solid #cbd5e1'
-                          : '1px solid #f1f5f9',
-                        borderLeft: isCurrentActive
-                          ? '3px solid #2563eb'
-                          : existingSession
-                          ? '3px solid #64748b'
-                          : '1px solid #f1f5f9',
+                          ? '1px solid #94a3b8'
+                          : '1px solid #e2e8f0',
                         background: isCurrentActive
                           ? '#eff6ff'
                           : existingSession
@@ -2153,7 +2148,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                 </div>
 
                 {/* 표준 안내 스크립트 */}
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '3px solid #2563eb', borderRadius: '0 6px 6px 0', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Sparkles size={14} color="#2563eb" style={{ flexShrink: 0 }} />
                   <span style={{ fontSize: 13.5, fontWeight: 700, color: '#1e40af', whiteSpace: 'nowrap' }}>표준 안내:</span>
                   <span style={{ fontSize: 14, color: '#1e293b', fontWeight: 600 }}>
@@ -2372,12 +2367,11 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                         {currentSession.selectedErrorCode.meaning}
                       </div>
 
-                      {/* 표준 음성 안내 (Call Script) */}
+                      {/* 표준 안내 */}
                       <div style={{
                         background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        borderLeft: '3px solid #2563eb',
-                        borderRadius: '0 5px 5px 0',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 6,
                         padding: '8px 12px',
                         display: 'flex',
                         alignItems: 'flex-start',
@@ -2389,7 +2383,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                         </span>
                       </div>
 
-                      {/* 직통 판정 확정 버튼 */}
+                      {/* 즉시 판정 확정 버튼 */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 2 }}>
                         {currentSession.selectedErrorCode.resolution_type === 'RESOLVED' ? (
                           <button
@@ -2541,7 +2535,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                     </div>
 
                     {/* 1. 조치 및 시험 방법 */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, background: '#f8fafc', padding: '10px 14px', borderRadius: 6, border: '1px solid #e2e8f0', borderLeft: '3px solid #2563eb' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, background: '#f8fafc', padding: '10px 14px', borderRadius: 6, border: '1px solid #cbd5e1' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Wrench size={13} color="#475569" />
                         <label style={{ fontSize: 13.5, fontWeight: 800, color: '#334155' }}>
