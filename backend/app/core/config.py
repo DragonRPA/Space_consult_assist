@@ -43,8 +43,8 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_stt_model: str = "whisper-1"
     openai_llm_model: str = "gpt-4o-mini"
-    naver_clova_client_id: str = "23zleaqo6r"
-    naver_clova_client_secret: str = "fIYIhu251Te4f7KS5U49eGt03VYkPwYxbrsdBKfA"
+    naver_clova_client_id: str = ""
+    naver_clova_client_secret: str = ""
     
     class Config:
         env_file = ".env"
@@ -52,4 +52,15 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings():
-    return Settings()
+    s = Settings()
+    try:
+        from app.core.secret_vault import get_server_secret
+        if not s.naver_clova_client_id:
+            s.naver_clova_client_id = get_server_secret("NAVER_CLOVA_CLIENT_ID", "")
+        if not s.naver_clova_client_secret:
+            s.naver_clova_client_secret = get_server_secret("NAVER_CLOVA_CLIENT_SECRET", "")
+        if not s.openai_api_key:
+            s.openai_api_key = get_server_secret("OPENAI_API_KEY", "")
+    except Exception:
+        pass
+    return s

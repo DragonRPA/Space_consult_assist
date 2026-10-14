@@ -18,19 +18,22 @@ logger = logging.getLogger("space_advisor.stt_api")
 
 @router.get("/status")
 async def get_stt_engine_status():
-    """Faster-Whisper 엔진 상태 및 루프백 캡처 가능 장치 목록 반환"""
+    """Faster-Whisper / NAVER CLOVA 엔진 상태 및 루프백 캡처 가능 장치 목록 반환 (API 키 값 절대 미노출)"""
     import ctranslate2
+    from app.core.secret_vault import get_server_secret
     model = get_whisper_model()
     is_gpu_ready = model is not None
     cuda_count = ctranslate2.get_cuda_device_count()
     loopback_svc = get_loopback_service()
     devices = list_loopback_devices()
+    clova_ready = bool(get_server_secret("NAVER_CLOVA_CLIENT_ID") and get_server_secret("NAVER_CLOVA_CLIENT_SECRET"))
     
     device_desc = f"CUDA / float16 (GPU x{cuda_count})" if cuda_count > 0 else "CPU / int8 (Fallback)"
     return {
         "engine": "Faster-Whisper Large-v3-Turbo",
         "device": device_desc if is_gpu_ready else "CPU/Standby",
         "is_ready": is_gpu_ready,
+        "clova_vault_ready": clova_ready,
         "cuda_devices": cuda_count,
         "loopback_running": loopback_svc.is_running,
         "loopback_devices": devices,

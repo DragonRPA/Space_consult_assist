@@ -16,6 +16,11 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """FastAPI lifespan: 앱 시작/종료 시 리소스 관리 (Graceful Shutdown)"""
     logger.info("🚀 Space Advisor API 시작")
+    try:
+        from app.core.secret_vault import load_vault_secrets_into_memory
+        load_vault_secrets_into_memory()
+    except Exception as vault_err:
+        logger.warning(f"볼트 초기화 경고: {type(vault_err).__name__}")
     yield
     # 종료 시 리소스 정리
     logger.info("🛑 Space Advisor API 종료 중...")

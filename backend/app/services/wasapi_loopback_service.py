@@ -345,18 +345,19 @@ class LoopbackSTTService:
         import urllib.request
         from scipy.io import wavfile
         from app.core.config import get_settings
+        from app.core.secret_vault import get_server_secret
 
         settings = get_settings()
         client_id = (
-            os.environ.get("NAVER_CLOVA_CLIENT_ID")
-            or getattr(settings, "naver_clova_client_id", "")
-            or "23zleaqo6r"
+            getattr(settings, "naver_clova_client_id", "")
+            or get_server_secret("NAVER_CLOVA_CLIENT_ID", "")
         )
         client_secret = (
-            os.environ.get("NAVER_CLOVA_CLIENT_SECRET")
-            or getattr(settings, "naver_clova_client_secret", "")
-            or "fIYIhu251Te4f7KS5U49eGt03VYkPwYxbrsdBKfA"
+            getattr(settings, "naver_clova_client_secret", "")
+            or get_server_secret("NAVER_CLOVA_CLIENT_SECRET", "")
         )
+        if not client_id or not client_secret:
+            raise RuntimeError("서버 보안 볼트(private_vault)에서 NAVER CLOVA 인증키를 찾을 수 없습니다.")
 
         buf = io.BytesIO()
         audio_int16 = np.clip(audio_16k * 32767, -32768, 32767).astype(np.int16)
