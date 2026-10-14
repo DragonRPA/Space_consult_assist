@@ -2522,33 +2522,6 @@ export default function CounselAssistV2({ initialOpenGuides, openGuidesTrigger }
                     );
                   })}
                 </div>
-
-                {/* 상황별 매뉴얼 긴급/수칙 가이드 토글 버튼 */}
-                {specialGuides.length > 0 && (
-                  <button
-                    data-guide-toggle-btn
-                    onClick={() => setShowGuidesModal(prev => !prev)}
-                    style={{
-                      padding: '4px 12px',
-                      borderRadius: 6,
-                      fontSize: 13.5,
-                      fontWeight: 700,
-                      background: showGuidesModal ? '#1d4ed8' : '#eff6ff',
-                      color: showGuidesModal ? '#ffffff' : '#1d4ed8',
-                      border: '1px solid #bfdbfe',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                      transition: 'all 0.12s ease'
-                    }}
-                  >
-                    <BookOpen size={13} />
-                    <span>상황별 수칙</span>
-                  </button>
-                )}
               </div>
 
               {/* [상단 파이프라인] 증상 판정 ➔ 자가조치 가이드 ➔ 현장 회신 대기 ➔ 종결 분기 4단계 스테퍼 */}
