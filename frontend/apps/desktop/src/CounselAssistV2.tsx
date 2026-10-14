@@ -25,6 +25,7 @@ import {
 import { PartsOrderQuotationModal } from './PartsOrderQuotationModal';
 import { SelfActionGuideModal, type SitePhotoSketchEvidence } from './SelfActionGuideModal';
 import { SymptomPhotoManagerModal } from './SymptomPhotoManagerModal';
+import { EquipmentManualModal } from './EquipmentManualModal';
 
 // ─── 타입 정의 ─────────────────────────────────────────────────────────────────
 export interface Customer {
@@ -429,9 +430,10 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
   const [dispatchDoc2nd, setDispatchDoc2nd]         = useState<Partial<DispatchDoc2nd> | null>(null);
   const [dispatchModalTab, setDispatchModalTab]     = useState<'doc1' | 'doc2'>('doc1');
 
-  // ①-4 현장 자가조치 모바일 가이드 & 소모품 견적서 & 사진 순서 관리 상태
+  // ①-4 현장 자가조치 모바일 가이드 & 소모품 견적서 & 매뉴얼 첨부 발송 & 사진 순서 관리 상태
   const [showSelfActionGuideModal, setShowSelfActionGuideModal] = useState(false);
   const [showPartsOrderModal, setShowPartsOrderModal]           = useState(false);
+  const [showEquipmentManualModal, setShowEquipmentManualModal] = useState(false);
   const [showPhotoManagerModal, setShowPhotoManagerModal]       = useState(false);
   const [photoEvidence, setPhotoEvidence]                       = useState<SitePhotoSketchEvidence | null>(null);
 
@@ -3461,6 +3463,33 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   <span>소모품 견적서 발행</span>
                 </button>
 
+                {/* 4-2. 공식 제품 매뉴얼 PDF 첨부·발송 버튼 */}
+                <button
+                  type="button"
+                  onClick={() => setShowEquipmentManualModal(true)}
+                  data-uia="btn-bottom-equipment-manual"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: '#e0f2fe',
+                    color: '#0369a1',
+                    border: '1px solid #7dd3fc',
+                    borderRadius: 5,
+                    padding: '0 14px',
+                    fontSize: 13.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    height: 34,
+                    boxShadow: '0 1px 3px rgba(2,132,199,0.16)',
+                    transition: 'all 0.1s ease'
+                  }}
+                >
+                  <BookOpen size={15} />
+                  <span>매뉴얼 PDF 첨부·발송</span>
+                </button>
+
                 {/* 5. [분기 C] AS 출장 접수 버튼 (1개라도 출장 필요 시 강조) */}
                 <button
                   onClick={() => handleSave(true)}
@@ -4273,6 +4302,24 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
           serialNumber={selectedCustomer?.serialNumber || `${selectedModel}-2024-0812`}
           symptoms={sessionList.map(s => s.title).length ? sessionList.map(s => s.title) : ['잔수 흡입 불량 및 오수 유출']}
           onClose={() => setShowPartsOrderModal(false)}
+          onToast={msg => showToast(msg, 3500)}
+        />
+      )}
+
+      {/* ── [모달 5-2: 공식 제품 매뉴얼·카탈로그 PDF 첨부 발송 (space-dust.com 25종 DB 연동)] ── */}
+      {showEquipmentManualModal && (
+        <EquipmentManualModal
+          equipmentModel={selectedModel}
+          serialNumber={selectedCustomer?.serialNumber || `${selectedModel}-2024-0812`}
+          customerName={selectedCustomer?.name || '반포자이 아파트 관리사무소'}
+          manager={selectedCustomer?.manager || '박시설 시설과장'}
+          phone={customerPhone || selectedCustomer?.phone || '010-9876-5432'}
+          email={customerEmail.trim() || selectedCustomer?.managerEmail || 'facility@banpojai.co.kr'}
+          siteCompany={selectedCustomer?.useCompany || '(주)클린에코 미화용역'}
+          siteWorkerName={selectedCustomer?.siteWorkerName || '김순자 미화반장'}
+          siteWorkerPhone={siteWorkerPhone || selectedCustomer?.siteWorkerPhone || '010-3456-7890'}
+          symptoms={sessionList.map(s => s.title).length ? sessionList.map(s => s.title) : ['장비 운용 및 점검']}
+          onClose={() => setShowEquipmentManualModal(false)}
           onToast={msg => showToast(msg, 3500)}
         />
       )}

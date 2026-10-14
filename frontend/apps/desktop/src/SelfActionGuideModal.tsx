@@ -3,7 +3,7 @@ import {
   X, Send, Smartphone, MessageSquare, Mail,
   CheckCircle2, ExternalLink, Play, RotateCcw,
   Edit3, ArrowRight, ShieldAlert, Package,
-  Image as ImageIcon
+  Image as ImageIcon, Paperclip, FileText, Download
 } from 'lucide-react';
 import type { DispatchChannelType } from './PartsOrderQuotationModal';
 import { SymptomPhotoManagerModal } from './SymptomPhotoManagerModal';
@@ -11,6 +11,11 @@ import {
   type SymptomPhotoItem,
   getSymptomPhotos
 } from './symptomPhotoApi';
+import {
+  fetchEquipmentManuals,
+  findRecommendedManualsForModel,
+  type EquipmentManualItem
+} from './equipmentManualsApi';
 
 export interface GuideStepItem {
   stepNo: number;
@@ -257,6 +262,30 @@ export function SelfActionGuideModal({
   const [symptomPhotos, setSymptomPhotos] = useState<SymptomPhotoItem[]>([]);
   const [showPhotoManager, setShowPhotoManager] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState<SymptomPhotoItem | null>(null);
+
+  // 공식 장비 매뉴얼 PDF 첨부 상태 (space-dust.com 25종 DB 연동)
+  const [availableManuals, setAvailableManuals] = useState<EquipmentManualItem[]>([]);
+  const [attachedManualIds, setAttachedManualIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchEquipmentManuals().then(list => {
+      if (!mounted) return;
+      setAvailableManuals(list);
+      const recommended = findRecommendedManualsForModel(list, equipmentModel);
+      if (recommended.length > 0) {
+        setAttachedManualIds(recommended.map(m => m.id));
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [equipmentModel]);
+
+  const attachedManuals = availableManuals.filter(m => attachedManualIds.includes(m.id));
+  const toggleAttachedManual = (id: string) => {
+    setAttachedManualIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
 
   // 수파베이스 스토리지로부터 등록된 사진 목록 로드 및 가이드 스텝 1:1 매핑
   useEffect(() => {
@@ -900,6 +929,127 @@ export function SelfActionGuideModal({
                   </div>
                 ))}
               </div>
+
+              {/* ── 공식 장비 매뉴얼 PDF 동봉 첨부 섹션 (space-dust.com 25종 DB 연동) ── */}
+              <div
+                data-uia="self-guide-manual-attachment-box"
+                style={{
+                  marginTop: 6,
+                  background: '#f0f9ff',
+                  border: '1px solid #bae6fd',
+                  borderRadius: 6,
+                  padding: '10px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Paperclip size={14} color="#0284c7" />
+                    <span style={{ fontSize: 13.5, fontWeight: 900, color: '#0f172a' }}>
+                      공식 제품 매뉴얼 PDF 동봉 첨부 ({attachedManuals.length}건 선택됨)
+                    </span>
+                  </div>
+                  <select
+                    value=""
+                    onChange={e => {
+                      if (e.target.value && !attachedManualIds.includes(e.target.value)) {
+                        setAttachedManualIds(prev => [...prev, e.target.value]);
+                      }
+                    }}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      border: '1px solid #7dd3fc',
+                      background: '#ffffff',
+                      fontSize: 13.5,
+                      fontWeight: 700,
+                      color: '#0369a1'
+                    }}
+                  >
+                    <option value="">+ 다른 매뉴얼·카탈로그 추가 첨부 (25종)...</option>
+                    {availableManuals.map(m => (
+                      <option key={m.id} value={m.id}>
+                        [{m.category}] {m.title} — {m.file_name} ({m.file_size_label})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {attachedManuals.map(m => (
+                    <div
+                      key={m.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: '#ffffff',
+                        border: '1px solid #bae6fd',
+                        borderRadius: 5,
+                        padding: '6px 10px',
+                        gap: 8
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+                        <FileText size={14} color="#dc2626" style={{ flexShrink: 0 }} />
+                        <span style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                          {m.title}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 13.5,
+                            color: '#0369a1',
+                            fontWeight: 700,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {m.file_name} ({m.file_size_label})
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                        <a
+                          href={m.file_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          download={m.file_name}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            background: '#e0f2fe',
+                            color: '#0369a1',
+                            fontSize: 13.5,
+                            fontWeight: 800,
+                            textDecoration: 'none'
+                          }}
+                        >
+                          <Download size={12} />
+                          <span>원본 PDF</span>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => toggleAttachedManual(m.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#64748b',
+                            cursor: 'pointer',
+                            padding: 2
+                          }}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* 섹션 3: 미화원 사진 촬영 및 적색 펜 스케치 회신 접수처 (Request 5 충족) */}
@@ -1388,6 +1538,76 @@ export function SelfActionGuideModal({
                     )}
                   </div>
                 ))}
+
+                {/* 모바일 수신 화면 내 동봉된 공식 매뉴얼 PDF 다운로드 카드 */}
+                {attachedManuals.length > 0 && (
+                  <div
+                    style={{
+                      background: '#f0f9ff',
+                      border: '1px solid #7dd3fc',
+                      borderRadius: 6,
+                      padding: 10,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Paperclip size={13} color="#0284c7" />
+                      <span style={{ fontSize: 13.5, fontWeight: 900, color: '#0369a1' }}>
+                        동봉된 공식 제품 매뉴얼 PDF ({attachedManuals.length}건)
+                      </span>
+                    </div>
+                    {attachedManuals.map(m => (
+                      <a
+                        key={m.id}
+                        href={m.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          background: '#ffffff',
+                          border: '1px solid #bae6fd',
+                          borderRadius: 5,
+                          padding: '6px 8px',
+                          textDecoration: 'none',
+                          gap: 6
+                        }}
+                      >
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a' }}>{m.title}</div>
+                          <div
+                            style={{
+                              fontSize: 13.5,
+                              color: '#0369a1',
+                              fontWeight: 700,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis'
+                            }}
+                          >
+                            {m.file_name} ({m.file_size_label})
+                          </div>
+                        </div>
+                        <span
+                          style={{
+                            background: '#0284c7',
+                            color: '#ffffff',
+                            padding: '3px 8px',
+                            borderRadius: 4,
+                            fontSize: 13.5,
+                            fontWeight: 800,
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          PDF 열기
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                )}
 
                 {/* 미화원 전용 회신 배너 (Request 5 핵심) */}
                 <div

@@ -33,6 +33,7 @@ import {
 import { PartsOrderQuotationModal } from './PartsOrderQuotationModal';
 import { SelfActionGuideModal } from './SelfActionGuideModal';
 import { SymptomPhotoManagerModal } from './SymptomPhotoManagerModal';
+import { EquipmentManualModal } from './EquipmentManualModal';
 
 const API = 'http://127.0.0.1:8000/api/v1';
 const PENDING_STORAGE_KEY = 'space_advisor_pending_sessions_v2';
@@ -108,6 +109,7 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
   const [showSelfActionGuideModal, setShowSelfActionGuideModal] = useState<boolean>(false);
   const [showPhotoManagerModal, setShowPhotoManagerModal] = useState<boolean>(false);
   const [showPartsOrderModal, setShowPartsOrderModal] = useState<boolean>(false);
+  const [showEquipmentManualModal, setShowEquipmentManualModal] = useState<boolean>(false);
   const [showDispatchPackageModal, setShowDispatchPackageModal] = useState<boolean>(false);
   const [dispatchDoc1st, setDispatchDoc1st] = useState<Partial<DispatchDoc1st> | null>(null);
   const [dispatchDoc2nd, setDispatchDoc2nd] = useState<Partial<DispatchDoc2nd> | null>(null);
@@ -1843,6 +1845,29 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
 
                         <button
                           type="button"
+                          data-uia="btn-open-equipment-manual-modal"
+                          onClick={() => setShowEquipmentManualModal(true)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            background: '#e0f2fe',
+                            color: '#0369a1',
+                            border: '1px solid #7dd3fc',
+                            borderRadius: 6,
+                            padding: '7px 12px',
+                            fontSize: 13.5,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <BookOpen size={14} />
+                          <span>매뉴얼 PDF 첨부·발송 (25종)</span>
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={() => setShowDispatchPackageModal(true)}
                           style={{
                             display: 'flex',
@@ -1989,7 +2014,7 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
                     ))}
                   </div>
 
-                  {/* 증상 선택 전(고객/모델만 선택된 상태)에서도 즉시 진행중/완료 저장 후 첫 조회화면 복귀 지원 */}
+                  {/* 증상 선택 전(고객/모델만 선택된 상태)에서도 매뉴얼 발송 및 즉시 진행중/완료 저장 지원 */}
                   <div
                     style={{
                       marginTop: 6,
@@ -2016,6 +2041,27 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
                       }}
                     />
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowEquipmentManualModal(true)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '8px 14px',
+                          borderRadius: 6,
+                          background: '#e0f2fe',
+                          border: '1px solid #7dd3fc',
+                          color: '#0369a1',
+                          fontSize: 13.5,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <BookOpen size={14} />
+                        <span>매뉴얼 PDF 첨부·발송</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleSaveSession('pending')}
@@ -2113,6 +2159,23 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
           siteWorkerPhone={siteWorkerPhone || '010-3456-7890'}
           symptoms={sessionList.length > 0 ? sessionList.map(s => s.title) : ['바닥 잔수 과다']}
           onClose={() => setShowPartsOrderModal(false)}
+          onToast={msg => showToast(msg, 3500)}
+        />
+      )}
+
+      {showEquipmentManualModal && (
+        <EquipmentManualModal
+          equipmentModel={effectiveModel}
+          serialNumber={selectedCustomer?.serialNumber || `${effectiveModel}-2024-0812`}
+          customerName={selectedCustomer?.name || '반포자이 아파트 관리사무소'}
+          manager={selectedCustomer?.manager || '박시설 시설과장'}
+          phone={customerPhone || selectedCustomer?.phone || '010-9876-5432'}
+          email={customerEmail || selectedCustomer?.managerEmail || 'facility@banpojai.co.kr'}
+          siteCompany={selectedCustomer?.useCompany || '(주)클린에코 청소용역'}
+          siteWorkerName={selectedCustomer?.siteWorkerName || '김순자 미화반장'}
+          siteWorkerPhone={siteWorkerPhone || selectedCustomer?.siteWorkerPhone || '010-3456-7890'}
+          symptoms={sessionList.length > 0 ? sessionList.map(s => s.title) : ['장비 운용 및 점검']}
+          onClose={() => setShowEquipmentManualModal(false)}
           onToast={msg => showToast(msg, 3500)}
         />
       )}
