@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_stt_model: str = "whisper-1"
     openai_llm_model: str = "gpt-4o-mini"
+    naver_clova_client_id: str = "23zleaqo6r"
+    naver_clova_client_secret: str = "fIYIhu251Te4f7KS5U49eGt03VYkPwYxbrsdBKfA"
     
     class Config:
         env_file = ".env"

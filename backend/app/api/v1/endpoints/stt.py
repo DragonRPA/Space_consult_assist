@@ -263,14 +263,25 @@ async def stt_loopback_websocket(websocket: WebSocket):
             action = msg.get("action", "")
 
             if action == "start":
+                engine_provider = msg.get("engine_provider", None)
+                if engine_provider:
+                    loopback_svc.set_engine_provider(engine_provider)
                 if loopback_svc.is_running:
                     loopback_svc.clear_buffer()
                 else:
                     device_name = msg.get("device", None)
                     chunk_seconds = float(msg.get("chunk_seconds", 2.0))
                     chunk_seconds = max(0.3, min(chunk_seconds, 10.0))
-                    logger.info(f"▶ [STT-WS] Loopback STT 시작 (device={device_name}, chunk={chunk_seconds}s)")
-                    loopback_svc.start(on_segment, device_name=device_name, chunk_seconds=chunk_seconds)
+                    logger.info(f"▶ [STT-WS] Loopback STT 시작 (device={device_name}, chunk={chunk_seconds}s, provider={engine_provider})")
+                    loopback_svc.start(on_segment, device_name=device_name, chunk_seconds=chunk_seconds, engine_provider=engine_provider)
+
+            elif action == "set_engine":
+                engine_provider = msg.get("engine_provider", "whisper_large_v3")
+                loopback_svc.set_engine_provider(engine_provider)
+                await websocket.send_json({
+                    "status": "engine_updated",
+                    "engine_provider": engine_provider
+                })
 
             elif action == "clear_buffer" or action == "reset":
                 logger.info("🧹 [STT-WS] Loopback 버퍼 클리어 요청")

@@ -124,6 +124,8 @@ class LoopbackSTTService:
         self._capture_reset_event: threading.Event = threading.Event()
         self._worker_reset_event: threading.Event = threading.Event()
         self._audio_queue: queue.Queue = queue.Queue(maxsize=1000)
+        # ── STT 엔진 공급자 ('whisper_large_v3' | 'naver_clova') ────────────────
+        self._engine_provider: str = "whisper_large_v3"
         # ── 청크 파라미터 (런타임 동적 변경 가능) ─────────────────────────────
         self._silence_threshold_chunks: int = 2   # 0.1s 단위; 2 = 0.2s 무음 시 전사
         self._max_speech_chunks: int = 12          # 0.1s 단위; 12 = 1.2s 최대 연속 발화
@@ -155,6 +157,12 @@ class LoopbackSTTService:
                 break
         logger.info("🧹 [LoopbackSTT] 버퍼 및 큐 클리어 완료")
 
+    def set_engine_provider(self, provider: str):
+        """런타임 STT 엔진 공급자 변경 ('whisper_large_v3' | 'naver_clova')"""
+        if provider in ("whisper_large_v3", "naver_clova"):
+            self._engine_provider = provider
+            logger.info(f"🔄 [LoopbackSTT] STT 엔진 전환: {provider}")
+
     def set_chunk_params(self, silence_seconds: float, max_seconds: float):
         """청크 파라미터 런타임 변경 (재시작 불필요). GIL 보호로 스레드 안전."""
         self._silence_threshold_chunks = max(1, round(silence_seconds / 0.1))
@@ -165,9 +173,13 @@ class LoopbackSTTService:
         self,
         segment_callback: Callable[[dict], None],
         device_name: Optional[str] = None,
-        chunk_seconds: float = 2.0
+        chunk_seconds: float = 2.0,
+        engine_provider: Optional[str] = None
     ):
         """루프백 캡처 스레드 & 추론 워커 시작"""
+        if engine_provider in ("whisper_large_v3", "naver_clova"):
+            self._engine_provider = engine_provider
+
         if self.is_running:
             logger.warning("LoopbackSTTService already running - resetting buffer")
             self.clear_buffer()
@@ -198,7 +210,7 @@ class LoopbackSTTService:
             name="wasapi-loopback-capture"
         )
         self._capture_thread.start()
-        logger.info(f"✅ LoopbackSTTService started (Capture + Inference Queue Pipeline)")
+        logger.info(f"✅ LoopbackSTTService started (Capture + Inference Queue Pipeline, provider={self._engine_provider})")
 
     def stop(self) -> Optional[str]:
         """루프백 캡처 스레드 중지 후 녹음 파일 저장. 저장된 파일명 반환."""
@@ -323,17 +335,61 @@ class LoopbackSTTService:
             logger.error(f"LoopbackSTT capture thread error: {e}", exc_info=True)
             segment_callback({"error": f"캡처 오류: {str(e)}"})
 
+    def _transcribe_with_naver_clova(self, audio_16k: np.ndarray) -> str:
+        """
+        16kHz float32 오디오 배열을 인메모리 WAV 바이트로 변환하여
+        NAVER CLOVA Speech Recognition (CSR) API로 실시간 단문 전사합니다.
+        """
+        import io
+        import json
+        import urllib.request
+        from scipy.io import wavfile
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        client_id = (
+            os.environ.get("NAVER_CLOVA_CLIENT_ID")
+            or getattr(settings, "naver_clova_client_id", "")
+            or "23zleaqo6r"
+        )
+        client_secret = (
+            os.environ.get("NAVER_CLOVA_CLIENT_SECRET")
+            or getattr(settings, "naver_clova_client_secret", "")
+            or "fIYIhu251Te4f7KS5U49eGt03VYkPwYxbrsdBKfA"
+        )
+
+        buf = io.BytesIO()
+        audio_int16 = np.clip(audio_16k * 32767, -32768, 32767).astype(np.int16)
+        wavfile.write(buf, WHISPER_SAMPLE_RATE, audio_int16)
+        wav_bytes = buf.getvalue()
+
+        url = "https://naveropenapi.apigw.ntruss.com/recog/v1/stt?lang=Kor"
+        req = urllib.request.Request(
+            url,
+            data=wav_bytes,
+            headers={
+                "X-NCP-APIGW-API-KEY-ID": client_id,
+                "X-NCP-APIGW-API-KEY": client_secret,
+                "Content-Type": "application/octet-stream",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            raw = resp.read().decode("utf-8")
+            data = json.loads(raw)
+            return str(data.get("text", "")).strip()
+
     def _inference_worker(self, segment_callback: Callable[[dict], None]):
         """
-        Consumer Thread: Queue에서 오디오 청크를 읽어 스마트 VAD 문장 결합 후 Faster-Whisper GPU 추론 수행.
+        Consumer Thread: Queue에서 오디오 청크를 읽어 스마트 VAD 문장 결합 후
+        선택된 엔진(Faster-Whisper GPU 또는 NAVER CLOVA CSR)으로 추론 수행.
         """
         try:
             from app.services.stt_service import get_whisper_model
 
-            model = get_whisper_model()
-            if model is None:
-                segment_callback({"error": "Faster-Whisper 모델 로드 실패"})
-                return
+            model = None
+            if self._engine_provider == "whisper_large_v3":
+                model = get_whisper_model()
 
             speech_buffer: list[np.ndarray] = []
             speech_start_sample = 0
@@ -417,8 +473,34 @@ class LoopbackSTTService:
                     # 16kHz 리샘플링
                     audio_16k = resample_to_16k(sentence_audio, CAPTURE_SAMPLE_RATE)
                     chunk_base_sec = max(0.0, speech_start_sample / CAPTURE_SAMPLE_RATE)
+                    chunk_duration_sec = len(audio_16k) / WHISPER_SAMPLE_RATE
+
+                    if self._engine_provider == "naver_clova":
+                        try:
+                            text = self._transcribe_with_naver_clova(audio_16k)
+                            if text:
+                                m = int(chunk_base_sec // 60)
+                                s = int(chunk_base_sec % 60)
+                                timestamp_str = f"[{m:02d}:{s:02d}]"
+                                segment_callback({
+                                    "text": text,
+                                    "timestamp": timestamp_str,
+                                    "full_line": f"{timestamp_str} {text}",
+                                    "start": round(chunk_base_sec, 2),
+                                    "end": round(chunk_base_sec + chunk_duration_sec, 2),
+                                    "provider": "naver_clova"
+                                })
+                        except Exception as clova_err:
+                            logger.error(f"NAVER CLOVA CSR error: {clova_err}", exc_info=True)
+                        continue
 
                     try:
+                        if model is None:
+                            model = get_whisper_model()
+                        if model is None:
+                            segment_callback({"error": "Faster-Whisper 모델 로드 실패"})
+                            continue
+
                         segments, _info = model.transcribe(
                             audio_16k,
                             language="ko",
@@ -468,6 +550,7 @@ class LoopbackSTTService:
                                 "full_line": f"{timestamp_str} {text}",
                                 "start": round(seg_start_sec, 2),
                                 "end": round(chunk_base_sec + seg.end, 2),
+                                "provider": "whisper_large_v3"
                             })
 
                     except Exception as infer_err:

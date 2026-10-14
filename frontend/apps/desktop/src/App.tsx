@@ -240,9 +240,9 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
   // Web Speech 침묵 타임아웃을 ref에 동기화 (useEffect 재실행 없이 최신값 반영)
   useEffect(() => { webSpeechSilenceSecRef.current = webSpeechSilenceSec; }, [webSpeechSilenceSec]);
 
-  // Whisper 청크 파라미터 변경 시 WebSocket으로 즉시 전송 (서버 재시작 불필요)
+  // Whisper / NAVER CLOVA 청크 파라미터 변경 시 WebSocket으로 즉시 전송 (서버 재시작 불필요)
   useEffect(() => {
-    if (sttEngine !== 'whisper_large_v3') return;
+    if (sttEngine !== 'whisper_large_v3' && sttEngine !== 'naver_clova') return;
     if (!loopbackWsRef.current || loopbackWsRef.current.readyState !== WebSocket.OPEN) return;
     try {
       loopbackWsRef.current.send(JSON.stringify({
@@ -419,8 +419,9 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
   const [lastRecordingFile, setLastRecordingFile] = useState<string | null>(null);
 
   useEffect(() => {
-    // Faster-Whisper GPU 모드 및 로컬 서버가 켜져 있으면 상시 루프백 연결 (Always-On)
-    if (sttEngine !== 'whisper_large_v3' || !gpuServerOnline) {
+    // Faster-Whisper GPU 모드 또는 NAVER CLOVA 모드 및 로컬 서버가 켜져 있으면 상시 루프백 연결 (Always-On)
+    const isLoopbackEngine = sttEngine === 'whisper_large_v3' || sttEngine === 'naver_clova';
+    if (!isLoopbackEngine || !gpuServerOnline) {
       if (loopbackWsRef.current) {
         try {
           loopbackWsRef.current.send(JSON.stringify({ action: 'stop' }));
@@ -443,7 +444,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
 
         ws.onopen = () => {
           if (isDisposed) { ws.close(); return; }
-          ws.send(JSON.stringify({ action: 'start', device: loopbackDevice || null }));
+          ws.send(JSON.stringify({
+            action: 'start',
+            device: loopbackDevice || null,
+            engine_provider: sttEngine
+          }));
           setIsLoopbackActive(true);
           setRecording(true);
         };
@@ -493,7 +498,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
           setIsLoopbackActive(false);
           loopbackWsRef.current = null;
           // 연결이 비정상 종료된 경우 3초 후 자동 재연결
-          if (!isDisposed && sttEngine === 'whisper_large_v3' && gpuServerOnline) {
+          if (!isDisposed && (sttEngine === 'whisper_large_v3' || sttEngine === 'naver_clova') && gpuServerOnline) {
             reconnectTimeout = window.setTimeout(connectLoopback, 3000);
           }
         };
@@ -1269,11 +1274,14 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
         {/* Live Audio & STT Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
           
-          {/* Dual STT Engine Selection Switcher */}
+          {/* Triple STT Engine Selection Switcher */}
           <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--surface-2)', padding: '2px', borderRadius: '6px', border: '1px solid var(--hairline)', whiteSpace: 'nowrap' }}>
             <button
               onClick={() => {
                 setSttEngine('whisper_large_v3');
+                if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
+                  try { loopbackWsRef.current.send(JSON.stringify({ action: 'set_engine', engine_provider: 'whisper_large_v3' })); } catch (_) {}
+                }
                 showToast("[STT 엔진 전환] Faster-Whisper Large-v3 (RTX 5080 GPU 가속) 활성화");
                 setTimeout(() => clearToast(), 3000);
               }}
@@ -1303,6 +1311,41 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               <span>Faster-Whisper (GPU)</span>
             </button>
             <button
+              data-uia="btn-stt-naver-clova"
+              onClick={() => {
+                setSttEngine('naver_clova');
+                if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
+                  try { loopbackWsRef.current.send(JSON.stringify({ action: 'set_engine', engine_provider: 'naver_clova' })); } catch (_) {}
+                }
+                showToast("[STT 엔진 전환] NAVER CLOVA Speech (CSR 클라우드) 활성화");
+                setTimeout(() => clearToast(), 3000);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 8px',
+                fontSize: '13.5px',
+                fontWeight: 700,
+                borderRadius: '4px',
+                border: 'none',
+                backgroundColor: sttEngine === 'naver_clova' ? '#03c75a' : 'transparent',
+                color: sttEngine === 'naver_clova' ? '#fff' : 'var(--ink-muted)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span style={{
+                display: 'inline-block',
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                backgroundColor: '#fff'
+              }} />
+              <span>NAVER CLOVA</span>
+            </button>
+            <button
               onClick={() => {
                 setSttEngine('web_speech');
                 showToast("[STT 엔진 전환] Web Speech (브라우저 기본) 활성화");
@@ -1326,7 +1369,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
           </div>
 
           {/* STT 청크 시간 설정 */}
-          {sttEngine === 'whisper_large_v3' ? (
+          {(sttEngine === 'whisper_large_v3' || sttEngine === 'naver_clova') ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>무음 감지</span>
@@ -1368,8 +1411,8 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             </div>
           )}
 
-          {/* Local Whisper Live State Indicator + Loopback STT Controls */}
-          {sttEngine === 'whisper_large_v3' && (
+          {/* Local Whisper / NAVER CLOVA Live State Indicator + Loopback STT Controls */}
+          {(sttEngine === 'whisper_large_v3' || sttEngine === 'naver_clova') && (
             gpuServerOnline ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 
@@ -1730,11 +1773,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   fontWeight: 700, 
                   padding: '1px 6px', 
                   borderRadius: '3px', 
-                  backgroundColor: sttEngine === 'whisper_large_v3' ? 'rgba(37, 99, 235, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                  color: sttEngine === 'whisper_large_v3' ? '#93c5fd' : '#fde68a',
-                  border: `1px solid ${sttEngine === 'whisper_large_v3' ? 'rgba(37, 99, 235, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`
+                  backgroundColor: sttEngine === 'whisper_large_v3' ? 'rgba(37, 99, 235, 0.2)' : sttEngine === 'naver_clova' ? 'rgba(3, 199, 90, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                  color: sttEngine === 'whisper_large_v3' ? '#93c5fd' : sttEngine === 'naver_clova' ? '#4ade80' : '#fde68a',
+                  border: `1px solid ${sttEngine === 'whisper_large_v3' ? 'rgba(37, 99, 235, 0.4)' : sttEngine === 'naver_clova' ? 'rgba(3, 199, 90, 0.45)' : 'rgba(245, 158, 11, 0.4)'}`
                 }}>
-                  {sttEngine === 'whisper_large_v3' ? 'Faster-Whisper (GPU)' : 'Web Speech (브라우저)'}
+                  {sttEngine === 'whisper_large_v3' ? 'Faster-Whisper (GPU)' : sttEngine === 'naver_clova' ? 'NAVER CLOVA Speech' : 'Web Speech (브라우저)'}
                 </span>
               </div>
               

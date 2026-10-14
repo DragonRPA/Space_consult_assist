@@ -53,9 +53,9 @@ interface CounselWorkstationState {
   setAudioTime: (current: number, duration: number) => void;
   resetSessionForNewAudio: () => void;
 
-  // A/B Dual STT Engine Selection
-  sttEngine: 'whisper_large_v3' | 'web_speech';
-  setSttEngine: (engine: 'whisper_large_v3' | 'web_speech') => void;
+  // Triple STT Engine Selection
+  sttEngine: 'whisper_large_v3' | 'naver_clova' | 'web_speech';
+  setSttEngine: (engine: 'whisper_large_v3' | 'naver_clova' | 'web_speech') => void;
 
   // Contextual STT Semantic Correction Engine
   isContextCorrectionEnabled: boolean;
