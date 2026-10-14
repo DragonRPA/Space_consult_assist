@@ -74,8 +74,8 @@ interface PartsOrderQuotationModalProps {
   onToast?: (msg: string) => void;
 }
 
-const CATEGORIES = ['전체', '스퀴지/고무', '브러시/패드', '호스/필터', '배터리/전원', '모터/밸브', '세제/소모품'];
-const MODELS = ['전체', 'J600T', 'J800', 'S7', 'S5', 'S3'];
+const CATEGORIES = ['전체', '스퀴지/고무', '브러시/패드', '호스/필터', '배터리/전원', '세제/소모품'];
+const MODELS = ['전체', 'J600', 'J600T', 'J700', 'J800', 'J900', 'S1', 'S2', 'S3mini', 'S3', 'S3P', 'S5', 'S7P', 'S12', 'S16P', 'W12', 'W15', 'S-mop', '플로어닥터', '닥터오비트'];
 
 export function PartsOrderQuotationModal({
   equipmentModel,
@@ -159,11 +159,34 @@ export function PartsOrderQuotationModal({
         setCatalogList(filtered);
         setIsLoadingCatalog(false);
 
-        // 첫 진입 시 권장 품목 1개를 장바구니에 기본 선택 세팅
+        // 첫 진입 시 현재 상담 증상 및 장비 모델에 매칭되는 공식 순정 소모품을 장바구니에 기본 세팅
         if (Object.keys(cartQuantities).length === 0 && filtered.length > 0) {
-          const recommended = filtered.find(p => p.is_recommended) || filtered[0];
-          if (recommended) {
-            setCartQuantities({ [recommended.part_code]: 1 });
+          const symText = symptoms.join(' ').toLowerCase();
+          const modelExact = filtered.filter(p => p.applicable_models.length < 15 && p.applicable_models.includes(filterModel));
+          const pool = modelExact.length > 0 ? modelExact : filtered;
+
+          let matchedItems: CatalogPartItem[] = [];
+          if (symText.includes('잔수') || symText.includes('스퀴지') || symText.includes('물기')) {
+            matchedItems = pool.filter(p => p.category === '스퀴지/고무');
+          } else if (symText.includes('브러시') || symText.includes('패드') || symText.includes('회전')) {
+            matchedItems = pool.filter(p => p.category === '브러시/패드');
+          } else if (symText.includes('충전') || symText.includes('배터리') || symText.includes('전원')) {
+            matchedItems = pool.filter(p => p.category === '배터리/전원').slice(0, 1);
+          } else if (symText.includes('호스') || symText.includes('흡입')) {
+            matchedItems = pool.filter(p => p.category === '호스/필터');
+          }
+
+          if (matchedItems.length > 0) {
+            const initCart: Record<string, number> = {};
+            matchedItems.slice(0, 2).forEach(m => {
+              initCart[m.part_code] = 1;
+            });
+            setCartQuantities(initCart);
+          } else {
+            const recommended = pool.find(p => p.is_recommended) || filtered[0];
+            if (recommended) {
+              setCartQuantities({ [recommended.part_code]: 1 });
+            }
           }
         }
       })

@@ -60,7 +60,9 @@ export interface PartsOrderRecord {
   created_at?: string;
 }
 
-const LOCAL_CATALOG_KEY = 'space_parts_catalog_cache';
+import { SPACE_DUST_OFFICIAL_CATALOG } from './spaceDustCatalogSeed';
+
+const LOCAL_CATALOG_KEY = 'space_parts_catalog_cache_v2';
 const LOCAL_ORDERS_KEY = 'space_parts_orders_cache';
 
 // ── 1. 부품 카탈로그 전체 목록 조회 (Supabase DB + 캐시) ──
@@ -88,7 +90,7 @@ export async function getAllPartsCatalog(): Promise<CatalogPartItem[]> {
     }
   } catch {}
 
-  // 3. 비상 시 기본 내장 시드 반환
+  // 3. 비상 시 공식 홈페이지(space-dust.com) 72종 내장 시드 반환
   return getFallbackCatalog();
 }
 
@@ -174,40 +176,9 @@ function updateLocalCache(part: CatalogPartItem) {
 }
 
 function getFallbackCatalog(model?: string, category?: string): CatalogPartItem[] {
-  const defaults: CatalogPartItem[] = [
-    {
-      id: 'part-j600t-sqg-825',
-      part_code: 'J600T-SQG-825',
-      part_name: '825mm 내유성 라텍스 스퀴지 블레이드 세트 (앞/뒤)',
-      category: '스퀴지/고무',
-      applicable_models: ['J600T', 'S5'],
-      unit_price: 45000,
-      spec: '825mm 내마모 라텍스 고무 (4면 반전 가능)',
-      description: '오일 및 세제 부식에 강한 최고급 라텍스 소재. 스퀴지 립 마모 시 4면 반전 장착으로 4회 재사용 가능.',
-      image_url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="280"><rect width="400" height="280" fill="%231e293b"/><text x="200" y="140" fill="%23ffffff" font-size="14" text-anchor="middle">825mm 스퀴지 블레이드</text></svg>',
-      in_stock: true,
-      lead_time_days: 1,
-      is_recommended: true
-    },
-    {
-      id: 'part-j600t-brs-22',
-      part_code: 'J600T-BRS-22',
-      part_name: '22인치 고효율 바닥 세척 브러시 어셈블리',
-      category: '브러시/패드',
-      applicable_models: ['J600T', 'S7'],
-      unit_price: 85000,
-      spec: '560mm 나일론 0.6mm 직경 (155rpm)',
-      description: '에폭시 및 아스타일 바닥 전용 고밀도 나일론 브러시.',
-      image_url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="280"><rect width="400" height="280" fill="%231e293b"/><text x="200" y="140" fill="%23ffffff" font-size="14" text-anchor="middle">22인치 세척 브러시</text></svg>',
-      in_stock: true,
-      lead_time_days: 1,
-      is_recommended: true
-    }
-  ];
-
-  return defaults.filter(p => {
-    const matchM = !model || model === 'ALL' || p.applicable_models.includes(model);
-    const matchC = !category || category === 'ALL' || p.category === category;
+  return SPACE_DUST_OFFICIAL_CATALOG.filter(p => {
+    const matchM = !model || model === 'ALL' || model === '전체' || p.applicable_models.includes(model);
+    const matchC = !category || category === 'ALL' || category === '전체' || p.category === category;
     return matchM && matchC;
   });
 }
