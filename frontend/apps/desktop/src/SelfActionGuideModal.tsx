@@ -944,10 +944,10 @@ export function SelfActionGuideModal({
                   gap: 8
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Paperclip size={14} color="#0284c7" />
-                    <span style={{ fontSize: 13.5, fontWeight: 900, color: '#0f172a' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <Paperclip size={14} color="#0284c7" style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: 13.5, fontWeight: 900, color: '#0f172a', whiteSpace: 'nowrap' }}>
                       공식 제품 매뉴얼 PDF 동봉 첨부 ({attachedManuals.length}건 선택됨)
                     </span>
                   </div>
@@ -965,7 +965,8 @@ export function SelfActionGuideModal({
                       background: '#ffffff',
                       fontSize: 13.5,
                       fontWeight: 700,
-                      color: '#0369a1'
+                      color: '#0369a1',
+                      maxWidth: 310
                     }}
                   >
                     <option value="">+ 다른 매뉴얼·카탈로그 추가 첨부 (25종)...</option>
