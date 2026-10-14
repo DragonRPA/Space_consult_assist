@@ -62,18 +62,24 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, o
       zIndex: 1000,
       userSelect: 'none'
     }}>
-      {/* 브랜드 타이틀 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <span style={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.3px', color: '#fff', whiteSpace: 'nowrap' }}>
-          Space Advisor
-        </span>
+      {/* 브랜드 타이틀 (회사 공식 CI 로고 표출) */}
+      <div
+        onClick={() => onSelectTab('counsel-v3')}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, cursor: 'pointer' }}
+      >
+        <img
+          src="/SPACE_logo_white.png"
+          alt="SPACE 로고"
+          data-uia="global-brand-logo"
+          style={{ height: 19, width: 'auto', objectFit: 'contain', display: 'block' }}
+        />
         <span style={{ 
           fontSize: '10pt', 
           padding: '2px 8px', 
           borderRadius: 4, 
           background: '#1e293b', 
-          color: '#94a3b8', 
-          fontWeight: 600,
+          color: '#cbd5e1', 
+          fontWeight: 700,
           whiteSpace: 'nowrap'
         }}>
           상담 지원

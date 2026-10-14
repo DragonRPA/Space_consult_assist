@@ -1333,6 +1333,19 @@ export function PartsOrderQuotationModal({
                   fontFamily: "'Nanum Myeongjo', serif, -apple-system, sans-serif"
                 }}
               >
+                {/* 견적서 상단 공식 CI 로고 및 타이틀 */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <img
+                      src="/SPACE_logo.png"
+                      alt="SPACE 로고"
+                      style={{ height: 22, width: 'auto', objectFit: 'contain', display: 'block' }}
+                    />
+                    <span style={{ fontSize: 15, fontWeight: 900, color: '#0f172a' }}>(주)스페이스 부품공급사업부</span>
+                  </div>
+                  <span style={{ fontSize: 13.5, color: '#475569' }}>SPACE ENGINEERING CO., LTD.</span>
+                </div>
+
                 {/* 견적서 타이틀 */}
                 <div style={{ textAlign: 'center', marginBottom: 24, borderBottom: '2px solid #000', paddingBottom: 14 }}>
                   <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: '0.25em' }}>
@@ -1519,9 +1532,16 @@ export function PartsOrderQuotationModal({
                       justifyContent: 'space-between'
                     }}
                   >
-                    <span style={{ fontSize: 13.5, fontWeight: 900 }}>
-                      (주)스페이스 정품 소모품 주문
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <img
+                        src={sentChannel === 'KAKAO' ? '/SPACE_logo.png' : '/SPACE_logo_white.png'}
+                        alt="SPACE"
+                        style={{ height: 14, width: 'auto', objectFit: 'contain' }}
+                      />
+                      <span style={{ fontSize: 13.5, fontWeight: 900 }}>
+                        정품 소모품 주문
+                      </span>
+                    </div>
                     <span style={{ fontSize: 13.5, opacity: 0.85 }}>공식 알림톡</span>
                   </div>
 

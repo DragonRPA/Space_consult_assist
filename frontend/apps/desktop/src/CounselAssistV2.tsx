@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Phone, Search, ChevronRight, AlertTriangle,
+  Search, ChevronRight, AlertTriangle,
   Loader2, RotateCcw, Wrench, CheckCircle2,
   History, Sparkles, X, ChevronDown,
   ChevronUp, Check, ArrowRight, RefreshCw, ShieldAlert,
@@ -1467,8 +1467,12 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
 
       {/* ── [최상단 서브 툴바] ── */}
       <div style={{ background: '#ece7de', borderBottom: '1px solid #dcd5c9', padding: '0 16px', display: 'flex', alignItems: 'center', height: 46, gap: 12, flexShrink: 0, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <Phone size={15} color="#2563eb" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <img
+            src="/SPACE_logo.png"
+            alt="SPACE"
+            style={{ height: 16, width: 'auto', objectFit: 'contain', display: 'block' }}
+          />
           <span style={{ fontWeight: 800, fontSize: 14, color: '#0f172a', whiteSpace: 'nowrap' }}>상담지원2</span>
         </div>
 

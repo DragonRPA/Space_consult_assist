@@ -1194,11 +1194,18 @@ export function DispatchDocPackageModal({
                 background: '#ffffff', border: '1px solid #cbd5e1', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
                 fontFamily: "'Batang', 'KoPubBatang', 'Pretendard', serif", color: '#000000', boxSizing: 'border-box'
               }}>
-                {/* 상단 공문서 헤더 */}
+                {/* 상단 공문서 헤더 (회사 공식 CI 로고 표출) */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: 10, marginBottom: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '0.1em' }}>(주) 스 페 이 스</div>
-                    <div style={{ fontSize: 13.5, color: '#475569', marginTop: 2 }}>SPACE ENGINEERING CO., LTD. | 기술지원본부</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <img
+                        src="/SPACE_logo.png"
+                        alt="SPACE 로고"
+                        style={{ height: 22, width: 'auto', objectFit: 'contain', display: 'block' }}
+                      />
+                      <span style={{ fontSize: 17, fontWeight: 900, letterSpacing: '0.08em' }}>(주) 스 페 이 스</span>
+                    </div>
+                    <div style={{ fontSize: 13.5, color: '#475569' }}>SPACE ENGINEERING CO., LTD. | 기술지원본부</div>
                   </div>
                   <div style={{ textAlign: 'right', fontSize: 13.5, lineHeight: 1.5 }}>
                     <div>문서번호: <b>{activeTab === 'doc1' ? doc1.docNo : doc2.docNo}</b></div>

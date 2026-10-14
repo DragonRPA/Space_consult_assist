@@ -1259,9 +1259,16 @@ export function SelfActionGuideModal({
                     justifyContent: 'space-between'
                   }}
                 >
-                  <span style={{ fontSize: 13.5, fontWeight: 900 }}>
-                    (주)스페이스 고객기술지원센터
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <img
+                      src={selectedChannel === 'KAKAO' ? '/SPACE_logo.png' : '/SPACE_logo_white.png'}
+                      alt="SPACE"
+                      style={{ height: 14, width: 'auto', objectFit: 'contain' }}
+                    />
+                    <span style={{ fontSize: 13.5, fontWeight: 900 }}>
+                      고객기술지원센터
+                    </span>
+                  </div>
                   <span style={{ fontSize: 13.5, opacity: 0.85 }}>공식 알림</span>
                 </div>
 

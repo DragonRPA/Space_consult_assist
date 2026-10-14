@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Search, Phone, Wrench, AlertTriangle,
+  Search, Wrench, AlertTriangle,
   RotateCcw, Clock, History, FileText, BookOpen,
   Smartphone, Image as ImageIcon, Package, Building2,
   Cpu, X, Check, ArrowRight, ChevronDown, ChevronUp
@@ -760,17 +760,34 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
             >
               <span>점진적 정보 전개 워크스페이스</span>
             </div>
-            <h1
+            <div
               style={{
-                fontSize: 34,
-                fontWeight: 900,
-                color: '#0f172a',
-                letterSpacing: '-0.8px',
-                margin: 0
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 14,
+                marginBottom: 4
               }}
             >
-              Space Advisor <span style={{ color: '#2563eb' }}>상담지원3</span>
-            </h1>
+              <img
+                src="/SPACE_logo.png"
+                alt="SPACE 공식 로고"
+                data-uia="v3-zero-hero-logo"
+                style={{ height: 32, width: 'auto', objectFit: 'contain', display: 'block' }}
+              />
+              <h1
+                style={{
+                  fontSize: 32,
+                  fontWeight: 900,
+                  color: '#0f172a',
+                  letterSpacing: '-0.8px',
+                  margin: 0,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Advisor <span style={{ color: '#2563eb' }}>상담지원3</span>
+              </h1>
+            </div>
             <p style={{ fontSize: 14.5, color: '#64748b', marginTop: 8, fontWeight: 500 }}>
               전화번호, 고객사명, 장비 모델, 증상 키워드를 구분 없이 한 줄에 입력하십시오.
             </p>
@@ -1016,8 +1033,17 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
             }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' }}>
-              <Phone size={15} color="#2563eb" />
+            <div
+              onClick={() => handleResetToZero()}
+              title="첫 조회화면으로 복귀"
+              style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, whiteSpace: 'nowrap', cursor: 'pointer' }}
+            >
+              <img
+                src="/SPACE_logo.png"
+                alt="SPACE"
+                data-uia="v3-docked-logo"
+                style={{ height: 17, width: 'auto', objectFit: 'contain', display: 'block' }}
+              />
               <span style={{ fontWeight: 900, fontSize: 14.5, color: '#0f172a' }}>상담지원3</span>
             </div>
 
