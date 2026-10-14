@@ -545,8 +545,40 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
     setTimeout(() => omniInputRef.current?.focus(), 80);
   };
 
+  // ── 현재 진행 상태에 따른 자동 저장 판정 (진행중 vs 완료) ───────────────────────
+  const smartReturnDescriptor = useMemo(() => {
+    const hasCompletedSymptom =
+      sessionList.length > 0 &&
+      sessionList.some(
+        s =>
+          s.status === 'resolved_by_call' ||
+          s.status === 'visit_required' ||
+          s.steps.some(st => st.status === 'resolved') ||
+          (s.steps.length > 0 && s.steps.every(st => st.status === 'unresolved'))
+      );
+
+    if (hasCompletedSymptom) {
+      const isVisit = sessionList.some(
+        s =>
+          s.status === 'visit_required' ||
+          (s.steps.length > 0 && s.steps.every(st => st.status === 'unresolved'))
+      );
+      return {
+        targetMode: isVisit ? ('visit_completed' as const) : ('resolved' as const),
+        badgeLabel: isVisit ? '출장접수 완료 저장 · 첫 화면 복귀' : '상담완료 저장 · 첫 화면 복귀',
+        color: '#059669'
+      };
+    }
+
+    return {
+      targetMode: 'pending' as const,
+      badgeLabel: '진행중 저장 · 첫 화면 복귀',
+      color: '#2563eb'
+    };
+  }, [sessionList]);
+
   // ── 상담 대기열 보류 저장 및 완료 저장 ───────────────────────────────────────
-  const handleSaveSession = (mode: 'pending' | 'resolved' | 'visit') => {
+  const handleSaveSession = (mode: 'pending' | 'resolved' | 'visit' | 'visit_completed') => {
     const sessionId = currentSessionId || `sess_${Date.now()}`;
     const nowIso = new Date().toISOString();
     const primeCompany = selectedCustomer?.name || '현장 접수 고객';
@@ -561,7 +593,12 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
       id: sessionId,
       timestamp: nowIso,
       updatedAt: nowIso,
-      status: mode === 'visit' ? 'visit_required' : mode === 'resolved' ? 'resolved_by_call' : 'in_progress',
+      status:
+        mode === 'visit' || mode === 'visit_completed'
+          ? 'visit_required'
+          : mode === 'resolved'
+          ? 'resolved_by_call'
+          : 'in_progress',
       customerName: primeCompany,
       manager: primeManager,
       phone: primePhone,
@@ -578,7 +615,7 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
       summaryText: allSymptoms,
       currentStepSummary: currentSession
         ? `${currentSession.title} (STEP ${currentSession.activeStepIndex + 1})`
-        : '상담 진행중',
+        : '고객/모델 조회 진행중',
       selectedErrorCodes: sessionList
         .map(s => s.selectedErrorCode?.code)
         .filter((c): c is string => Boolean(c))
@@ -590,9 +627,18 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
       try {
         localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(nextPending));
       } catch {}
-      showToast('진행 대기열에 보류 저장되었습니다.');
+      showToast(`[진행중 상담 저장] "${primeCompany} (${allSymptoms})" 건이 진행 대기열에 저장되고 첫 조회화면으로 복귀했습니다.`);
       handleResetToZero();
       return;
+    }
+
+    // 완료 저장 시 진행 대기열에 있던 동일 세션은 자동 제거
+    const remainingPending = pendingSessions.filter(p => p.id !== sessionId);
+    if (remainingPending.length !== pendingSessions.length) {
+      setPendingSessions(remainingPending);
+      try {
+        localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(remainingPending));
+      } catch {}
     }
 
     const nextHistory = [newRecord, ...historyRecords.filter(h => h.id !== sessionId)];
@@ -632,10 +678,18 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
       setDispatchModalTab('doc1');
       setShowDispatchPackageModal(true);
       showToast('AS 출장 접수 완료 -> 원청 결재 연계 문서가 생성되었습니다.');
+    } else if (mode === 'visit_completed') {
+      showToast(`[완료 상담 저장] "${primeCompany} (${allSymptoms})" 건이 AS 출장 대상 이력으로 저장되고 첫 조회화면으로 복귀했습니다.`);
+      handleResetToZero();
     } else {
-      showToast('전화 조치 완료로 상담 이력에 저장되었습니다.');
+      showToast(`[완료 상담 저장] "${primeCompany} (${allSymptoms})" 건이 상담 이력에 저장되고 첫 조회화면으로 복귀했습니다.`);
       handleResetToZero();
     }
+  };
+
+  // ── 어떤 상황에서든 현재 진행 상태에 맞춰 자동 저장 후 첫 조회화면 복귀 ─────────
+  const handleSmartSaveAndReturn = () => {
+    handleSaveSession(smartReturnDescriptor.targetMode);
   };
 
   return (
@@ -1128,7 +1182,7 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
               ))}
             </div>
 
-            {/* 우측 최소 유틸리티 */}
+            {/* 우측 최소 유틸리티 (어떤 상황에서든 현재 상태에 맞춰 자동 저장 후 첫 조회화면 복귀 지원) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
               <button
                 type="button"
@@ -1149,20 +1203,19 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
                 }}
               >
                 <Clock size={13} color="#d97706" />
-                <span>대기열 {pendingSessions.length}</span>
+                <span>진행중 ({pendingSessions.length})</span>
               </button>
               <button
                 type="button"
-                data-uia="btn-v3-reset"
-                onClick={handleResetToZero}
+                onClick={() => setShowHistoryModal(true)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 5,
-                  padding: '5px 12px',
+                  padding: '5px 10px',
                   borderRadius: 6,
-                  background: '#ffffff',
-                  border: '1px solid #cbd5e1',
+                  background: '#f5f2eb',
+                  border: '1px solid #dcd5c9',
                   fontSize: 13.5,
                   fontWeight: 700,
                   color: '#334155',
@@ -1170,8 +1223,54 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
                   whiteSpace: 'nowrap'
                 }}
               >
+                <History size={13} color="#059669" />
+                <span>완료이력 ({historyRecords.length})</span>
+              </button>
+              <button
+                type="button"
+                data-uia="btn-v3-smart-save-return"
+                onClick={handleSmartSaveAndReturn}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  background: smartReturnDescriptor.color,
+                  border: 'none',
+                  fontSize: 13.5,
+                  fontWeight: 800,
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  boxShadow: '0 2px 6px rgba(15, 23, 42, 0.14)'
+                }}
+              >
+                <Check size={14} />
+                <span>{smartReturnDescriptor.badgeLabel}</span>
+              </button>
+              <button
+                type="button"
+                data-uia="btn-v3-reset"
+                onClick={handleResetToZero}
+                title="저장 없이 첫 화면으로 초기화"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '5px 10px',
+                  borderRadius: 6,
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  fontSize: 13.5,
+                  fontWeight: 700,
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
                 <RotateCcw size={13} />
-                <span>새 상담 (초기화)</span>
+                <span>초기화</span>
               </button>
             </div>
           </div>
@@ -1739,8 +1838,27 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
                         </button>
                       </div>
 
-                      {/* 우측: 최종 종결 버튼군 */}
+                      {/* 우측: 최종 종결 및 첫 조회화면 복귀 버튼군 */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                          type="button"
+                          data-uia="btn-v3-bottom-smart-save"
+                          onClick={handleSmartSaveAndReturn}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: 6,
+                            background: smartReturnDescriptor.color,
+                            border: 'none',
+                            color: '#ffffff',
+                            fontSize: 13.5,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            boxShadow: '0 2px 6px rgba(15, 23, 42, 0.14)'
+                          }}
+                        >
+                          {smartReturnDescriptor.badgeLabel}
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleSaveSession('pending')}
@@ -1756,13 +1874,13 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
                             whiteSpace: 'nowrap'
                           }}
                         >
-                          고객 확인 대기
+                          진행중 보류 저장
                         </button>
                         <button
                           type="button"
                           onClick={() => handleSaveSession('resolved')}
                           style={{
-                            padding: '8px 16px',
+                            padding: '8px 14px',
                             borderRadius: 6,
                             background: '#059669',
                             border: 'none',
@@ -1779,7 +1897,7 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
                           type="button"
                           onClick={() => handleSaveSession('visit')}
                           style={{
-                            padding: '8px 16px',
+                            padding: '8px 14px',
                             borderRadius: 6,
                             background: '#dc2626',
                             border: 'none',
@@ -1843,6 +1961,70 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
                         <ArrowRight size={16} color="#2563eb" style={{ flexShrink: 0 }} />
                       </button>
                     ))}
+                  </div>
+
+                  {/* 증상 선택 전(고객/모델만 선택된 상태)에서도 즉시 진행중/완료 저장 후 첫 조회화면 복귀 지원 */}
+                  <div
+                    style={{
+                      marginTop: 6,
+                      paddingTop: 14,
+                      borderTop: '1px solid #dcd5c9',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={notes}
+                      onChange={e => setNotes(e.target.value)}
+                      placeholder="상담 메모 입력 (증상 미선택 상태에서도 메모와 함께 저장 가능)..."
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: 6,
+                        border: '1px solid #cbd5e1',
+                        fontSize: 13.5,
+                        background: '#f8fafc'
+                      }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveSession('pending')}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: 6,
+                          background: '#2563eb',
+                          border: 'none',
+                          color: '#ffffff',
+                          fontSize: 13.5,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        진행중 저장 · 첫 화면 복귀
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveSession('resolved')}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: 6,
+                          background: '#059669',
+                          border: 'none',
+                          color: '#ffffff',
+                          fontSize: 13.5,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        단순안내 완료 저장 · 첫 화면 복귀
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1918,7 +2100,9 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
           onSave={(d1, d2) => {
             setDispatchDoc1st(d1);
             setDispatchDoc2nd(d2);
-            showToast('원청 결재 연계 문서가 저장되었습니다.');
+            setShowDispatchPackageModal(false);
+            handleResetToZero();
+            showToast('AS 출장 접수 및 결재 문서 저장 완료 · 첫 조회화면으로 복귀하였습니다.', 3800);
           }}
           onToast={msg => showToast(msg, 3500)}
         />
@@ -2423,16 +2607,38 @@ function SimpleSessionListModal({
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between'
+                  justifyContent: 'space-between',
+                  gap: 12
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 14.5, fontWeight: 800, color: '#0f172a' }}>
-                    {r.customerName} ({r.modelName})
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontSize: 13.5,
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        background: r.status === 'in_progress' ? '#fffbeb' : '#ecfdf5',
+                        color: r.status === 'in_progress' ? '#b45309' : '#047857',
+                        border: r.status === 'in_progress' ? '1px solid #f59e0b' : '1px solid #10b981',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {r.status === 'in_progress'
+                        ? `진행중 · ${r.currentStepSummary}`
+                        : r.status === 'visit_required'
+                        ? '상담완료 · AS 출장 접수'
+                        : '상담완료 · 전화 조치 완료'}
+                    </span>
+                    <span style={{ fontSize: 14.5, fontWeight: 800, color: '#0f172a' }}>
+                      {r.customerName} ({r.modelName})
+                    </span>
+                    <span style={{ fontSize: 13.5, color: '#64748b' }}>· {r.updatedAt.slice(0, 16).replace('T', ' ')}</span>
                   </div>
-                  <div style={{ fontSize: 13.5, color: '#64748b', marginTop: 2 }}>{r.summaryText}</div>
+                  <div style={{ fontSize: 13.5, color: '#475569', marginTop: 4 }}>{r.summaryText}</div>
                 </div>
-                <span style={{ fontSize: 13.5, fontWeight: 700, color: '#2563eb' }}>불러오기 →</span>
+                <span style={{ fontSize: 13.5, fontWeight: 800, color: '#2563eb', whiteSpace: 'nowrap' }}>불러오기 →</span>
               </div>
             ))
           )}
