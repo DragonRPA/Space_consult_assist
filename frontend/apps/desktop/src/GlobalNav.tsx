@@ -5,10 +5,11 @@ import {
   Calendar, 
   Mic, 
   CheckCircle2,
-  BookOpen
+  BookOpen,
+  Search
 } from 'lucide-react';
 
-export type NavTab = 'counsel-v2' | 'counsel-compare' | 'schedule' | 'stt-legacy';
+export type NavTab = 'counsel-v2' | 'counsel-v3' | 'counsel-compare' | 'schedule' | 'stt-legacy';
 
 interface GlobalNavProps {
   currentTab: NavTab;
@@ -27,6 +28,11 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, o
       id: 'counsel-v2' as NavTab,
       label: '상담지원2',
       icon: <Headphones size={15} />,
+    },
+    {
+      id: 'counsel-v3' as NavTab,
+      label: '상담지원3',
+      icon: <Search size={15} />,
     },
     {
       id: 'counsel-compare' as NavTab,

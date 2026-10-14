@@ -40,6 +40,7 @@ import type { KeywordEntity, EntityRule } from './keywordAssist';
 import type { CustomerInfo } from './store';
 import SchedulePage from './SchedulePage';
 import CounselAssistV2 from './CounselAssistV2';
+import CounselAssistV3 from './CounselAssistV3';
 import CounselCompare from './CounselCompare';
 import GlobalNav, { type NavTab } from './GlobalNav';
 
@@ -57,10 +58,11 @@ function getInitialTab(): NavTab {
   const search = window.location.search;
   const hash = window.location.hash;
   if (search.includes('guides') || hash.includes('guides')) return 'counsel-v2';
+  if (path.startsWith('/counsel3') || path.startsWith('/v3')) return 'counsel-v3';
   if (path.startsWith('/schedule')) return 'schedule';
   if (path.startsWith('/counsel-compare')) return 'counsel-compare';
   if (path.startsWith('/stt') || path.startsWith('/legacy')) return 'stt-legacy';
-  // 기본 진입 화면: 최우선 신규 화면 CounselAssistV2
+  // 기본 진입 화면: CounselAssistV2
   return 'counsel-v2';
 }
 
@@ -92,6 +94,7 @@ export default function App() {
     setCurrentTab(tab);
     const pathMap: Record<NavTab, string> = {
       'counsel-v2': '/',
+      'counsel-v3': '/counsel3',
       'counsel-compare': '/counsel-compare',
       'schedule': '/schedule',
       'stt-legacy': '/stt',
@@ -110,6 +113,7 @@ export default function App() {
       <GlobalNav currentTab={currentTab} onSelectTab={handleSelectTab} onOpenGuides={handleOpenGuides} />
       <main style={{ flex: 1, position: 'relative' }}>
         {currentTab === 'counsel-v2' && <CounselAssistV2 initialOpenGuides={openGuides} />}
+        {currentTab === 'counsel-v3' && <CounselAssistV3 initialOpenGuides={openGuides} />}
         {currentTab === 'counsel-compare' && <CounselCompare />}
         {currentTab === 'schedule' && <SchedulePage />}
         {currentTab === 'stt-legacy' && <LegacySttApp onOpenGuides={handleOpenGuides} />}
