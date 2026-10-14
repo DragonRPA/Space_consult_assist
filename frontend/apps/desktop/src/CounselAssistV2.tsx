@@ -1469,7 +1469,7 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
       <div style={{ background: '#ece7de', borderBottom: '1px solid #dcd5c9', padding: '0 16px', display: 'flex', alignItems: 'center', height: 46, gap: 12, flexShrink: 0, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <Phone size={15} color="#2563eb" />
-          <span style={{ fontWeight: 800, fontSize: 14, color: '#0f172a', whiteSpace: 'nowrap' }}>상담 지원</span>
+          <span style={{ fontWeight: 800, fontSize: 14, color: '#0f172a', whiteSpace: 'nowrap' }}>상담지원2</span>
         </div>
 
         {/* 현재 통화 내 진단 중인 증상 수 뱃지 */}

@@ -19,24 +19,24 @@ interface GlobalNavProps {
 export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, onOpenGuides }) => {
   const tabs: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [
     {
+      id: 'stt-legacy' as NavTab,
+      label: '상담지원1',
+      icon: <Mic size={15} />,
+    },
+    {
       id: 'counsel-v2' as NavTab,
-      label: '상담 지원',
+      label: '상담지원2',
       icon: <Headphones size={15} />,
     },
     {
       id: 'counsel-compare' as NavTab,
-      label: '임베딩 모델 비교',
+      label: '임베딩 모델비교',
       icon: <Cpu size={15} />,
     },
     {
       id: 'schedule' as NavTab,
-      label: '일정 관리',
+      label: '일정관리',
       icon: <Calendar size={15} />,
-    },
-    {
-      id: 'stt-legacy' as NavTab,
-      label: '통화 녹음 및 전사',
-      icon: <Mic size={15} />,
     },
   ];
 

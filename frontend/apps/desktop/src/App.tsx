@@ -1155,7 +1155,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)', boxShadow: '0 0 8px var(--glow-color)' }} />
             <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.3px', color: 'var(--ink)' }}>
-              Space Advisor <span style={{ fontWeight: 400, color: 'var(--ink-muted)', fontSize: '13.5px' }}>상담 관제</span>
+              Space Advisor <span style={{ fontWeight: 400, color: 'var(--ink-muted)', fontSize: '13.5px' }}>상담지원1</span>
             </span>
           </div>
 
