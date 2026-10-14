@@ -674,11 +674,15 @@ export function EquipmentManualModal({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    borderBottom: '1px solid #334155'
+                    gap: 12,
+                    borderBottom: '1px solid #334155',
+                    flexShrink: 0
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: '#38bdf8' }}>열람 문서 선택:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 800, color: '#38bdf8', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      열람 문서:
+                    </span>
                     <select
                       value={previewManual?.id || ''}
                       onChange={e => {
@@ -686,13 +690,14 @@ export function EquipmentManualModal({
                         if (found) setPreviewManual(found);
                       }}
                       style={{
-                        padding: '5px 10px',
+                        padding: '6px 10px',
                         borderRadius: 6,
                         background: '#1e293b',
                         color: '#ffffff',
                         border: '1px solid #475569',
                         fontSize: 13.5,
-                        fontWeight: 700
+                        fontWeight: 700,
+                        maxWidth: 420
                       }}
                     >
                       {manuals.map(m => (
@@ -704,9 +709,9 @@ export function EquipmentManualModal({
                   </div>
 
                   {previewManual && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                       <a
-                        href={previewManual.file_url}
+                        href={`/manuals/space_manual_${String(previewManual.wr_id).padStart(2, '0')}.pdf`}
                         target="_blank"
                         rel="noreferrer"
                         download={previewManual.file_name}
@@ -714,28 +719,77 @@ export function EquipmentManualModal({
                           display: 'flex',
                           alignItems: 'center',
                           gap: 6,
-                          padding: '5px 12px',
+                          padding: '6px 12px',
                           borderRadius: 6,
                           background: '#0284c7',
                           color: '#ffffff',
                           fontSize: 13.5,
                           fontWeight: 800,
-                          textDecoration: 'none'
+                          textDecoration: 'none',
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         <ExternalLink size={14} />
-                        <span>새 창에서 원본 PDF 열기 / 다운로드 ({previewManual.file_size_label})</span>
+                        <span>새 창 원본 PDF 다운로드 ({previewManual.file_size_label})</span>
                       </a>
                     </div>
                   )}
                 </div>
 
                 {previewManual ? (
-                  <iframe
-                    title={previewManual.title}
-                    src={previewManual.file_url}
-                    style={{ width: '100%', flex: 1, border: 'none', background: '#ffffff' }}
-                  />
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f8fafc' }}>
+                    {/* 상단 공식 매뉴얼 메타데이터 요약 배너 */}
+                    <div
+                      style={{
+                        padding: '12px 18px',
+                        background: '#ffffff',
+                        borderBottom: '1px solid #cbd5e1',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                        flexShrink: 0
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <FileText size={20} color="#dc2626" />
+                        <div>
+                          <div style={{ fontSize: 15, fontWeight: 900, color: '#0f172a' }}>
+                            {previewManual.title} — <span style={{ color: '#0284c7' }}>{previewManual.file_name}</span> ({previewManual.file_size_label})
+                          </div>
+                          <div style={{ fontSize: 13.5, color: '#475569', marginTop: 2 }}>
+                            {previewManual.description} · 적용기종: {previewManual.applicable_models.join(', ')}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!selectedIds.includes(previewManual.id)) {
+                            toggleManual(previewManual.id);
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 6,
+                          background: selectedIds.includes(previewManual.id) ? '#dcfce7' : '#e0f2fe',
+                          color: selectedIds.includes(previewManual.id) ? '#15803d' : '#0369a1',
+                          border: selectedIds.includes(previewManual.id) ? '1px solid #86efac' : '1px solid #7dd3fc',
+                          fontSize: 13.5,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {selectedIds.includes(previewManual.id) ? '✓ 발송 목록에 첨부됨' : '+ 발송 목록에 첨부'}
+                      </button>
+                    </div>
+                    <iframe
+                      title={previewManual.title}
+                      src={`/manuals/space_manual_${String(previewManual.wr_id).padStart(2, '0')}.pdf`}
+                      style={{ width: '100%', flex: 1, border: 'none', background: '#e2e8f0' }}
+                    />
+                  </div>
                 ) : (
                   <div style={{ padding: 40, textAlign: 'center', color: '#cbd5e1', fontSize: 14 }}>
                     열람할 매뉴얼을 선택해 주십시오.
