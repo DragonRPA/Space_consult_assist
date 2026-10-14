@@ -1151,21 +1151,21 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
         flexShrink: 0
       }}>
         {/* Brand & Counselor */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)', boxShadow: '0 0 8px var(--glow-color)' }} />
-            <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.3px', color: 'var(--ink)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)', boxShadow: '0 0 8px var(--glow-color)', flexShrink: 0 }} />
+            <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.3px', color: 'var(--ink)', whiteSpace: 'nowrap' }}>
               Space Advisor <span style={{ fontWeight: 400, color: 'var(--ink-muted)', fontSize: '13.5px' }}>상담지원1</span>
             </span>
           </div>
 
-          <div style={{ height: '16px', width: '1px', backgroundColor: 'var(--hairline)' }} />
+          <div style={{ height: '16px', width: '1px', backgroundColor: 'var(--hairline)', flexShrink: 0 }} />
 
-          <span style={{ fontSize: '14px', color: 'var(--ink-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
             상담원: <strong style={{ color: 'var(--ink)', fontWeight: 600 }}>{counselorName}</strong>
           </span>
 
-          <div style={{ height: '16px', width: '1px', backgroundColor: 'var(--hairline)' }} />
+          <div style={{ height: '16px', width: '1px', backgroundColor: 'var(--hairline)', flexShrink: 0 }} />
 
           <button
             onClick={() => window.location.href = '/schedule'}
@@ -1173,14 +1173,16 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '5px 12px',
+              padding: '5px 10px',
               borderRadius: '6px',
               backgroundColor: 'var(--accent-primary)',
               color: '#fff',
               border: 'none',
-              fontSize: '14px',
+              fontSize: '13.5px',
               fontWeight: 600,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
             }}
           >
             <Calendar size={14} />
@@ -1200,15 +1202,16 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '5px 12px',
+              padding: '5px 10px',
               borderRadius: '6px',
               backgroundColor: '#1d4ed8',
               color: '#fff',
               border: '1px solid #2563eb',
-              fontSize: '14px',
+              fontSize: '13.5px',
               fontWeight: 700,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
+              flexShrink: 0,
               boxShadow: '0 2px 4px rgba(29, 78, 216, 0.3)'
             }}
           >
@@ -1218,21 +1221,22 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
         </div>
 
         {/* Semantic Contextual STT Correction Toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
           <button
             onClick={toggleContextCorrection}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px 10px',
+              padding: '4px 9px',
               borderRadius: '6px',
               backgroundColor: isContextCorrectionEnabled ? 'rgba(37, 99, 235, 0.15)' : 'var(--surface-2)',
               border: `1px solid ${isContextCorrectionEnabled ? 'var(--accent-primary)' : 'var(--hairline)'}`,
               color: isContextCorrectionEnabled ? '#93c5fd' : 'var(--ink-muted)',
               fontSize: '13.5px',
               fontWeight: 600,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
             }}
           >
             <BrainCircuit size={13} style={{ color: isContextCorrectionEnabled ? 'var(--accent-primary)' : 'var(--ink-subtle)' }} />
@@ -1244,12 +1248,13 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            padding: '4px 10px',
+            padding: '4px 9px',
             borderRadius: '4px',
             backgroundColor: isCallActive ? 'rgba(239, 68, 68, 0.12)' : 'var(--surface-2)',
             border: `1px solid ${isCallActive ? 'var(--accent-danger)' : 'var(--hairline)'}`,
             fontSize: '13.5px',
-            color: isCallActive ? 'var(--accent-danger)' : 'var(--ink-muted)'
+            color: isCallActive ? 'var(--accent-danger)' : 'var(--ink-muted)',
+            whiteSpace: 'nowrap'
           }}>
             <Radio size={12} className={isCallActive ? "animate-pulse" : ""} />
             <span>상태: <strong>{isCallActive ? "음성 스트리밍 수신 중" : "대기"}</strong></span>
@@ -1258,10 +1263,10 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
         </div>
 
         {/* Live Audio & STT Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
           
           {/* Dual STT Engine Selection Switcher */}
-          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--surface-2)', padding: '2px', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--surface-2)', padding: '2px', borderRadius: '6px', border: '1px solid var(--hairline)', whiteSpace: 'nowrap' }}>
             <button
               onClick={() => {
                 setSttEngine('whisper_large_v3');
@@ -1272,7 +1277,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '5px',
-                padding: '4px 9px',
+                padding: '4px 8px',
                 fontSize: '13.5px',
                 fontWeight: 700,
                 borderRadius: '4px',
@@ -1280,6 +1285,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 backgroundColor: sttEngine === 'whisper_large_v3' ? 'var(--accent-primary)' : 'transparent',
                 color: sttEngine === 'whisper_large_v3' ? '#fff' : 'var(--ink-muted)',
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
                 transition: 'all 0.15s ease'
               }}
             >
@@ -1299,7 +1305,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 setTimeout(() => clearToast(), 3000);
               }}
               style={{
-                padding: '4px 9px',
+                padding: '4px 8px',
                 fontSize: '13.5px',
                 fontWeight: 700,
                 borderRadius: '4px',
@@ -1307,6 +1313,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 backgroundColor: sttEngine === 'web_speech' ? 'var(--accent-warning)' : 'transparent',
                 color: sttEngine === 'web_speech' ? '#0f172a' : 'var(--ink-muted)',
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
                 transition: 'all 0.15s ease'
               }}
             >
@@ -1368,7 +1375,8 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   padding: '4px 9px', borderRadius: '6px', fontSize: '13.5px', fontWeight: 700,
                   backgroundColor: isLoopbackActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
                   border: `1px solid ${isLoopbackActive ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`,
-                  color: isLoopbackActive ? 'var(--accent-success)' : 'var(--accent-warning)'
+                  color: isLoopbackActive ? 'var(--accent-success)' : 'var(--accent-warning)',
+                  whiteSpace: 'nowrap'
                 }}>
                   <span
                     style={{
@@ -1417,12 +1425,13 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
 
               </div>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: '5px',
                   padding: '4px 8px', borderRadius: '6px',
                   backgroundColor: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)',
-                  fontSize: '13.5px', fontWeight: 600, color: 'var(--accent-danger)'
+                  fontSize: '13.5px', fontWeight: 600, color: 'var(--accent-danger)',
+                  whiteSpace: 'nowrap'
                 }}>
                   <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--accent-danger)' }} />
                   <span>로컬 휘스퍼 미실행</span>
@@ -1433,7 +1442,8 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                     display: 'flex', alignItems: 'center', gap: '4px',
                     padding: '4px 10px', borderRadius: '6px',
                     backgroundColor: 'var(--accent-primary)', color: '#fff',
-                    border: 'none', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer'
+                    border: 'none', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer',
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   <Play size={11} fill="#fff" />
