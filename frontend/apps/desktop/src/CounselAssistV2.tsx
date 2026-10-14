@@ -410,9 +410,10 @@ export function matchesIntegratedSessionQuery(record: ConsultSessionRecord, full
 
 export interface CounselAssistV2Props {
   initialOpenGuides?: boolean;
+  openGuidesTrigger?: number;
 }
 
-export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Props = {}) {
+export default function CounselAssistV2({ initialOpenGuides, openGuidesTrigger }: CounselAssistV2Props = {}) {
   // ① 고객 및 장비 선택
   const [searchText, setSearchText]                 = useState('');
   const [searchResults, setSearchResults]           = useState<Customer[]>([]);
@@ -461,6 +462,21 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
       }, 100);
     }
   }, [initialOpenGuides]);
+
+  useEffect(() => {
+    if (openGuidesTrigger && openGuidesTrigger > 0) {
+      setShowGuidesModal(prev => {
+        const next = !prev;
+        if (next) {
+          setTimeout(() => {
+            const el = document.querySelector('[data-special-guides-panel]');
+            el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 100);
+        }
+        return next;
+      });
+    }
+  }, [openGuidesTrigger]);
 
   // ② 증상 목록 및 필터링
   const [symptomPresets, setSymptomPresets]         = useState<SymptomPreset[]>(DEFAULT_SYMPTOM_PRESETS as any);
@@ -1549,16 +1565,10 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
           <span>상담 이력</span>
         </button>
 
-        {/* 3. 상황별 수칙 바로가기 버튼 */}
+        {/* 3. [1단계: 전화/자가조치] 현장 자가조치 모바일 가이드 바로가기 버튼 */}
         <button
-          onClick={() => {
-            setShowGuidesModal(prev => !prev);
-            setTimeout(() => {
-              const el = document.querySelector('[data-special-guides-panel]');
-              el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 100);
-          }}
-          data-uia="btn-subtoolbar-special-guides"
+          onClick={() => setShowSelfActionGuideModal(true)}
+          data-uia="btn-subtoolbar-self-guide"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -1567,20 +1577,99 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
             borderRadius: 6,
             fontSize: 13.5,
             fontWeight: 700,
-            background: showGuidesModal ? '#1d4ed8' : '#eff6ff',
-            color: showGuidesModal ? '#ffffff' : '#1d4ed8',
+            background: '#eff6ff',
+            color: '#1e40af',
             border: '1px solid #bfdbfe',
             cursor: 'pointer',
             whiteSpace: 'nowrap',
             height: 30,
+            boxShadow: '0 1px 2px rgba(30,64,175,0.08)',
             transition: 'all 0.15s ease'
           }}
         >
-          <BookOpen size={13} />
-          <span>상황별 수칙</span>
+          <Smartphone size={13} color="#1d4ed8" />
+          <span>자가조치 가이드 (사진/영상)</span>
         </button>
 
-        {/* 4. 원청 결재 연계 (1차·2차 행정 문서) 바로가기 버튼 */}
+        {/* 4. [1-2단계: 가이드 사진 정리] 증상별 사진 순서 등록 관리 (수파베이스) 버튼 */}
+        <button
+          onClick={() => setShowPhotoManagerModal(true)}
+          data-uia="btn-subtoolbar-photo-manager"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 12px',
+            borderRadius: 6,
+            fontSize: 13.5,
+            fontWeight: 700,
+            background: '#f0fdf4',
+            color: '#166534',
+            border: '1px solid #bbf7d0',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            height: 30,
+            boxShadow: '0 1px 2px rgba(22,101,52,0.08)',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <ImageIcon size={13} color="#16a34a" />
+          <span>사진 순서 관리</span>
+        </button>
+
+        {/* 5. [1-3단계: 기술 자료] 공식 제품 매뉴얼·카탈로그 PDF 첨부·발송 버튼 */}
+        <button
+          onClick={() => setShowEquipmentManualModal(true)}
+          data-uia="btn-subtoolbar-equipment-manual"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 12px',
+            borderRadius: 6,
+            fontSize: 13.5,
+            fontWeight: 700,
+            background: '#e0f2fe',
+            color: '#0369a1',
+            border: '1px solid #7dd3fc',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            height: 30,
+            boxShadow: '0 1px 2px rgba(2,132,199,0.08)',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <BookOpen size={13} color="#0284c7" />
+          <span>매뉴얼 PDF 첨부·발송</span>
+        </button>
+
+        {/* 6. [2단계: 소모품 마모 판정 시] 원청 결재 소모품 견적서 발행 바로가기 버튼 */}
+        <button
+          onClick={() => setShowPartsOrderModal(true)}
+          data-uia="btn-subtoolbar-parts-quote"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 12px',
+            borderRadius: 6,
+            fontSize: 13.5,
+            fontWeight: 700,
+            background: '#fffbeb',
+            color: '#b45309',
+            border: '1px solid #fde68a',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            height: 30,
+            boxShadow: '0 1px 2px rgba(180,83,9,0.08)',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Package size={13} color="#b45309" />
+          <span>소모품 견적서 (원청 결재)</span>
+        </button>
+
+        {/* 7. [3단계: 현장 조치 불가 / AS 출장 전환 시] 원청 결재 연계 (1차·2차 행정 문서) 바로가기 버튼 */}
         <button
           onClick={() => {
             if (!dispatchDoc1st) {
@@ -1630,84 +1719,6 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
         >
           <FileText size={13} color="#dc2626" />
           <span>원청 결재 연계 (1차·2차)</span>
-        </button>
-
-        {/* 5. 현장 자가조치 모바일 가이드 바로가기 버튼 */}
-        <button
-          onClick={() => setShowSelfActionGuideModal(true)}
-          data-uia="btn-subtoolbar-self-guide"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '4px 12px',
-            borderRadius: 6,
-            fontSize: 13.5,
-            fontWeight: 700,
-            background: '#eff6ff',
-            color: '#1e40af',
-            border: '1px solid #bfdbfe',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            height: 30,
-            boxShadow: '0 1px 2px rgba(30,64,175,0.08)',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          <Smartphone size={13} color="#1d4ed8" />
-          <span>자가조치 가이드 (사진/영상)</span>
-        </button>
-
-        {/* 5-2. 증상별 사진 순서 등록 관리 (수파베이스) 버튼 */}
-        <button
-          onClick={() => setShowPhotoManagerModal(true)}
-          data-uia="btn-subtoolbar-photo-manager"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '4px 12px',
-            borderRadius: 6,
-            fontSize: 13.5,
-            fontWeight: 700,
-            background: '#f0fdf4',
-            color: '#166534',
-            border: '1px solid #bbf7d0',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            height: 30,
-            boxShadow: '0 1px 2px rgba(22,101,52,0.08)',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          <ImageIcon size={13} color="#16a34a" />
-          <span>사진 순서 관리</span>
-        </button>
-
-        {/* 6. 원청 결재 소모품 견적서 발행 바로가기 버튼 */}
-        <button
-          onClick={() => setShowPartsOrderModal(true)}
-          data-uia="btn-subtoolbar-parts-quote"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '4px 12px',
-            borderRadius: 6,
-            fontSize: 13.5,
-            fontWeight: 700,
-            background: '#fffbeb',
-            color: '#b45309',
-            border: '1px solid #fde68a',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            height: 30,
-            boxShadow: '0 1px 2px rgba(180,83,9,0.08)',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          <Package size={13} color="#b45309" />
-          <span>소모품 견적서 (원청 결재)</span>
         </button>
 
         <div style={{ width: 1, height: 18, background: '#dcd5c9' }} />
@@ -3408,6 +3419,33 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                   <span>자가조치 가이드</span>
                 </button>
 
+                {/* 2-2. 공식 제품 매뉴얼 PDF 첨부·발송 버튼 */}
+                <button
+                  type="button"
+                  onClick={() => setShowEquipmentManualModal(true)}
+                  data-uia="btn-bottom-equipment-manual"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: '#e0f2fe',
+                    color: '#0369a1',
+                    border: '1px solid #7dd3fc',
+                    borderRadius: 5,
+                    padding: '0 14px',
+                    fontSize: 13.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    height: 34,
+                    boxShadow: '0 1px 3px rgba(2,132,199,0.16)',
+                    transition: 'all 0.1s ease'
+                  }}
+                >
+                  <BookOpen size={15} />
+                  <span>매뉴얼 PDF 첨부·발송</span>
+                </button>
+
                 {/* 3. [분기 A] 직접 조치 종결 버튼 (모든 증상이 해결되었을 때만 가능) */}
                 <button
                   onClick={() => handleSave(false)}
@@ -3461,33 +3499,6 @@ export default function CounselAssistV2({ initialOpenGuides }: CounselAssistV2Pr
                 >
                   <Package size={15} />
                   <span>소모품 견적서 발행</span>
-                </button>
-
-                {/* 4-2. 공식 제품 매뉴얼 PDF 첨부·발송 버튼 */}
-                <button
-                  type="button"
-                  onClick={() => setShowEquipmentManualModal(true)}
-                  data-uia="btn-bottom-equipment-manual"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    background: '#e0f2fe',
-                    color: '#0369a1',
-                    border: '1px solid #7dd3fc',
-                    borderRadius: 5,
-                    padding: '0 14px',
-                    fontSize: 13.5,
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    height: 34,
-                    boxShadow: '0 1px 3px rgba(2,132,199,0.16)',
-                    transition: 'all 0.1s ease'
-                  }}
-                >
-                  <BookOpen size={15} />
-                  <span>매뉴얼 PDF 첨부·발송</span>
                 </button>
 
                 {/* 5. [분기 C] AS 출장 접수 버튼 (1개라도 출장 필요 시 강조) */}

@@ -78,9 +78,10 @@ interface OmniParsedResult {
 
 export interface CounselAssistV3Props {
   initialOpenGuides?: boolean;
+  openGuidesTrigger?: number;
 }
 
-export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Props = {}) {
+export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }: CounselAssistV3Props = {}) {
   // ── 1. 단일 옴니 검색창 상태 ──────────────────────────────────────────────────
   const [omniQuery, setOmniQuery] = useState<string>('');
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
@@ -105,6 +106,12 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
   const [showGuidesModal, setShowGuidesModal] = useState<boolean>(Boolean(initialOpenGuides));
   const [selectedGuideId, setSelectedGuideId] = useState<string>('GUIDE_BRUSH_AUTO');
   const [specialGuides] = useState<SpecialGuide[]>(DEFAULT_SPECIAL_GUIDES);
+
+  useEffect(() => {
+    if (openGuidesTrigger && openGuidesTrigger > 0) {
+      setShowGuidesModal(prev => !prev);
+    }
+  }, [openGuidesTrigger]);
 
   const [showSelfActionGuideModal, setShowSelfActionGuideModal] = useState<boolean>(false);
   const [showPhotoManagerModal, setShowPhotoManagerModal] = useState<boolean>(false);
@@ -949,7 +956,7 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
             ))}
           </div>
 
-          {/* 하단 보조 진입점 (대기열 / 이력 / 상황별 수칙) */}
+          {/* 하단 보조 진입점 (대기열 / 이력 — 상단 전역 '상황별 수칙' 버튼과 중복 제거) */}
           <div style={{ marginTop: 36, display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               type="button"
@@ -992,27 +999,6 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
             >
               <History size={14} color="#64748b" />
               <span>상담 이력 ({historyRecords.length})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowGuidesModal(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                borderRadius: 8,
-                background: '#ffffff',
-                border: '1px solid #cbd5e1',
-                fontSize: 13.5,
-                fontWeight: 700,
-                color: '#1d4ed8',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              <BookOpen size={14} color="#1d4ed8" />
-              <span>상황별 수칙</span>
             </button>
           </div>
         </div>
@@ -1823,28 +1809,6 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
 
                         <button
                           type="button"
-                          onClick={() => setShowPartsOrderModal(true)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            background: '#fffbeb',
-                            color: '#b45309',
-                            border: '1px solid #fcd34d',
-                            borderRadius: 6,
-                            padding: '7px 12px',
-                            fontSize: 13.5,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          <Package size={14} />
-                          <span>소모품 카탈로그·견적서</span>
-                        </button>
-
-                        <button
-                          type="button"
                           data-uia="btn-open-equipment-manual-modal"
                           onClick={() => setShowEquipmentManualModal(true)}
                           style={{
@@ -1864,6 +1828,28 @@ export default function CounselAssistV3({ initialOpenGuides }: CounselAssistV3Pr
                         >
                           <BookOpen size={14} />
                           <span>매뉴얼 PDF 첨부·발송 (25종)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowPartsOrderModal(true)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            background: '#fffbeb',
+                            color: '#b45309',
+                            border: '1px solid #fcd34d',
+                            borderRadius: 6,
+                            padding: '7px 12px',
+                            fontSize: 13.5,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <Package size={14} />
+                          <span>소모품 카탈로그·견적서</span>
                         </button>
 
                         <button

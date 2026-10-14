@@ -102,18 +102,23 @@ export default function App() {
     window.history.pushState(null, '', pathMap[tab]);
   };
 
+  const [openGuidesTrigger, setOpenGuidesTrigger] = useState<number>(0);
+
   const handleOpenGuides = () => {
-    setCurrentTab('counsel-v2');
+    if (currentTab !== 'counsel-v2' && currentTab !== 'counsel-v3') {
+      setCurrentTab('counsel-v2');
+      window.history.pushState(null, '', '/?view=guides');
+    }
     setOpenGuides(true);
-    window.history.pushState(null, '', '/?view=guides');
+    setOpenGuidesTrigger(prev => prev + 1);
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: 'var(--bg-app)', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat' }}>
       <GlobalNav currentTab={currentTab} onSelectTab={handleSelectTab} onOpenGuides={handleOpenGuides} />
       <main style={{ flex: 1, position: 'relative' }}>
-        {currentTab === 'counsel-v2' && <CounselAssistV2 initialOpenGuides={openGuides} />}
-        {currentTab === 'counsel-v3' && <CounselAssistV3 initialOpenGuides={openGuides} />}
+        {currentTab === 'counsel-v2' && <CounselAssistV2 initialOpenGuides={openGuides} openGuidesTrigger={openGuidesTrigger} />}
+        {currentTab === 'counsel-v3' && <CounselAssistV3 initialOpenGuides={openGuides} openGuidesTrigger={openGuidesTrigger} />}
         {currentTab === 'counsel-compare' && <CounselCompare />}
         {currentTab === 'schedule' && <SchedulePage />}
         {currentTab === 'stt-legacy' && <LegacySttApp onOpenGuides={handleOpenGuides} />}
