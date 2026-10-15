@@ -16,7 +16,7 @@ interface DomainRule {
 
 // ── 1. 한국어 숫자 발음 -> 아라비아 숫자 매핑 (에러코드 변환용) ──────────────────
 const KOREAN_DIGIT_MAP: Record<string, string> = {
-  '공': '0', '영': '0', '제로': '0', '0': '0',
+  '공': '0', '영': '0', '제로': '0', '고': '0', '0': '0',
   '일': '1', '원': '1', '하나': '1', '1': '1',
   '이': '2', '투': '2', '둘': '2', '2': '2',
   '삼': '3', '쓰리': '3', '셋': '3', '3': '3',
@@ -28,10 +28,26 @@ const KOREAN_DIGIT_MAP: Record<string, string> = {
   '구': '9', '나인': '9', '9': '9',
 };
 
-const DIGIT_TOKEN_PATTERN = '(?:공|영|제로|일|원|이|투|삼|쓰리|사|포|오|파이브|육|륙|식스|칠|세븐|쎄븐|팔|에잇|구|나인|[0-9])';
+const DIGIT_TOKEN_PATTERN = '(?:공|영|제로|고|일|원|이|투|삼|쓰리|사|포|오|파이브|육|륙|식스|칠|세븐|쎄븐|팔|에잇|구|나인|[0-9])';
 
 // ── 2. 장비 모델명 & 에러코드 & 전문용어 구어체/오발음 정규화 룰 ─────────────────
 const DOMAIN_CORRECTION_RULES: DomainRule[] = [
+  // [0] 전화번호 음성 발화 최우선 치환 ("공일공 구팔칠육에 오사삼이", "공일공 일이고삼 사오육칠" -> "010-9876-5432", "010-1203-4567")
+  {
+    pattern: new RegExp(
+      `(?:공\\s*일\\s*공|영\\s*일\\s*공|0\\s*1\\s*0)(?:\\s*에|\\s*의|\\s*-)?\\s*` +
+      `(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN}?)(?:\\s*에|\\s*의|\\s*-)?\\s*` +
+      `(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN})`,
+      'gi'
+    ),
+    replacement: (_m: string, a1: string, a2: string, a3: string, a4: string, b1: string, b2: string, b3: string, b4: string) => {
+      const mid = [a1, a2, a3, a4].filter(Boolean).map(x => KOREAN_DIGIT_MAP[x] ?? x).join('');
+      const last = [b1, b2, b3, b4].filter(Boolean).map(x => KOREAN_DIGIT_MAP[x] ?? x).join('');
+      return `010-${mid}-${last}`;
+    },
+    category: '전화번호'
+  },
+
   // [A] 장비 모델명 (긴 모델명 S12, W12, W15, J600T, J800 등을 S1, S2보다 먼저 평가)
   {
     pattern: /(?:에스|애스|엑스|S|X)\s*(?:12|십\s*이|일\s*이|트웰브)\s*(?:엘|L)?|f10이/gi,
@@ -96,7 +112,7 @@ const DOMAIN_CORRECTION_RULES: DomainRule[] = [
 
   // [B] 계기판 에러코드 음성 발화 치환 (예: "이 공일", "E 영일", "에러 01", "에러 공삼" -> "E01", "E03")
   {
-    pattern: new RegExp(`(?:에러\\s*코드|에러|코드|이|E)\\s*(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN})(?:\\s*번)?`, 'gi'),
+    pattern: new RegExp(`(?<![가-힣0-9])(?:에러\\s*코드|에러|코드|이(?=\\s*(?:공|영|0))|E)\\s*(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN})(?:\\s*번)?`, 'gi'),
     replacement: (_m: string, d1: string, d2: string) => {
       const n1 = KOREAN_DIGIT_MAP[d1] ?? d1;
       const n2 = KOREAN_DIGIT_MAP[d2] ?? d2;
@@ -252,6 +268,47 @@ const DOMAIN_CORRECTION_RULES: DomainRule[] = [
     pattern: /(?:뽀혔|뽀힘|뽑훴)(?:어요|어|네|습니다)?/gi,
     replacement: '뽑힘',
     category: '상태서술어'
+  },
+  // [M] 전화번호 음성 발화 치환 (예: "공일공 구팔칠육에 오사삼이", "010 9876 5432" -> "010-9876-5432")
+  {
+    pattern: new RegExp(
+      `(?:공\\s*일\\s*공|영\\s*일\\s*공|0\\s*1\\s*0)(?:\\s*에|\\s*의|\\s*-)?\\s*` +
+      `(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN}?)(?:\\s*에|\\s*의|\\s*-)?\\s*` +
+      `(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN})\\s*(${DIGIT_TOKEN_PATTERN})`,
+      'gi'
+    ),
+    replacement: (_m: string, a1: string, a2: string, a3: string, a4: string, b1: string, b2: string, b3: string, b4: string) => {
+      const mid = [a1, a2, a3, a4].filter(Boolean).map(x => KOREAN_DIGIT_MAP[x] ?? x).join('');
+      const last = [b1, b2, b3, b4].filter(Boolean).map(x => KOREAN_DIGIT_MAP[x] ?? x).join('');
+      return `010-${mid}-${last}`;
+    },
+    category: '전화번호'
+  },
+  // [N] 건물 층수·동·호수 음성 발화 치환 (예: "지하 일층" -> "지하 1층", "백일동" -> "101동")
+  {
+    pattern: /지하\s*(일|하나|이|둘|삼|셋|사|넷|오|다섯)\s*층/gi,
+    replacement: (_m: string, d: string) => `지하 ${KOREAN_DIGIT_MAP[d] ?? d}층`,
+    category: '주소/위치'
+  },
+  {
+    pattern: /(?<![가-힣0-9])(일|이|삼|사|오|육|칠|팔|구)\s*층/gi,
+    replacement: (_m: string, d: string) => `${KOREAN_DIGIT_MAP[d] ?? d}층`,
+    category: '주소/위치'
+  },
+  {
+    pattern: /(?:백\s*일|일\s*공\s*일)\s*동/gi,
+    replacement: '101동',
+    category: '주소/위치'
+  },
+  {
+    pattern: /(?:백\s*이|일\s*공\s*이)\s*동/gi,
+    replacement: '102동',
+    category: '주소/위치'
+  },
+  {
+    pattern: /(?:백\s*삼|일\s*공\s*삼)\s*동/gi,
+    replacement: '103동',
+    category: '주소/위치'
   }
 ];
 

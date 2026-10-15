@@ -111,7 +111,7 @@ interface CounselWorkstationState {
   clearToast: () => void;
 }
 
-const DEFAULT_CUSTOMERS: CustomerInfo[] = [
+export const DEFAULT_CUSTOMERS: CustomerInfo[] = [
   {
     id: 'a1111111-1111-1111-1111-111111111111',
     name: '반포자이 아파트 관리사무소',
@@ -171,7 +171,82 @@ const DEFAULT_CUSTOMERS: CustomerInfo[] = [
     salesType: '임대(렌탈)',
     warrantyRemaining: '무상 10개월 잔여',
     historyTimeline: [
-      { date: '2026-08-25', title: '충전기 플러그 접촉 점검 및 배터리 수우 체크' }
+      { date: '2026-08-25', title: '충전기 플러그 접촉 점검 및 배터리 수위 체크' }
+    ]
+  },
+  {
+    id: 'a4444444-4444-4444-4444-444444444444',
+    name: '탕정삼성트라팰리스 관리사무소',
+    manager: '이달연 미화팀장',
+    phone: '010-4123-8890',
+    address: '충남 아산시 탕정면 트라팰리스로 41',
+    addressDetail: '지하 1층 미화대기실 / (주)세원종합관리',
+    assetModel: 'XD80 (탑승형 습식청소기)',
+    serialNumber: 'SN-2025-XD80-041',
+    salesType: '임대(렌탈)',
+    warrantyRemaining: '무상 9개월 잔여',
+    historyTimeline: [
+      { date: '2026-08-18', title: '스퀴지 블레이드 마모 점검 및 교체' }
+    ]
+  },
+  {
+    id: 'a5555555-5555-5555-5555-555555555555',
+    name: '성우하이텍 서창공장',
+    manager: '김동민 시설과장',
+    phone: '010-3321-7765',
+    address: '경남 양산시 소주공단3길 50',
+    addressDetail: '1공장 생산라인 B구역 / 본사 직영',
+    assetModel: 'S800 (대형 탑승형 습식청소기)',
+    serialNumber: 'SN-2024-S800-019',
+    salesType: '임대(렌탈)',
+    warrantyRemaining: '무상 5개월 잔여',
+    historyTimeline: [
+      { date: '2026-07-29', title: '구동모터 마그네틱 브레이크 해제 안내 및 정상화' }
+    ]
+  },
+  {
+    id: 'a6666666-6666-6666-6666-666666666666',
+    name: '(주)케이로지스 화성센터',
+    manager: '최현우 센터장',
+    phone: '010-9988-7766',
+    address: '경기 화성시 동탄물류로 112',
+    addressDetail: '상온물류 A동 1층 하역장 / (주)마스터크린',
+    assetModel: 'M100 (대형 탑승형 청소차)',
+    serialNumber: 'SN-2025-M100-007',
+    salesType: '임대(렌탈)',
+    warrantyRemaining: '무상 12개월 잔여',
+    historyTimeline: [
+      { date: '2026-08-12', title: '사이드 브러시 벨트 장력 조정' }
+    ]
+  },
+  {
+    id: 'a7777777-7777-7777-7777-777777777777',
+    name: '더샵반포리버파크 관리단',
+    manager: '김재환 미화팀장',
+    phone: '010-6543-2109',
+    address: '서울 서초구 신반포로15길 19',
+    addressDetail: '지하 2층 기전실 / (주)유림환경',
+    assetModel: 'XD60 (보행식 습식청소기)',
+    serialNumber: 'SN-2025-XD60-062',
+    salesType: '임대(렌탈)',
+    warrantyRemaining: '무상 8개월 잔여',
+    historyTimeline: [
+      { date: '2026-08-03', title: '오수탱크 만수 플로트 센서 이물질 세척' }
+    ]
+  },
+  {
+    id: 'a8888888-8888-8888-8888-888888888888',
+    name: '우림라이온스밸리 관리단',
+    manager: '구자륭 미화반장',
+    phone: '010-5566-7788',
+    address: '서울 금천구 가산디지털1로 168',
+    addressDetail: 'A동 지하 1층 방재실 / (주)세원종합관리',
+    assetModel: 'Q45 (보행식 습식청소기)',
+    serialNumber: 'SN-2025-Q45-034',
+    salesType: '임대(렌탈)',
+    warrantyRemaining: '무상 6개월 잔여',
+    historyTimeline: [
+      { date: '2026-07-22', title: '흡입 호스 크랙 테이핑 및 신품 발주' }
     ]
   }
 ];
@@ -278,7 +353,20 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
   setRecording: (status) => set({ isRecording: status }),
   incrementCallTimer: () => set((state) => ({ callSeconds: state.callSeconds + 1 })),
   resetCallTimer: () => set({ callSeconds: 0 }),
-  setSearchQuery: (query) => set({ searchQuery: query }),
+  setSearchQuery: (query) => {
+    const q = query.trim().toLowerCase();
+    const qCompact = q.replace(/[\s-]/g, '');
+    if (!q) {
+      set({ searchQuery: query, customerList: DEFAULT_CUSTOMERS });
+      return;
+    }
+    const filtered = DEFAULT_CUSTOMERS.filter((c) => {
+      const hay = `${c.name} ${c.manager} ${c.phone} ${c.address} ${c.addressDetail} ${c.assetModel} ${c.serialNumber}`.toLowerCase();
+      const hayCompact = hay.replace(/[\s-]/g, '');
+      return hay.includes(q) || (qCompact.length >= 2 && hayCompact.includes(qCompact));
+    });
+    set({ searchQuery: query, customerList: filtered.length > 0 ? filtered : DEFAULT_CUSTOMERS });
+  },
   selectCustomer: (customer) => set({ selectedCustomer: customer }),
   setSelectedCustomerModel: (modelName) => set((state) => ({
     selectedCustomer: {

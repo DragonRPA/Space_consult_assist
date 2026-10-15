@@ -27,7 +27,11 @@ import { SelfActionGuideModal, type SitePhotoSketchEvidence } from './SelfAction
 import { SymptomPhotoManagerModal } from './SymptomPhotoManagerModal';
 import { EquipmentManualModal } from './EquipmentManualModal';
 import { applyContextualCorrection, computeJamoSimilarity } from './contextCorrector';
-import { DOMAIN_KEYWORD_REGISTRY, extractNegativeStateExpressions } from './keywordAssist';
+import {
+  DOMAIN_KEYWORD_REGISTRY,
+  extractNegativeStateExpressions,
+  extractCustomerAndAddressEntities
+} from './keywordAssist';
 
 // ─── 타입 정의 ─────────────────────────────────────────────────────────────────
 export interface Customer {
@@ -36,6 +40,8 @@ export interface Customer {
   manager: string;          // 원청 결재권자 (예: 박시설 시설과장)
   phone: string;            // 원청 결재자 연락처 (예: 010-9876-5432)
   managerEmail?: string;    // 원청 결재자 이메일
+  address?: string;         // 도로명/지번 주소 (예: 서울 서초구 신반포로 270)
+  addressDetail?: string;   // 동·층·상세위치 (예: 지하 1층 방재실)
   useCompany?: string;      // 실사용처/하청 용역사 (예: (주)클린에코 청소용역)
   siteWorkerName?: string;  // 현장 통화자/미화원 (예: 김순자 미화반장)
   siteWorkerPhone?: string; // 현장 통화자 연락처 (예: 010-3456-7890)
@@ -53,6 +59,8 @@ export const DEFAULT_B2B_CUSTOMERS: Customer[] = [
     manager: '박시설 시설과장',
     phone: '010-9876-5432',
     managerEmail: 'facility@banpojai.co.kr',
+    address: '서울 서초구 신반포로 270',
+    addressDetail: '지하 1층 방재실',
     useCompany: '(주)클린에코 청소용역',
     siteWorkerName: '김순자 미화반장',
     siteWorkerPhone: '010-3456-7890',
@@ -70,6 +78,8 @@ export const DEFAULT_B2B_CUSTOMERS: Customer[] = [
     manager: '이관리 관리소장',
     phone: '010-8765-4321',
     managerEmail: 'raemian.mgr@seoul.kr',
+    address: '서울 서초구 반포대로 275',
+    addressDetail: '지하 2층 주차장 관리소',
     useCompany: '(주)삼원종합관리 미화팀',
     siteWorkerName: '이영희 미화원',
     siteWorkerPhone: '010-2345-6789',
@@ -86,6 +96,8 @@ export const DEFAULT_B2B_CUSTOMERS: Customer[] = [
     manager: '최기술 기술팀장',
     phone: '010-7654-3210',
     managerEmail: 'choi.tech@rexle.com',
+    address: '서울 강남구 선릉로 221',
+    addressDetail: '지하 방재실',
     useCompany: '(주)한결에프엠',
     siteWorkerName: '박철수 조장',
     siteWorkerPhone: '010-5678-1234',
@@ -102,6 +114,8 @@ export const DEFAULT_B2B_CUSTOMERS: Customer[] = [
     manager: '정운영 운영총괄',
     phone: '010-6543-2109',
     managerEmail: 'songdo.thesharp@mgmt.com',
+    address: '인천 연수구 해돋이로 107',
+    addressDetail: 'A동 지하 1층 기전실',
     useCompany: '(주)대경종합개발',
     siteWorkerName: '정명자 반장',
     siteWorkerPhone: '010-4321-8765',
@@ -118,6 +132,8 @@ export const DEFAULT_B2B_CUSTOMERS: Customer[] = [
     manager: '강센터 관리실장',
     phone: '010-5432-1098',
     managerEmail: 'mtower.as@gasan.co.kr',
+    address: '서울 금천구 가산디지털1로 186',
+    addressDetail: '지하 1층 하역장',
     useCompany: '(주)피앤씨클린',
     siteWorkerName: '최순덕 미화원',
     siteWorkerPhone: '010-3210-9876',
@@ -126,6 +142,96 @@ export const DEFAULT_B2B_CUSTOMERS: Customer[] = [
     salesType: '렌탈(임대)',
     historyTimeline: [
       { date: '2026-08-25', title: '충전기 플러그 접촉 점검' }
+    ]
+  },
+  {
+    id: 'cust-006',
+    name: '탕정삼성트라팰리스 관리사무소',
+    manager: '이달연 미화팀장',
+    phone: '010-4123-8890',
+    managerEmail: 'tangjeong@trapalace.co.kr',
+    address: '충남 아산시 탕정면 트라팰리스로 41',
+    addressDetail: '지하 1층 미화대기실',
+    useCompany: '(주)세원종합관리',
+    siteWorkerName: '이달연 미화팀장',
+    siteWorkerPhone: '010-4123-8890',
+    assetModel: 'XD80',
+    serialNumber: 'XD80-2025-041',
+    salesType: '렌탈(임대)',
+    historyTimeline: [
+      { date: '2026-08-18', title: '스퀴지 블레이드 마모 점검 및 교체' }
+    ]
+  },
+  {
+    id: 'cust-007',
+    name: '성우하이텍 서창공장',
+    manager: '김동민 시설과장',
+    phone: '010-3321-7765',
+    managerEmail: 'dmkim@swhitech.com',
+    address: '경남 양산시 소주공단3길 50',
+    addressDetail: '1공장 생산라인 B구역',
+    useCompany: '성우하이텍 직영환경팀',
+    siteWorkerName: '박현수 반장',
+    siteWorkerPhone: '010-3321-7799',
+    assetModel: 'S800',
+    serialNumber: 'S800-2024-019',
+    salesType: '렌탈(임대)',
+    historyTimeline: [
+      { date: '2026-07-29', title: '구동모터 마그네틱 브레이크 해제 안내 및 정상화' }
+    ]
+  },
+  {
+    id: 'cust-008',
+    name: '(주)케이로지스 화성센터',
+    manager: '최현우 센터장',
+    phone: '010-9988-7766',
+    managerEmail: 'hwchoi@klogis.co.kr',
+    address: '경기 화성시 동탄물류로 112',
+    addressDetail: '상온물류 A동 1층 하역장',
+    useCompany: '(주)마스터크린',
+    siteWorkerName: '정기호 현장소장',
+    siteWorkerPhone: '010-8877-6655',
+    assetModel: 'M100',
+    serialNumber: 'M100-2025-007',
+    salesType: '렌탈(임대)',
+    historyTimeline: [
+      { date: '2026-08-12', title: '사이드 브러시 벨트 장력 조정' }
+    ]
+  },
+  {
+    id: 'cust-009',
+    name: '더샵반포리버파크 관리단',
+    manager: '김재환 미화팀장',
+    phone: '010-6543-2109',
+    managerEmail: 'banporiver@thesharp.co.kr',
+    address: '서울 서초구 신반포로15길 19',
+    addressDetail: '지하 2층 기전실',
+    useCompany: '(주)유림환경',
+    siteWorkerName: '김재환 미화팀장',
+    siteWorkerPhone: '010-6543-2109',
+    assetModel: 'XD60',
+    serialNumber: 'XD60-2025-062',
+    salesType: '렌탈(임대)',
+    historyTimeline: [
+      { date: '2026-08-03', title: '오수탱크 만수 플로트 센서 이물질 세척' }
+    ]
+  },
+  {
+    id: 'cust-010',
+    name: '우림라이온스밸리 관리단',
+    manager: '구자륭 미화반장',
+    phone: '010-5566-7788',
+    managerEmail: 'woorim@lionsvalley.co.kr',
+    address: '서울 금천구 가산디지털1로 168',
+    addressDetail: 'A동 지하 1층 방재실',
+    useCompany: '(주)세원종합관리',
+    siteWorkerName: '구자륭 미화반장',
+    siteWorkerPhone: '010-5566-7788',
+    assetModel: 'Q45',
+    serialNumber: 'Q45-2025-034',
+    salesType: '렌탈(임대)',
+    historyTimeline: [
+      { date: '2026-07-22', title: '흡입 호스 크랙 테이핑 및 신품 발주' }
     ]
   }
 ];
@@ -670,7 +776,7 @@ export default function CounselAssistV2({ initialOpenGuides, openGuidesTrigger }
     fetchModelSymptoms(selectedModel);
   }, [selectedModel, fetchModelSymptoms]);
 
-  // ── 고객 검색 (한글 초성 검색 & B2B 관리사무소/용역사 다중 매칭) ──────────────
+  // ── 고객 검색 (한글 초성 + 구어체/전화번호/도로명·상세주소 추출 & DB 2,345건 통합 매칭) ──
   const handleCustomerSearch = useCallback(async (q: string) => {
     setSearchText(q);
     if (q.trim().length < 1) { setSearchResults([]); setDropdownOpen(false); return; }
@@ -678,40 +784,104 @@ export default function CounselAssistV2({ initialOpenGuides, openGuidesTrigger }
     setDropdownOpen(true);
 
     const query = q.trim();
-    // 1. 로컬 B2B 프리셋에서 원청명, 관리자, 실사용처, 현장통화자, 전화번호, 모델 초성 검색
+    const correctedQuery = applyContextualCorrection(query).correctedText || query;
+    const extracted = extractCustomerAndAddressEntities(correctedQuery);
+    const queryDigits = (extracted.phone || correctedQuery).replace(/\D/g, '');
+
+    // 1. 로컬 B2B 프리셋에서 원청명, 관리자, 실사용처, 현장통화자, 도로명주소, 상세위치, 전화번호, 모델 초성 검색
     const localMatches = DEFAULT_B2B_CUSTOMERS.filter(c => {
-      if (matchesChosungOrText(c.name, query)) return true;
-      if (matchesChosungOrText(c.manager, query)) return true;
-      if (c.useCompany && matchesChosungOrText(c.useCompany, query)) return true;
-      if (c.siteWorkerName && matchesChosungOrText(c.siteWorkerName, query)) return true;
-      if (c.phone && c.phone.replace(/\D/g, '').includes(query.replace(/\D/g, ''))) return true;
-      if (c.siteWorkerPhone && c.siteWorkerPhone.replace(/\D/g, '').includes(query.replace(/\D/g, ''))) return true;
-      if (matchesChosungOrText(c.assetModel, query)) return true;
+      const searchTerms = [
+        query,
+        correctedQuery,
+        extracted.customerName,
+        extracted.managerName,
+        extracted.roadOrLotAddress,
+        extracted.addressDetail,
+        extracted.useCompany
+      ].filter((t): t is string => Boolean(t && t.trim()));
+
+      for (const term of searchTerms) {
+        if (matchesChosungOrText(c.name, term)) return true;
+        if (matchesChosungOrText(c.manager, term)) return true;
+        if (c.useCompany && matchesChosungOrText(c.useCompany, term)) return true;
+        if (c.siteWorkerName && matchesChosungOrText(c.siteWorkerName, term)) return true;
+        if (c.address && matchesChosungOrText(c.address, term)) return true;
+        if (c.addressDetail && matchesChosungOrText(c.addressDetail, term)) return true;
+        if (matchesChosungOrText(c.assetModel, term)) return true;
+      }
+      if (queryDigits.length >= 3) {
+        if (c.phone && c.phone.replace(/\D/g, '').includes(queryDigits)) return true;
+        if (c.siteWorkerPhone && c.siteWorkerPhone.replace(/\D/g, '').includes(queryDigits)) return true;
+      }
       return false;
     });
 
+    // 자연어 문장에서 신규 고객/담당자/주소/연락처가 추출되었으나 로컬 프리셋에 없는 경우 동적 프로필 후보 생성
+    if (
+      localMatches.length === 0 &&
+      (extracted.customerName || extracted.managerName || extracted.phone || extracted.roadOrLotAddress || extracted.addressDetail)
+    ) {
+      localMatches.unshift({
+        id: `extracted-${Date.now()}`,
+        name: extracted.customerName || '신규 현장 고객 (자동 추출)',
+        manager: extracted.managerName || '현장 담당자',
+        phone: extracted.phone || '',
+        address: extracted.roadOrLotAddress || '',
+        addressDetail: extracted.addressDetail || '',
+        useCompany: extracted.useCompany || '',
+        assetModel: selectedModel || 'J600T',
+        serialNumber: `${selectedModel || 'J600T'}-AUTO`,
+        salesType: '렌탈(임대)',
+        historyTimeline: []
+      });
+    }
+
     try {
-      const res = await fetch(`${API}/schedule/customers?q=${encodeURIComponent(q)}&limit=10`);
-      if (res.ok) {
-        const data = await res.json();
+      const [schedRes, lookupRes] = await Promise.allSettled([
+        fetch(`${API}/schedule/customers?q=${encodeURIComponent(correctedQuery)}&limit=10`),
+        fetch(`${API}/counsel/customer-lookup?q=${encodeURIComponent(correctedQuery)}&limit=10`)
+      ]);
+      const combined = [...localMatches];
+
+      if (lookupRes.status === 'fulfilled' && lookupRes.value.ok) {
+        const lookupData = await lookupRes.value.json();
+        const lookupItems = Array.isArray(lookupData.items) ? lookupData.items : [];
+        lookupItems.forEach((item: any) => {
+          if (item.name && !combined.some(c => c.name === item.name && c.manager === item.manager)) {
+            combined.push({
+              id: item.id || `db-${combined.length}`,
+              name: item.name,
+              manager: item.manager || '현장 담당자',
+              phone: item.phone || '',
+              address: item.address || '',
+              addressDetail: item.addressDetail || '',
+              useCompany: item.useCompany || '',
+              assetModel: item.assetModel || selectedModel || 'J600T',
+              serialNumber: item.serialNumber || `${item.assetModel || 'J600T'}-DB`,
+              salesType: item.salesType || '렌탈(임대)',
+              historyTimeline: item.historyTimeline || []
+            });
+          }
+        });
+      }
+
+      if (schedRes.status === 'fulfilled' && schedRes.value.ok) {
+        const data = await schedRes.value.json();
         const items = Array.isArray(data) ? data : data.items ?? [];
-        const combined = [...localMatches];
         items.forEach((item: any) => {
-          if (!combined.some(c => c.name === item.name)) {
+          if (item.name && !combined.some(c => c.name === item.name)) {
             combined.push(item);
           }
         });
-        setSearchResults(combined);
-      } else {
-        setSearchResults(localMatches);
       }
+      setSearchResults(combined);
     } catch {
       setSearchResults(localMatches);
     } finally {
       setIsSearching(false);
       setDropdownOpen(true);
     }
-  }, []);
+  }, [selectedModel]);
 
   const selectCustomer = (c: Customer) => {
     setSelectedCustomer(c);

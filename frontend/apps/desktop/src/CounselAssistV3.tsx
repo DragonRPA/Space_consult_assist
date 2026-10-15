@@ -35,6 +35,7 @@ import { SelfActionGuideModal } from './SelfActionGuideModal';
 import { SymptomPhotoManagerModal } from './SymptomPhotoManagerModal';
 import { EquipmentManualModal } from './EquipmentManualModal';
 import { applyContextualCorrection } from './contextCorrector';
+import { extractCustomerAndAddressEntities } from './keywordAssist';
 
 const API = 'http://127.0.0.1:8000/api/v1';
 const PENDING_STORAGE_KEY = 'space_advisor_pending_sessions_v2';
@@ -291,22 +292,30 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
         }
       }
 
-      // 2. 고객사 / 전화번호 / 담당자 매칭
-      for (const c of DEFAULT_B2B_CUSTOMERS) {
-        const phoneDigits = (c.phone || '').replace(/\D/g, '');
-        const workerDigits = (c.siteWorkerPhone || '').replace(/\D/g, '');
-        const isPhoneMatch =
-          tokenDigits.length >= 3 &&
-          (phoneDigits.includes(tokenDigits) || workerDigits.includes(tokenDigits));
-        const isNameMatch =
-          matchesChosungOrText(c.name, token) ||
-          matchesChosungOrText(c.manager, token) ||
-          (c.useCompany && matchesChosungOrText(c.useCompany, token)) ||
-          (c.siteWorkerName && matchesChosungOrText(c.siteWorkerName, token));
+      // 2. 고객사 / 전화번호 / 담당자 / 도로명주소 / 상세위치 매칭 (일반 직함/광역지역/보편구역 불용어 토큰 제외)
+      const isGenericStopToken = /^(?:과장|시설과장|소장|관리소장|현장소장|팀장|미화팀장|기술팀장|대리|실장|관리실장|반장|미화반장|센터장|운영총괄|미화원|조장|대표|이사|담당자|아파트|관리사무소|관리지원센터|관리단|청소용역|미화팀|본사|직영|서울|서울시|경기|경기도|인천|인천시|경남|경북|충남|충북|부산|대구|대전|광주|울산|지하|지상|1층|2층|3층|B1층|B2층|A동|B동|101동|102동|1공장|2공장|본관|방재실|기전실|주차장|하역장|기계실|미화대기실|생산라인|여기는|저희는|현장명은|주소는|전화번호는|연락처는|\d{1,3})$/i.test(
+        token.replace(/(?:인데요|입니다|인데|이고요|이고|예요|이에요)$/g, '')
+      );
+      if (!isGenericStopToken) {
+        for (const c of DEFAULT_B2B_CUSTOMERS) {
+          const phoneDigits = (c.phone || '').replace(/\D/g, '');
+          const workerDigits = (c.siteWorkerPhone || '').replace(/\D/g, '');
+          const isPhoneMatch =
+            tokenDigits.length >= 4 &&
+            (phoneDigits.includes(tokenDigits) || workerDigits.includes(tokenDigits));
+          const isNameOrAddrMatch =
+            token.length >= 2 &&
+            (matchesChosungOrText(c.name, token) ||
+              matchesChosungOrText(c.manager, token) ||
+              (c.useCompany && matchesChosungOrText(c.useCompany, token)) ||
+              (c.siteWorkerName && matchesChosungOrText(c.siteWorkerName, token)) ||
+              (c.address && token.length >= 3 && matchesChosungOrText(c.address, token)) ||
+              (c.addressDetail && token.length >= 3 && matchesChosungOrText(c.addressDetail, token)));
 
-        if (isPhoneMatch || isNameMatch) {
-          matchedCustomersMap.set(c.id, c);
-          if (!bestCustomer) bestCustomer = c;
+          if (isPhoneMatch || isNameOrAddrMatch) {
+            matchedCustomersMap.set(c.id, c);
+            if (!bestCustomer) bestCustomer = c;
+          }
         }
       }
 
@@ -337,6 +346,56 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
           }
         }
       }
+    }
+
+    // 2-B. 자연어 5차원 고객·담당자·전화번호·도로명주소·상세위치 추출 연동
+    const extractedEntities = extractCustomerAndAddressEntities(correctedRaw);
+    const isExplicitNewCustomer =
+      Boolean(extractedEntities.customerName) &&
+      (!bestCustomer || !matchesChosungOrText(bestCustomer.name, extractedEntities.customerName!));
+
+    if (
+      (!bestCustomer || isExplicitNewCustomer) &&
+      (extractedEntities.customerName ||
+        extractedEntities.managerName ||
+        extractedEntities.phone ||
+        extractedEntities.roadOrLotAddress ||
+        extractedEntities.addressDetail)
+    ) {
+      const dynamicCust: Customer = {
+        id: 'cust-extracted-omni',
+        name: extractedEntities.customerName || '신규 현장 고객 (자동 추출)',
+        manager: extractedEntities.managerName || '현장 담당자',
+        phone: extractedEntities.phone || '',
+        address: extractedEntities.roadOrLotAddress || '',
+        addressDetail: extractedEntities.addressDetail || '',
+        useCompany: extractedEntities.useCompany || '',
+        assetModel: bestModel || effectiveModel,
+        serialNumber: `${bestModel || effectiveModel}-AUTO`,
+        salesType: '렌탈(임대)',
+        historyTimeline: []
+      };
+      matchedCustomersMap.set(dynamicCust.id, dynamicCust);
+      bestCustomer = dynamicCust;
+    } else if (bestCustomer) {
+      const extMgrCore = extractedEntities.managerName?.split(' ')[0] || '';
+      bestCustomer = {
+        ...bestCustomer,
+        phone: extractedEntities.phone || bestCustomer.phone,
+        manager:
+          extractedEntities.managerName && (!bestCustomer.manager || !bestCustomer.manager.includes(extMgrCore))
+            ? extractedEntities.managerName
+            : bestCustomer.manager,
+        address:
+          extractedEntities.roadOrLotAddress && (!bestCustomer.address || !bestCustomer.address.includes(extractedEntities.roadOrLotAddress))
+            ? extractedEntities.roadOrLotAddress
+            : bestCustomer.address,
+        addressDetail:
+          extractedEntities.addressDetail && (!bestCustomer.addressDetail || !bestCustomer.addressDetail.includes(extractedEntities.addressDetail))
+            ? extractedEntities.addressDetail
+            : bestCustomer.addressDetail
+      };
+      matchedCustomersMap.set(bestCustomer.id, bestCustomer);
     }
 
     // 전체 문자열 통째로도 증상 매칭 재검산
@@ -404,8 +463,8 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
       const q = (customQuery ?? omniQuery).trim();
       if (!q) return;
 
-      // customQuery가 넘어온 경우 즉시 파싱 수행
-      const tokens = q.split(/\s+/).filter(Boolean);
+      const correctedQ = applyContextualCorrection(q).correctedText || q;
+      const tokens = Array.from(new Set([...correctedQ.split(/\s+/), ...q.split(/\s+/)])).filter(Boolean);
       let foundCust: Customer | undefined;
       let foundModel: string | undefined;
       let foundError: OfficialErrorCode | undefined;
@@ -430,7 +489,9 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
             matchesChosungOrText(c.name, token) ||
             matchesChosungOrText(c.manager, token) ||
             (c.useCompany && matchesChosungOrText(c.useCompany, token)) ||
-            (c.siteWorkerName && matchesChosungOrText(c.siteWorkerName, token))
+            (c.siteWorkerName && matchesChosungOrText(c.siteWorkerName, token)) ||
+            (c.address && matchesChosungOrText(c.address, token)) ||
+            (c.addressDetail && matchesChosungOrText(c.addressDetail, token))
           ) {
             if (!foundCust) foundCust = c;
           }
@@ -450,6 +511,30 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
             foundSymptom = preset;
           }
         }
+      }
+
+      const extractedFromQ = extractCustomerAndAddressEntities(correctedQ);
+      if (
+        !foundCust &&
+        (extractedFromQ.customerName ||
+          extractedFromQ.managerName ||
+          extractedFromQ.phone ||
+          extractedFromQ.roadOrLotAddress ||
+          extractedFromQ.addressDetail)
+      ) {
+        foundCust = {
+          id: 'cust-extracted-omni',
+          name: extractedFromQ.customerName || '신규 현장 고객 (자동 추출)',
+          manager: extractedFromQ.managerName || '현장 담당자',
+          phone: extractedFromQ.phone || '',
+          address: extractedFromQ.roadOrLotAddress || '',
+          addressDetail: extractedFromQ.addressDetail || '',
+          useCompany: extractedFromQ.useCompany || '',
+          assetModel: foundModel || effectiveModel,
+          serialNumber: `${foundModel || effectiveModel}-AUTO`,
+          salesType: '렌탈(임대)',
+          historyTimeline: []
+        };
       }
 
       if (foundError && !foundSymptom) {
@@ -2421,7 +2506,9 @@ function OmniSuggestDropdown({
               <div>
                 <strong style={{ color: '#0f172a' }}>{c.name}</strong>{' '}
                 <span style={{ color: '#64748b' }}>
-                  ({c.siteWorkerName} {c.siteWorkerPhone} / 원청: {c.manager} {c.phone})
+                  ({c.siteWorkerName ? `${c.siteWorkerName} ${c.siteWorkerPhone || ''} / ` : ''}원청: {c.manager} {c.phone}
+                  {c.address ? ` · ${c.address}` : ''}
+                  {c.addressDetail ? ` (${c.addressDetail})` : ''})
                 </span>
               </div>
               <span

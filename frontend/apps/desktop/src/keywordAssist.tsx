@@ -708,14 +708,162 @@ export function findMatchingSymptomEntities(text: string): KeywordEntity[] {
 }
 
 
+// ── 1-C. 고객사 · 담당자 · 전화번호 · 도로명/지번 주소 · 상세위치 5차원 구조화 추출기 ──
+export interface ExtractedCustomerAddressInfo {
+  customerName?: string;
+  useCompany?: string;
+  managerName?: string;
+  phone?: string;
+  roadOrLotAddress?: string;
+  addressDetail?: string;
+  matchedPresetCustomerId?: string;
+}
+
+const NON_PERSON_NAME_PREFIXES = new Set([
+  '관리', '시설', '기술', '미화', '운영', '현장', '본사', '지점', '센터', '공장',
+  '담당', '총괄', '청소', '용역', '보안', '경비', '방재', '기전', '전기', '기계',
+  '저희', '우리', '여기', '거기', '오늘', '지금', '이번', '다음', '출장', '방문'
+]);
+
+const NON_COMPANY_CUES = new Set([
+  '우리', '저희', '여기', '거기', '지금', '오늘', '청소기', '장비', '배터리', '브러시', '스퀴지'
+]);
+
+export function formatPhoneNumber(rawPhone: string): string {
+  const digits = rawPhone.replace(/\D/g, '');
+  if (digits.startsWith('02')) {
+    if (digits.length === 9) return `02-${digits.slice(2, 5)}-${digits.slice(5)}`;
+    if (digits.length === 10) return `02-${digits.slice(2, 6)}-${digits.slice(6)}`;
+  } else if (digits.length === 10) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  } else if (digits.length === 11) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  }
+  return rawPhone.trim();
+}
+
+/**
+ * 발화 문장 또는 검색어에서 [고객사/현장명], [용역사], [담당자명+직함], [전화번호], [도로명/지번 본주소], [층/동/구역 상세위치]를 정밀 분리 추출
+ */
+export function extractCustomerAndAddressEntities(text: string): ExtractedCustomerAddressInfo {
+  const info: ExtractedCustomerAddressInfo = {};
+  if (!text || !text.trim()) return info;
+
+  // 1. 전화번호 추출 (휴대폰 010 및 지역번호 02, 031~064, 070)
+  const phoneMatch = text.match(/\b(?:01[016789]|02|0[3-6][1-5]|070)[-\s.]?\d{3,4}[-\s.]?\d{4}\b/);
+  if (phoneMatch) {
+    info.phone = formatPhoneNumber(phoneMatch[0]);
+  }
+
+  // 2. 도로명 주소 및 지번/행정구역 본주소 추출
+  const roadAddressRegex = /(?:(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|경기도|강원|강원도|충북|충청북도|충남|충청남도|전북|전라북도|전남|전라남도|경북|경상북도|경남|경상남도|제주|제주도)(?:특별시|광역시|특별자치시|특별자치도)?\s+)?(?:[가-힣]{1,5}(?:시|군|구)\s+)*(?:[가-힣]{1,6}(?:구|읍|면|동)\s+)?[가-힣0-9]{1,12}(?:대로|번길|산단로|단지로|로|길)\s*\d{1,4}(?:-\d{1,4})?(?:\s*번지)?/;
+  const lotAddressRegex = /(?:(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|경기도|강원|강원도|충북|충청북도|충남|충청남도|전북|전라북도|전남|전라남도|경북|경상북도|경남|경상남도|제주|제주도)(?:특별시|광역시|특별자치시|특별자치도)?\s+)[가-힣]{1,5}(?:시|군|구)(?:\s+[가-힣0-9]{1,8}(?:구|읍|면|동|가|리))?(?:\s+\d{1,4}(?:-\d{1,4})?(?:\s*번지)?)?|[가-힣]{2,5}(?:시|군|구)\s+[가-힣0-9]{2,8}(?:읍|면|동|가|리)(?:\s+\d{1,4}(?:-\d{1,4})?(?:\s*번지)?)?/;
+
+  const roadMatch = text.match(roadAddressRegex);
+  if (roadMatch) {
+    info.roadOrLotAddress = roadMatch[0].trim();
+  } else {
+    const lotMatch = text.match(lotAddressRegex);
+    if (lotMatch) {
+      info.roadOrLotAddress = lotMatch[0].trim();
+    }
+  }
+
+  // 3. 건물 동·층·호수·상세 구역(방재실/하역장/주차장/기계실 등) 추출
+  const detailParts: string[] = [];
+  const dongMatch = text.match(/\b(?:\d{1,4}\s*동|[A-Z]\s*동|본관|별관|신관|물류동|생산동|[1-4]공장)\b/i);
+  if (dongMatch) detailParts.push(dongMatch[0].trim());
+
+  const floorMatch = text.match(/\b(?:지하\s*\d{1,2}\s*층|B\s*\d{1,2}\s*층?|\d{1,2}\s*층|\d{1,4}\s*호)\b/i);
+  if (floorMatch) detailParts.push(floorMatch[0].trim());
+
+  const zoneMatch = text.match(/(?:지하\s*주차장|주차장\s*관리소|주차장|입출고\s*하역장|하역장|물류\s*데크|방재실|기계실|기전실|전기실|기관실|관리\s*지원\s*센터|관리\s*사무소|관리실|관리소|경비실|보안실|미화원?실|대기실|휴게실|정비\s*창고|저온\s*창고|창고|프레스룸|생산\s*라인|정문|후문)/);
+  if (zoneMatch && !detailParts.some(p => p.includes(zoneMatch[0]))) {
+    detailParts.push(zoneMatch[0].trim());
+  }
+
+  if (detailParts.length > 0) {
+    info.addressDetail = detailParts.join(' ');
+  }
+
+  // 4. 담당자 성함 + 직함 추출
+  const managerRoleRegex = /([가-힣]{2,4})\s*(시설과장|관리과장|관리소장|관리실장|기술팀장|미화팀장|미화반장|미화원|운영총괄|공장장|센터장|본부장|과장|소장|팀장|실장|차장|부장|대리|주임|반장|조장|대표|이사|전무|상무|사장|총괄|매니저)님?/g;
+  let mgrMatch: RegExpExecArray | null;
+  while ((mgrMatch = managerRoleRegex.exec(text)) !== null) {
+    const candidateName = mgrMatch[1].trim();
+    const role = mgrMatch[2].trim();
+    if (!NON_PERSON_NAME_PREFIXES.has(candidateName)) {
+      info.managerName = `${candidateName} ${role}`;
+      break;
+    }
+  }
+  if (!info.managerName) {
+    const selfIntroMgr = text.match(/(?:저는|담당자(?:는|분은)?|제\s*이름은|성함은)\s*([가-힣]{2,4})(?:\s*(?:입니다|인데|입니|이고|라고))/);
+    if (selfIntroMgr && !NON_PERSON_NAME_PREFIXES.has(selfIntroMgr[1])) {
+      info.managerName = selfIntroMgr[1].trim();
+    }
+  }
+
+  // 5. 고객사 / 건물 / 단지 / 용역사명 추출
+  const corpRegex = /(?:\(주\)|주식회사|\(유\)|유한회사)\s*[가-힣A-Za-z0-9_]{2,14}(?:\s+[가-힣A-Za-z0-9]{2,10})?|[가-힣A-Za-z0-9_]{2,14}\s*(?:\(주\)|주식회사)/;
+  const facilityRegex = /([가-힣A-Za-z0-9]{2,12}(?:\s+[가-힣A-Za-z0-9]{2,10})?\s*(?:아파트(?:\s*관리사무소)?|관리사무소|관리단|관리지원센터|빌딩|엠타워|타워|물류센터|유통센터|메디컬센터|화성센터|센터|선장공장|서창공장|공장|대학교|고등학교|중학교|초등학교|학사|병원|프라자|라이온스밸리|테크노밸리|리버파크|에듀파크|더샵(?:\s*퍼스트월드)?|반포자이|자이|래미안(?:\s*퍼스티지)?|푸르지오|아이파크|롯데캐슬(?:\s*프레미어)?|이편한세상|e편한세상|우미린|트라팰리스|힐스테이트|종합관리|환경산업|마스터크린|클린에코|피앤씨클린|삼원종합관리|한결에프엠|대경종합개발|건물코디뱅크|반짝반짝시스템|에스에프코리아|듀델코리아|위너스텍|성원테크|케이엠산업|시설관리|테크놀로지|테크|로지스|물류|실업|물산|엔지니어링|이엔지|마트|백화점|호텔|리조트))/;
+  const cueCompanyRegex = /(?:여기는?|저희는?|현장(?:명)?은|업체(?:명)?은|회사(?:명)?는|건물(?:명)?은|상호(?:명)?는)\s+([가-힣A-Za-z0-9()]{2,14}(?:\s+[가-힣A-Za-z0-9]{2,10}){0,2}?)\s*(?:인데|입니다|입니|이고|에서|거든)/;
+  const beforeMgrCompanyRegex = /(?:^(?:안녕하세요\s*)?(?:여기는?|저희는?)\s*|^)([가-힣A-Za-z0-9()]{3,14})\s+[가-힣]{2,4}\s*(?:시설과장|관리과장|관리소장|관리실장|기술팀장|미화팀장|미화반장|미화원|운영총괄|공장장|센터장|본부장|과장|소장|팀장|실장|차장|부장|대리|주임|반장|조장|대표|이사)/;
+
+  const corpMatch = text.match(corpRegex);
+  const facMatch = text.match(facilityRegex);
+  const cueMatch = text.match(cueCompanyRegex);
+  const beforeMgrMatch = text.match(beforeMgrCompanyRegex);
+
+  const stripMgrAndCue = (rawName: string): string => {
+    let cleaned = rawName.replace(/^(?:안녕하세요|여기는?|저희는?|지금|현장명은|업체명은|회사명은)\s+/, '').trim();
+    if (info.managerName) {
+      const mgrParts = info.managerName.split(/\s+/);
+      for (const mp of [info.managerName, mgrParts[0]]) {
+        if (mp && cleaned.endsWith(mp)) {
+          cleaned = cleaned.slice(0, cleaned.length - mp.length).trim();
+        }
+      }
+    }
+    return cleaned.replace(/[이가은는을를도만의]$/, '').trim();
+  };
+
+  if (facMatch) {
+    const facName = stripMgrAndCue(facMatch[1]);
+    if (/클린|크린|용역|종합관리|에프엠|환경산업|코디뱅크/.test(facName) && corpMatch && corpMatch[0] !== facName) {
+      info.useCompany = facName;
+      info.customerName = stripMgrAndCue(corpMatch[0]);
+    } else if (facName.length >= 2) {
+      info.customerName = facName;
+      if (corpMatch && !facName.includes(corpMatch[0].trim())) {
+        info.useCompany = corpMatch[0].trim();
+      }
+    }
+  } else if (corpMatch) {
+    info.customerName = stripMgrAndCue(corpMatch[0]);
+  } else if (cueMatch) {
+    const candidate = stripMgrAndCue(cueMatch[1]);
+    if (candidate.length >= 2 && !NON_COMPANY_CUES.has(candidate)) {
+      info.customerName = candidate;
+    }
+  } else if (beforeMgrMatch) {
+    const candidate = stripMgrAndCue(beforeMgrMatch[1]);
+    if (candidate.length >= 2 && !NON_COMPANY_CUES.has(candidate)) {
+      info.customerName = candidate;
+    }
+  }
+
+  return info;
+}
+
 // ── 2. Comprehensive 5-Category Named Entity Registry (High-Contrast Solid UI) ──
 export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
-  // A. CUSTOMER & PERSON (고객사명 / 담당자명 - Primary Blue)
+  // A. CUSTOMER & PERSON (고객사명 / 담당자명 / 연락처 - Primary Blue)
   {
     id: 'ent-cust-banpo',
     type: 'customer',
     label: '고객사',
-    pattern: /반포\s*자이|반포자이|박시설\s*(?:과장|시설과장)?|클린\s*에코|클린에코/i,
+    pattern: /반포\s*자이|반포자이|박시설\s*(?:과장|시설과장)?|클린\s*에코|클린에코|스페이스\s*클린\s*강남점/i,
     customerId: 'a1111111-1111-1111-1111-111111111111',
     colorScheme: { bg: '#bfdbfe', border: '#3b82f6', text: '#1e3a8a', glow: 'none' }
   },
@@ -723,7 +871,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-cust-raemian',
     type: 'customer',
     label: '고객사',
-    pattern: /래미안\s*퍼스티지|래미안|퍼스티지|이관리\s*(?:소장|관리소장)?|삼원\s*종합|삼원종합관리/i,
+    pattern: /래미안\s*퍼스티지|래미안|퍼스티지|이관리\s*(?:소장|관리소장)?|삼원\s*종합|삼원종합관리|미래\s*물류\s*센터\s*평택점/i,
     customerId: 'a2222222-2222-2222-2222-222222222222',
     colorScheme: { bg: '#bfdbfe', border: '#3b82f6', text: '#1e3a8a', glow: 'none' }
   },
@@ -731,7 +879,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-cust-dogok',
     type: 'customer',
     label: '고객사',
-    pattern: /도곡\s*렉슬|도곡렉슬|최기술\s*(?:팀장|기술팀장)?|한결\s*에프엠|한결에프엠/i,
+    pattern: /도곡\s*렉슬|도곡렉슬|최기술\s*(?:팀장|기술팀장)?|한결\s*에프엠|한결에프엠|케이\s*로지스\s*화성\s*센터/i,
     customerId: 'a1010101-1010-1010-1010-101010101010',
     colorScheme: { bg: '#bfdbfe', border: '#3b82f6', text: '#1e3a8a', glow: 'none' }
   },
@@ -739,24 +887,24 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-cust-gasan',
     type: 'customer',
     label: '고객사',
-    pattern: /가산\s*디지털\s*엠타워|디지털\s*엠타워|엠타워|강센터\s*(?:실장|관리실장)?|피앤씨\s*클린|피앤씨클린/i,
+    pattern: /가산\s*디지털\s*엠타워|디지털\s*엠타워|엠타워|강센터\s*(?:실장|관리실장)?|피앤씨\s*클린|피앤씨클린|한국\s*유통\s*판교\s*본점/i,
     customerId: 'a3333333-3333-3333-3333-333333333333',
     colorScheme: { bg: '#bfdbfe', border: '#3b82f6', text: '#1e3a8a', glow: 'none' }
   },
   {
     id: 'ent-cust-general',
     type: 'customer',
-    label: '고객사/담당자',
-    pattern: /수림\s*종합\s*관리|머쉬앤\s*파머스|파머스|팜\s*스마트|비와이씨|BYC\s*빌딩|세원\s*종합\s*관리|베스트\s*환경\s*산업|반짝반짝\s*시스템|우주\s*엔비텍|티에스\s*식스티즈|롯데\s*캐슬(?:\s*프레미어)?|이편한|레코인|[가-힣]{2,8}(?:종합관리|환경산업|관리사무소|관리소|관리단|빌딩|아파트)|[가-힣]{2,4}\s*(?:과장님?|소장님?|팀장님?|대리님?|실장님?|대표님?|소장|과장|팀장|대리|대표|이사님?)|팀장님|과장님|소장님|대표님|대리님|실장님/i,
+    label: '고객사/담당자/연락처',
+    pattern: /\b(?:01[016789]|02|0[3-6][1-5]|070)[-\s.]?\d{3,4}[-\s.]?\d{4}\b|(?:\(주\)|주식회사)\s*[가-힣A-Za-z0-9_]{2,12}|[가-힣A-Za-z0-9_]{2,12}\s*(?:\(주\)|주식회사)|수림\s*종합\s*관리|머쉬앤\s*파머스|파머스|팜\s*스마트|비와이씨|BYC\s*빌딩|세원\s*종합\s*관리|베스트\s*환경\s*산업|반짝반짝\s*시스템|우주\s*엔비텍|티에스\s*식스티즈|롯데\s*캐슬(?:\s*프레미어)?|이편한\s*세상|우미린|트라팰리스|힐스테이트|더샵(?:\s*퍼스트월드|\s*반포리버파크)?|우림\s*라이온스\s*밸리|성우\s*하이텍(?:\s*서창공장|\s*선장공장)?|인천\s*공항\s*시설\s*관리|시민\s*마스터\s*크린|위너스텍|에스에프\s*코리아|듀델\s*코리아|건물\s*코디\s*뱅크|성원\s*테크|케이엠\s*산업|앰앰아이|글로벌\s*팩토리|인천\s*남동\s*정밀|메가\s*물류\s*센터|현대\s*메디컬\s*센터|[가-힣]{2,10}(?:종합관리|환경산업|관리사무소|관리지원센터|관리소|관리단|물류센터|유통센터|메디컬센터|빌딩|타워|아파트|선장공장|서창공장|공장|대학교|병원)|[가-힣]{2,4}\s*(?:시설과장|관리과장|관리소장|관리실장|기술팀장|미화팀장|미화반장|공장장|센터장|본부장|과장님?|소장님?|팀장님?|대리님?|실장님?|차장님?|부장님?|반장님?|대표님?|이사님?)|팀장님|과장님|소장님|대표님|대리님|실장님|반장님/i,
     colorScheme: { bg: '#bfdbfe', border: '#3b82f6', text: '#1e3a8a', glow: 'none' }
   },
 
-  // B. SITE & LOCATION (현장명 / 지점명 / 건물구역 - Amber / Orange)
+  // B. SITE & LOCATION (도로명/지번 주소 / 현장명 / 건물 층·구역 - Amber / Orange)
   {
     id: 'ent-site-banpo',
     type: 'site',
     label: '현장/위치',
-    pattern: /신반포로|반포|방재실|지하\s*1층|관리사무소/i,
+    pattern: /서울\s*서초구\s*신반포로\s*270|신반포로(?:\s*270)?|반포|방재실|지하\s*1층/i,
     customerId: 'a1111111-1111-1111-1111-111111111111',
     colorScheme: { bg: '#fde68a', border: '#f59e0b', text: '#78350f', glow: 'none' }
   },
@@ -764,7 +912,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-site-raemian',
     type: 'site',
     label: '현장/위치',
-    pattern: /반포대로|주차장\s*관리소|지하\s*2층|관리지원센터/i,
+    pattern: /서울\s*서초구\s*반포대로\s*275|반포대로(?:\s*275)?|주차장\s*관리소|지하\s*2층/i,
     customerId: 'a2222222-2222-2222-2222-222222222222',
     colorScheme: { bg: '#fde68a', border: '#f59e0b', text: '#78350f', glow: 'none' }
   },
@@ -772,7 +920,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-site-dogok',
     type: 'site',
     label: '현장/위치',
-    pattern: /선릉로|도곡|지하\s*방재실/i,
+    pattern: /서울\s*강남구\s*선릉로\s*221|선릉로(?:\s*221)?|도곡|지하\s*방재실/i,
     customerId: 'a1010101-1010-1010-1010-101010101010',
     colorScheme: { bg: '#fde68a', border: '#f59e0b', text: '#78350f', glow: 'none' }
   },
@@ -780,15 +928,15 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-site-gasan',
     type: 'site',
     label: '현장/위치',
-    pattern: /가산디지털1로|가산|지하\s*1층\s*하역장|관리단/i,
+    pattern: /서울\s*금천구\s*가산디지털1로\s*186|가산디지털1로(?:\s*186)?|가산|지하\s*1층\s*하역장/i,
     customerId: 'a3333333-3333-3333-3333-333333333333',
     colorScheme: { bg: '#fde68a', border: '#f59e0b', text: '#78350f', glow: 'none' }
   },
   {
     id: 'ent-site-general',
     type: 'site',
-    label: '현장/위치',
-    pattern: /주차장|하역장|기계실|사무실|현장|실내|외부|청도|분당|대전|파주|탕정|천안|아산|수원|인천|부산|대구|광주|나라\s*장터/i,
+    label: '주소/상세위치',
+    pattern: /(?:(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|경기도|강원|충북|충남|전북|전남|경북|경남|제주)(?:특별시|광역시|특별자치시|도)?\s+)?(?:[가-힣]{1,5}(?:시|군|구)\s+)*(?:[가-힣]{1,6}(?:구|읍|면|동)\s+)?[가-힣0-9]{1,12}(?:대로|번길|산단로|단지로|로|길)\s*\d{1,4}(?:-\d{1,4})?(?:\s*번지)?|[가-힣]{2,5}(?:시|군|구)\s+[가-힣0-9]{2,8}(?:읍|면|동|가|리)(?:\s+\d{1,4}(?:-\d{1,4})?)?|(?:지하\s*\d{1,2}\s*층|B\s*\d{1,2}\s*층?|\d{1,2}\s*층|\d{1,4}\s*동)(?:\s*(?:지하\s*주차장|주차장|하역장|방재실|기계실|기전실|전기실|관리사무소|관리실|경비실|미화실|창고|물류데크|생산라인))?|지하\s*주차장|주차장|입출고\s*하역장|하역장|물류\s*데크|방재실|기계실|기전실|전기실|기관실|경비실|보안실|미화실|정비\s*창고|저온\s*창고|프레스룸|생산\s*라인|청도|분당|판교|대전|파주|탕정|천안|아산|수원|화성|평택|안성|성남|안산|김포|일산|인천|부산|대구|광주|원주|청주|나라\s*장터/i,
     colorScheme: { bg: '#fde68a', border: '#f59e0b', text: '#78350f', glow: 'none' }
   },
 

@@ -1108,3 +1108,147 @@ async def kb_compare(
         "local_engine":   "bge-m3 (1024차원)" if local_col == "embedding_bge" else "nomic (768차원)",
     }
 
+
+# ─────────────────────────────────────────────────────────────
+# 고객·담당자·주소·발신자 통합 조회 (customers + visits + consult_knowledge 2,345건)
+# GET /api/v1/counsel/customer-lookup
+# ─────────────────────────────────────────────────────────────
+_CALLER_ID_PARSE_RE = re.compile(r"^([^\(]+)\((.+)\)$")
+
+
+@router.get("/customer-lookup")
+async def customer_lookup(
+    q: str = "",
+    limit: int = 10,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    고객사명, 담당자명, 전화번호, 도로명/지번 주소, 상세위치, 또는 통화 녹취 발신자(caller_id 2,345건) 통합 검색
+    """
+    raw_q = (q or "").strip()
+    if not raw_q:
+        return {"query": "", "count": 0, "items": []}
+
+    like_q = f"%{raw_q}%"
+    items: list[dict] = []
+    seen_keys: set[str] = set()
+
+    # 1) customers 테이블 조회
+    try:
+        cust_sql = text("""
+            SELECT id, name, manager, manager_phone, address, address_detail, use_company_name
+            FROM customers
+            WHERE name ILIKE :q
+               OR manager ILIKE :q
+               OR manager_phone ILIKE :q
+               OR address ILIKE :q
+               OR address_detail ILIKE :q
+               OR use_company_name ILIKE :q
+            LIMIT :lim
+        """)
+        cust_res = await db.execute(cust_sql, {"q": like_q, "lim": limit})
+        for r in cust_res.fetchall():
+            key = f"{r.name or ''}|{r.manager or ''}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                items.append({
+                    "id": str(r.id),
+                    "name": r.name or "",
+                    "manager": r.manager or "현장 담당자",
+                    "phone": r.manager_phone or "",
+                    "address": r.address or "",
+                    "addressDetail": r.address_detail or "",
+                    "useCompany": r.use_company_name or "",
+                    "assetModel": "J600T",
+                    "source": "customers",
+                })
+    except Exception as e:
+        logger.warning(f"customers 조회 실패: {e}")
+
+    # 2) visits (방문 점검/출장 이력) 테이블 조회
+    try:
+        visit_sql = text("""
+            SELECT id, customer_name, manager, phone, address, address_detail, model_name
+            FROM visits
+            WHERE customer_name ILIKE :q
+               OR manager ILIKE :q
+               OR phone ILIKE :q
+               OR address ILIKE :q
+               OR address_detail ILIKE :q
+            ORDER BY id DESC
+            LIMIT :lim
+        """)
+        visit_res = await db.execute(visit_sql, {"q": like_q, "lim": limit})
+        for r in visit_res.fetchall():
+            key = f"{r.customer_name or ''}|{r.manager or ''}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                items.append({
+                    "id": f"visit-{r.id}",
+                    "name": r.customer_name or "",
+                    "manager": r.manager or "현장 담당자",
+                    "phone": r.phone or "",
+                    "address": r.address or "",
+                    "addressDetail": r.address_detail or "",
+                    "useCompany": "",
+                    "assetModel": r.model_name or "J600T",
+                    "source": "visits",
+                })
+    except Exception as e:
+        logger.warning(f"visits 조회 실패: {e}")
+
+    # 3) consult_knowledge.caller_id (실제 통화 녹취 발신자 2,345건 프로필) 조회
+    try:
+        ck_sql = text("""
+            SELECT caller_id,
+                   MAX(equipment_model) AS equipment_model,
+                   MAX(summary) AS latest_summary,
+                   COUNT(*) AS call_count
+            FROM consult_knowledge
+            WHERE caller_id IS NOT NULL
+              AND caller_id ILIKE :q
+            GROUP BY caller_id
+            ORDER BY call_count DESC
+            LIMIT :lim
+        """)
+        ck_res = await db.execute(ck_sql, {"q": like_q, "lim": limit})
+        for r in ck_res.fetchall():
+            cid = (r.caller_id or "").strip()
+            if not cid:
+                continue
+            m = _CALLER_ID_PARSE_RE.match(cid)
+            if m:
+                mgr_part = m.group(1).replace("_", " ").strip()
+                comp_part = m.group(2).replace("_", " ").strip()
+            else:
+                mgr_part = "현장 담당자"
+                comp_part = cid.replace("_", " ").strip()
+
+            key = f"{comp_part}|{mgr_part}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                eq_model = r.equipment_model if (r.equipment_model and r.equipment_model != "null") else "J600T"
+                items.append({
+                    "id": f"ck-{len(items)}",
+                    "name": comp_part,
+                    "manager": mgr_part,
+                    "phone": cid if re.match(r"^0\d{1,2}-?\d{3,4}-?\d{4}$", cid) else "",
+                    "address": "",
+                    "addressDetail": f"과거 상담 {r.call_count}건 이력 보유",
+                    "useCompany": "",
+                    "assetModel": eq_model,
+                    "historyTimeline": [
+                        {"date": "과거 통화 이력", "title": r.latest_summary or f"누적 {r.call_count}건 상담"}
+                    ],
+                    "source": "consult_knowledge",
+                })
+    except Exception as e:
+        logger.warning(f"consult_knowledge caller_id 조회 실패: {e}")
+
+    return {
+        "query": raw_q,
+        "count": len(items[:limit]),
+        "items": items[:limit],
+    }
+
+

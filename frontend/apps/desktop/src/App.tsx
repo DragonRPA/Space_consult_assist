@@ -21,7 +21,7 @@ import {
   MicOff,
   X
 } from 'lucide-react';
-import { useCounselStore } from './store';
+import { useCounselStore, DEFAULT_CUSTOMERS } from './store';
 import { MicTestModal } from './MicTestModal';
 import { applyContextualCorrection } from './contextCorrector';
 import { 
@@ -29,6 +29,7 @@ import {
   NAMED_ENTITY_REGISTRY, 
   findMatchingSymptomEntities,
   extractNegativeStateExpressions,
+  extractCustomerAndAddressEntities,
   renderMultiColorHighlightedText 
 } from './keywordAssist';
 import type { KeywordEntity, EntityRule } from './keywordAssist';
@@ -313,39 +314,79 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       }
     }
 
-    // 2. Customer Identification (Preset + Dynamic Spoken Customer/Manager)
+    // 2. Customer & Address Multi-Dimensional Identification (Preset + Dynamic Spoken Customer/Manager/Phone/RoadAddress/DetailZone)
     const afterSymptomStore = useCounselStore.getState();
     const curCust = afterSymptomStore.selectedCustomer;
-    for (const entRule of NAMED_ENTITY_REGISTRY) {
-      if ((entRule.type === 'customer' || entRule.type === 'site') && entRule.pattern.test(text)) {
-        if (entRule.customerId && curCust?.id !== entRule.customerId) {
-          const targetCust = afterSymptomStore.customerList.find(c => c.id === entRule.customerId);
-          if (targetCust) {
-            afterSymptomStore.selectCustomer(targetCust);
-            afterSymptomStore.showToast(`[고객사 감지: ${targetCust.name}] 자동 선택 완료`);
-            setTimeout(() => afterSymptomStore.clearToast(), 3000);
-          }
-        } else if (!entRule.customerId) {
-          const matched = text.match(entRule.pattern)?.[0]?.trim();
-          if (matched && curCust && !curCust.name.includes(matched)) {
-            if (entRule.type === 'customer') {
-              const isPersonRole = /(?:님|과장|소장|팀장|대리|실장|대표|이사)$/.test(matched);
-              afterSymptomStore.selectCustomer({
-                ...curCust,
-                name: isPersonRole ? curCust.name : matched,
-                manager: isPersonRole ? matched : curCust.manager
-              });
-              afterSymptomStore.showToast(`[통화 고객/담당자 감지: ${matched}] 고객 패널 실시간 반영`);
-              setTimeout(() => afterSymptomStore.clearToast(), 3000);
-            } else if (entRule.type === 'site') {
-              afterSymptomStore.selectCustomer({
-                ...curCust,
-                address: matched
-              });
-            }
-          }
+    if (curCust) {
+      const extractedInfo = extractCustomerAndAddressEntities(text);
+      let activeCust: CustomerInfo = { ...curCust };
+      let presetSwitched = false;
+      const changedFields: string[] = [];
+
+      // 2-A. Preset Customer Matching (by NAMED_ENTITY_REGISTRY rule, phone, customer core name, or manager name)
+      let matchedPreset: CustomerInfo | undefined;
+      for (const entRule of NAMED_ENTITY_REGISTRY) {
+        if (entRule.type === 'customer' && entRule.customerId && entRule.pattern.test(text)) {
+          matchedPreset = DEFAULT_CUSTOMERS.find(c => c.id === entRule.customerId);
+          if (matchedPreset) break;
         }
-        break;
+      }
+      if (!matchedPreset) {
+        const textCompact = text.replace(/\s+/g, '');
+        matchedPreset = DEFAULT_CUSTOMERS.find(c => {
+          if (extractedInfo.phone && c.phone === extractedInfo.phone) return true;
+          const coreName = c.name
+            .replace(/(?:\(주\)|주식회사|아파트|관리사무소|관리지원센터|관리단|\s+)/g, '')
+            .trim();
+          if (coreName.length >= 3 && textCompact.includes(coreName)) return true;
+          const mgrCore = c.manager.split(' ')[0]?.trim();
+          if (mgrCore && mgrCore.length >= 2 && text.includes(mgrCore)) return true;
+          return false;
+        });
+      }
+
+      if (matchedPreset && curCust.id !== matchedPreset.id) {
+        activeCust = { ...matchedPreset };
+        presetSwitched = true;
+      }
+
+      // 2-B. Dynamic Multi-Field Extraction & Override (Customer Name, Manager, Phone, Road/Lot Address, Detail Zone)
+      if (!matchedPreset && extractedInfo.customerName && !activeCust.name.includes(extractedInfo.customerName)) {
+        activeCust.name = extractedInfo.customerName;
+        changedFields.push(`고객사: ${extractedInfo.customerName}`);
+      }
+      if (extractedInfo.managerName && !activeCust.manager.includes(extractedInfo.managerName)) {
+        activeCust.manager = extractedInfo.managerName;
+        changedFields.push(`담당자: ${extractedInfo.managerName}`);
+      }
+      if (extractedInfo.phone && activeCust.phone !== extractedInfo.phone) {
+        activeCust.phone = extractedInfo.phone;
+        changedFields.push(`연락처: ${extractedInfo.phone}`);
+      }
+      if (extractedInfo.roadOrLotAddress && !activeCust.address.includes(extractedInfo.roadOrLotAddress)) {
+        activeCust.address = extractedInfo.roadOrLotAddress;
+        changedFields.push(`주소: ${extractedInfo.roadOrLotAddress}`);
+      }
+      if (extractedInfo.addressDetail || extractedInfo.useCompany) {
+        const detailParts: string[] = [];
+        if (extractedInfo.addressDetail) detailParts.push(extractedInfo.addressDetail);
+        if (extractedInfo.useCompany) detailParts.push(extractedInfo.useCompany);
+        const newDetail = detailParts.join(' / ');
+        if (newDetail && !activeCust.addressDetail.includes(newDetail)) {
+          activeCust.addressDetail = newDetail;
+          changedFields.push(`상세위치: ${newDetail}`);
+        }
+      }
+
+      if (presetSwitched || changedFields.length > 0) {
+        afterSymptomStore.selectCustomer(activeCust);
+        const toastMsg = presetSwitched && changedFields.length > 0
+          ? `[고객사 자동 선택: ${activeCust.name} · ${changedFields.join(' · ')}]`
+          : presetSwitched
+            ? `[고객사 감지: ${activeCust.name}] 자동 선택 완료`
+            : `[고객/주소 추출: ${changedFields.join(' · ')}] 고객 패널 실시간 반영`;
+        afterSymptomStore.showToast(toastMsg);
+        setTimeout(() => afterSymptomStore.clearToast(), 3000);
       }
     }
 
@@ -1819,7 +1860,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
               <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--ink-subtle)' }} />
               <input
                 type="text"
-                placeholder="고객사명 또는 전화번호 4자리... (↑/↓ 키보드 탐색)"
+                placeholder="고객사명, 담당자, 연락처, 도로명/상세위치 검색... (↑/↓ 탐색)"
                 value={searchQuery}
                 onFocus={() => {
                   setSearchDropdownOpen(true);
@@ -1872,7 +1913,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                   borderRadius: '6px',
                   boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
                   zIndex: 50,
-                  maxHeight: '180px',
+                  maxHeight: '220px',
                   overflowY: 'auto'
                 }}>
                   {customerList.map((cust, idx) => (
@@ -1893,7 +1934,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                       onMouseEnter={() => setSelectedSearchIndex(idx)}
                     >
                       <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{cust.name}</div>
-                      <div style={{ color: 'var(--ink-muted)', fontSize: '13.5px' }}>{cust.manager} · {cust.phone}</div>
+                      <div style={{ color: 'var(--ink-muted)', fontSize: '12.5px' }}>{cust.manager} · {cust.phone}</div>
+                      <div style={{ color: 'var(--ink-subtle)', fontSize: '12px', marginTop: 2 }}>{cust.address} ({cust.addressDetail})</div>
                     </div>
                   ))}
                 </div>
@@ -1914,7 +1956,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
               </div>
               <div style={{ fontSize: '13.5px', color: 'var(--ink-muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>담당자</span><strong style={{ color: 'var(--ink)' }}>{selectedCustomer.manager}</strong> ({selectedCustomer.phone})</div>
-                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>주소</span>{selectedCustomer.address} {selectedCustomer.addressDetail}</div>
+                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>주소</span><span style={{ color: 'var(--ink)' }}>{selectedCustomer.address}</span></div>
+                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>상세위치</span><span style={{ color: '#fdba74', fontWeight: 600 }}>{selectedCustomer.addressDetail}</span></div>
               </div>
             </div>
 
