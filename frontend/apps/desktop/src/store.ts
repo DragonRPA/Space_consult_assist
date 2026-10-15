@@ -191,13 +191,17 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
   audioDuration: 0,
   setActiveAudioFile: (file: File) => {
     const currentUrl = get().activeAudioUrl;
-    if (currentUrl) URL.revokeObjectURL(currentUrl);
+    if (currentUrl) {
+      setTimeout(() => URL.revokeObjectURL(currentUrl), 300);
+    }
     const newUrl = URL.createObjectURL(file);
     set({ 
       activeAudioFile: file, 
       activeAudioUrl: newUrl,
       isAudioPlaying: true,
-      isAudioPlayerOpen: false
+      isAudioPlayerOpen: false,
+      audioCurrentTime: 0,
+      audioDuration: 0
     });
   },
   clearAudioFile: () => {

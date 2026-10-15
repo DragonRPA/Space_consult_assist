@@ -201,6 +201,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     dispatched?: boolean;
   }[]>([]);
   const decodedPcm16kRef = useRef<Float32Array | null>(null);
+  const audioSessionIdRef = useRef<number>(0);
   const realtimeVadRef = useRef<{
     cursorFrame: number;
     inSpeech: boolean;
@@ -619,7 +620,25 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   }, [selectCustomer]);
 
   const processAudioWithActiveEngine = useCallback(async (file: File) => {
-    // 이전 세그먼트 및 실시간 VAD 커서 초기화
+    // 1. 신규 오디오 세션 ID 발급 (이전 파일의 진행 중인 비동기 Clova 응답 및 디코딩 무효화)
+    const mySessionId = ++audioSessionIdRef.current;
+
+    // 2. 기존 재생 중인 오디오 및 타이머/STT 스트림 즉시 강제 정지 (정지 버튼을 누른 것과 동일한 선행 초기화)
+    if (webSpeechCommitTimerRef.current) {
+      clearTimeout(webSpeechCommitTimerRef.current);
+      webSpeechCommitTimerRef.current = null;
+    }
+    if (globalAudioRef.current) {
+      globalAudioRef.current.pause();
+      try {
+        globalAudioRef.current.currentTime = 0;
+      } catch (_) {}
+    }
+    setIsAudioPlaying(false);
+    setAudioTime(0, 0);
+    setInterimSttText('');
+
+    // 3. 이전 세그먼트 및 실시간 VAD 커서 완전 초기화
     audioSegmentsRef.current = [];
     decodedPcm16kRef.current = null;
     realtimeVadRef.current = {
@@ -631,27 +650,27 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       inflightCount: 0,
       lastChunkLabel: '',
     };
+
+    // 4. 화면 상담 세션 초기화 및 파일명 기반 발신자 힌트 세팅
     resetSessionForNewAudio();
     applyCallerHintFromFilename(file.name);
-    setActiveAudioFile(file);
-    setIsAudioPlaying(true);
-    setRecording(true);
 
-    // 백엔드 루프백 버퍼 클리어 요청
+    // 5. 백엔드 루프백 버퍼 클리어 요청
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
       try {
         loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' }));
       } catch (_) {}
     }
 
-    // 사전 구간 분할(Pre-segmentation)이나 미래 구간 참조(Lookahead) 일절 없이,
-    // 16kHz PCM 버퍼만 준비해 두고 실제 스피커 재생 시점(currentTimeSec)이 지나간 파형만 실시간 수음하여 발화 종료 시점에 Clova로 전송합니다.
+    // 6. 16kHz PCM 버퍼를 먼저 디코딩 준비한 뒤 오디오 재생 시작 (재생 시작 시점에 버퍼 누락 방지)
     try {
       const arrayBuffer = await file.arrayBuffer();
+      if (audioSessionIdRef.current !== mySessionId) return;
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       const tempCtx = new AudioCtx();
       const decoded = await tempCtx.decodeAudioData(arrayBuffer.slice(0));
       await tempCtx.close().catch(() => {});
+      if (audioSessionIdRef.current !== mySessionId) return;
 
       const targetSr = 16000;
       const offlineCtx = new OfflineAudioContext(1, Math.ceil(decoded.duration * targetSr), targetSr);
@@ -660,18 +679,55 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       src.connect(offlineCtx.destination);
       src.start(0);
       const rendered = await offlineCtx.startRendering();
-      decodedPcm16kRef.current = rendered.getChannelData(0);
+      if (audioSessionIdRef.current !== mySessionId) return;
 
-      showToast(`[${file.name}] 실시간 통화 재생 및 음성 수음 시작`);
-      setTimeout(() => clearToast(), 3000);
+      decodedPcm16kRef.current = rendered.getChannelData(0);
+      realtimeVadRef.current = {
+        cursorFrame: 0,
+        inSpeech: false,
+        speechStartFrame: 0,
+        silenceFrames: 0,
+        noiseFloor: 220,
+        inflightCount: 0,
+        lastChunkLabel: '',
+      };
     } catch (err) {
       console.warn("실시간 오디오 버퍼 디코딩 실패:", err);
     }
 
-    if (sttEngine === 'web_speech') {
-      startSttStreaming();
-    }
-  }, [sttEngine, resetSessionForNewAudio, applyCallerHintFromFilename, setActiveAudioFile, setIsAudioPlaying, setRecording, startSttStreaming, showToast, clearToast]);
+    if (audioSessionIdRef.current !== mySessionId) return;
+
+    // 7. 새 오디오 파일 URL 마운트 및 00:00부터 즉시 재생 시작
+    setActiveAudioFile(file);
+    setIsAudioPlaying(true);
+    setRecording(true);
+
+    setTimeout(() => {
+      if (audioSessionIdRef.current !== mySessionId) return;
+      if (globalAudioRef.current) {
+        try {
+          globalAudioRef.current.currentTime = 0;
+          globalAudioRef.current.load();
+          globalAudioRef.current.play().catch((e) => {
+            console.warn("Auto play after file switch notice:", e);
+          });
+        } catch (_) {}
+      }
+      if (useCounselStore.getState().sttEngine === 'web_speech') {
+        if (recognitionRef.current) {
+          try { recognitionRef.current.abort(); } catch (_) {}
+        }
+        setTimeout(() => {
+          if (audioSessionIdRef.current === mySessionId) {
+            startSttStreaming();
+          }
+        }, 120);
+      }
+    }, 30);
+
+    showToast(`[${file.name}] 통화 초기화 및 실시간 음성 수음 시작`);
+    setTimeout(() => clearToast(), 3000);
+  }, [resetSessionForNewAudio, applyCallerHintFromFilename, setActiveAudioFile, setIsAudioPlaying, setAudioTime, setInterimSttText, setRecording, startSttStreaming, showToast, clearToast]);
 
 
 
@@ -758,6 +814,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   const flushCompletedSpeechChunkToClova = useCallback((startSec: number, endSec: number, currentPlayheadSec: number) => {
     const pcm16k = decodedPcm16kRef.current;
     if (!pcm16k) return;
+    const capturedSessionId = audioSessionIdRef.current;
 
     // 인과율 강제(Zero Future Lookahead): 절대로 현재 재생 시점(currentPlayheadSec) 이후의 미래 샘플은 잘라내지 못하도록 하드 클램핑
     const safeEndSec = Math.min(endSec, currentPlayheadSec);
@@ -792,6 +849,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         return res.json();
       })
       .then((data) => {
+        // 다른 파일로 전환되었거나 정지된 경우 이전 파일의 지연 응답은 즉시 폐기
+        if (audioSessionIdRef.current !== capturedSessionId) return;
         const cleanText = (data.text || '').trim();
         if (cleanText) {
           processIncomingSpeechUtterance(`[${m1}:${s1}] ${cleanText}`);
@@ -801,6 +860,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         console.warn('Clova 실시간 청크 전사 실패:', err);
       })
       .finally(() => {
+        if (audioSessionIdRef.current !== capturedSessionId) return;
         const curVad = realtimeVadRef.current;
         curVad.inflightCount = Math.max(0, curVad.inflightCount - 1);
         if (!curVad.inSpeech && curVad.inflightCount === 0) {
@@ -918,6 +978,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   const handleManualFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
+      e.target.value = '';
       processAudioWithActiveEngine(file);
     }
   };
@@ -945,6 +1006,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   };
 
   const stopAudioPlayback = () => {
+    audioSessionIdRef.current += 1;
     if (globalAudioRef.current) {
       globalAudioRef.current.pause();
       globalAudioRef.current.currentTime = 0;
@@ -971,6 +1033,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   };
 
   const handleClearAudioFile = () => {
+    audioSessionIdRef.current += 1;
     if (globalAudioRef.current) {
       globalAudioRef.current.pause();
       globalAudioRef.current.currentTime = 0;
@@ -1081,7 +1144,6 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
 
   // Robust Persistent Web Speech API with Multi-Entity & Action Auto-Trigger
   useEffect(() => {
-    // Faster-Whisper GPU 모드일 때는 Web Speech API를 완전히 비활성화 (브라우저 마이크 이중 수음 방지)
     if (sttEngine !== 'web_speech') {
       if (recognitionRef.current) {
         try { recognitionRef.current.stop(); } catch (_) {}
@@ -1093,12 +1155,14 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
+    let isDisposed = false;
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'ko-KR';
 
     recognition.onresult = (event: any) => {
+      if (isDisposed) return;
       let interim = '';
       let final = '';
 
@@ -1111,9 +1175,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         }
       }
 
-      // Natural STT stream processing with silence-based auto-commit
       if (final.trim()) {
-        // final 결과 → 커밋 타이머 취소 후 즉시 처리
         if (webSpeechCommitTimerRef.current) {
           clearTimeout(webSpeechCommitTimerRef.current);
           webSpeechCommitTimerRef.current = null;
@@ -1123,13 +1185,13 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         setInterimSttText('');
       } else if (interim) {
         setInterimSttText(interim);
-        // 침묵 감지 후 자동 커밋 (webSpeechSilenceSecRef로 최신값 참조)
         if (webSpeechCommitTimerRef.current) {
           clearTimeout(webSpeechCommitTimerRef.current);
         }
         const capturedInterim = interim.trim();
+        const capturedSessionId = audioSessionIdRef.current;
         webSpeechCommitTimerRef.current = window.setTimeout(() => {
-          if (capturedInterim) {
+          if (!isDisposed && audioSessionIdRef.current === capturedSessionId && capturedInterim) {
             processIncomingSpeechUtterance(capturedInterim);
             setInterimSttText('');
           }
@@ -1137,60 +1199,9 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         }, webSpeechSilenceSecRef.current * 1000);
       }
 
-      // Real-time Multi-Entity Detection (Customer, Site, Symptom, Action)
       const currentStream = interim.trim() || final.trim();
       if (currentStream) {
-        // 1. Symptom Trigger
-        for (const entity of DOMAIN_KEYWORD_REGISTRY) {
-          if (entity.synonyms.test(currentStream)) {
-            addDetectedKeywordEntity(entity);
-            if (!activeKeywordEntity || activeKeywordEntity.id !== entity.id) {
-              setActiveKeywordEntity(entity);
-              setJustTriggeredKeyword(entity.keyword);
-              setTimeout(() => setJustTriggeredKeyword(null), 2500);
-            }
-            break;
-          }
-        }
-
-        // 2. Customer / Site Trigger
-        for (const entRule of NAMED_ENTITY_REGISTRY) {
-          if ((entRule.type === 'customer' || entRule.type === 'site') && entRule.pattern.test(currentStream)) {
-            if (entRule.customerId && selectedCustomer.id !== entRule.customerId) {
-              const matchedCust = customerList.find(c => c.id === entRule.customerId);
-              if (matchedCust) {
-                selectCustomer(matchedCust);
-                showToast(`[고객사] [${matchedCust.name}] 자동 매핑 완료`);
-                setTimeout(() => clearToast(), 3000);
-              }
-            }
-            break;
-          }
-        }
-
-        // 3. Model Trigger
-        for (const entRule of NAMED_ENTITY_REGISTRY) {
-          if (entRule.type === 'model' && entRule.pattern.test(currentStream)) {
-            if (entRule.modelId) {
-              setSelectedCustomerModel(entRule.modelId);
-              showToast(`[장비모델] [${entRule.modelId}] 자동 매핑 완료`);
-              setTimeout(() => clearToast(), 3000);
-            }
-            break;
-          }
-        }
-
-        // 4. Action Trigger: Auto-check SOP checklist step on counselor speech
-        for (const entRule of NAMED_ENTITY_REGISTRY) {
-          if (entRule.type === 'action' && entRule.pattern.test(currentStream)) {
-            if (entRule.actionIndex && actionChecklist[entRule.actionIndex - 1] && !actionChecklist[entRule.actionIndex - 1].checked) {
-              toggleChecklist(entRule.actionIndex);
-              showToast(`[조치 발화 감지] [${actionChecklist[entRule.actionIndex - 1].text.slice(0, 18)}...] 자동 체크 완료`);
-              setTimeout(() => clearToast(), 3000);
-            }
-            break;
-          }
-        }
+        evaluateUtteranceRules(currentStream);
       }
     };
 
@@ -1205,27 +1216,33 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
 
     // Keep-Alive Auto-Recovery
     recognition.onend = () => {
-      if (isRecordingRef.current && sttEngine === 'web_speech') {
+      if (!isDisposed && isRecordingRef.current && useCounselStore.getState().sttEngine === 'web_speech') {
         setTimeout(() => {
-          if (isRecordingRef.current && sttEngine === 'web_speech') {
+          if (!isDisposed && isRecordingRef.current && useCounselStore.getState().sttEngine === 'web_speech') {
             try {
               recognition.start();
-            } catch (e) {
+            } catch (_) {
               setTimeout(() => {
-                if (isRecordingRef.current && sttEngine === 'web_speech') {
+                if (!isDisposed && isRecordingRef.current && useCounselStore.getState().sttEngine === 'web_speech') {
                   try { recognition.start(); } catch (_) {}
                 }
-              }, 400);
+              }, 350);
             }
           }
-        }, 150);
+        }, 120);
       }
     };
 
     recognitionRef.current = recognition;
 
+    if (isRecordingRef.current) {
+      try {
+        recognition.start();
+      } catch (_) {}
+    }
+
     const handleWindowFocus = () => {
-      if (isRecordingRef.current && recognitionRef.current && sttEngine === 'web_speech') {
+      if (!isDisposed && isRecordingRef.current && recognitionRef.current && useCounselStore.getState().sttEngine === 'web_speech') {
         try {
           recognitionRef.current.start();
         } catch (_) {}
@@ -1236,13 +1253,14 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     document.addEventListener('visibilitychange', handleWindowFocus);
 
     return () => {
+      isDisposed = true;
       window.removeEventListener('focus', handleWindowFocus);
       document.removeEventListener('visibilitychange', handleWindowFocus);
       try {
         recognition.stop();
       } catch (_) {}
     };
-  }, [sttEngine, appendFinalParagraph, setInterimSttText, isContextCorrectionEnabled, setRecording, activeKeywordEntity, setActiveKeywordEntity, selectedCustomer, customerList, selectCustomer, actionChecklist, toggleChecklist, showToast, clearToast]);
+  }, [sttEngine, processIncomingSpeechUtterance, evaluateUtteranceRules, setInterimSttText, setRecording, showToast, clearToast]);
 
   // Web Speech API 녹음 상태 동기화 — isRecording이 true가 되는 시점에 recognition.start() 보장
   // (useEffect 비동기 특성으로 recognitionRef가 null인 경쟁 조건 방지)
