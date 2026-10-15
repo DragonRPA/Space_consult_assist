@@ -2,29 +2,29 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
 
 :root {
-  /* 🌟 라이트 테마 토큰: 프리미엄 웜 페이퍼(Warm Cotton Paper) 종이질감 및 5색 고시인성 표준 (eBro ERP 연계) */
-  --bg-app: #f5f2eb;              /* 웜 코튼 페이퍼(종이질감) 캔버스 */
-  --bg-sidebar: #ece7de;          /* 가죽 바인더/장부 표지 톤 사이드바 */
-  --bg-card: #f5f2eb;             /* 종이질감 캔버스와 통일된 편안한 서식 표면 */
-  --bg-header: #ece7de;           /* 장부 상단 바인더 헤더 */
-  --bg-card-header: #ece7de;      /* 카드 내부 헤더 */
-  --border-color: #dcd5c9;        /* 정갈한 연필 그리드/장부 테두리선 */
-  --table-border-color: #dcd5c9;
-  --table-row-border: #e8e2d8;    /* 장부 괘선(미세 행 구분선) */
+  /* 🌟 라이트 테마 토큰: 클린 단색 솔리드(Solid) 고시인성 표준 */
+  --bg-app: #f4f5f7;              /* 정갈하고 차분한 라이트 그레이 캔버스 */
+  --bg-sidebar: #ebedf0;          /* 균형잡힌 사이드바/서브패널 배경 */
+  --bg-card: #ffffff;             /* 깔끔한 순백색 카드/작업 표면 */
+  --bg-header: #ebedf0;           /* 상단 헤더 표면 */
+  --bg-card-header: #f1f3f5;      /* 카드 내부 헤더 */
+  --border-color: #d1d5db;        /* 정교한 1px 단색 테두리선 */
+  --table-border-color: #d1d5db;
+  --table-row-border: #e5e7eb;    /* 미세 행 구분선 */
   
-  --scrollbar-track: #e8e2d8;
-  --scrollbar-thumb: #9a9284;     /* 부드러운 먹색/흑연 썸 */
-  --scrollbar-thumb-hover: #575147;
-  --scrollbar-thumb-border: #f5f2eb;
+  --scrollbar-track: #e5e7eb;
+  --scrollbar-thumb: #9ca3af;     /* 부드러운 중립 회색 썸 */
+  --scrollbar-thumb-hover: #6b7280;
+  --scrollbar-thumb-border: #f4f5f7;
 
-  /* 📜 종이질감(Warm Cotton Paper Micro-grain) 노이즈 텍스처 (SVG 무손실 벡터 데이터 URI) */
-  --paper-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='paperNoise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0 0.25 0 0 0 0 0.038 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paperNoise)'/%3E%3C/svg%3E");
+  /* 단색 플랫 UI 표준: 질감/노이즈 효과 완전 제거 */
+  --paper-texture: none;
 
   --canvas: var(--bg-app);
-  --surface-1: var(--bg-card);
-  --surface-2: var(--bg-sidebar);
-  --surface-3: var(--bg-card-header);
-  --surface-hover: #e8e2d8;
+  --surface-1: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
+  --surface-hover: #e2e8f0;
   --hairline: var(--border-color);
   --hairline-strong: #1d4ed8;
   --ink: #0f172a;
@@ -37,8 +37,8 @@
   --accent-danger: #dc2626;
   --badge-bg: #eff6ff;
   --badge-text: #1d4ed8;
-  --ars-bg: rgba(29, 78, 216, 0.08);
-  --ars-border: rgba(29, 78, 216, 0.2);
+  --ars-bg: #eff6ff;
+  --ars-border: #bfdbfe;
   --ars-text: #1d4ed8;
   --glow-color: rgba(29, 78, 216, 0.15);
   --radius-xs: 4px;
@@ -53,7 +53,7 @@
   margin: 0;
   padding: 0;
   scrollbar-width: thin;
-  scrollbar-color: #9a9284 #e8e2d8;
+  scrollbar-color: #9ca3af #e5e7eb;
 }
 
 html, body, #root {
@@ -69,8 +69,7 @@ body {
   font-size: 14px;
   line-height: 1.5;
   background-color: var(--bg-app);
-  background-image: var(--paper-texture);
-  background-repeat: repeat;
+  background-image: none;
   color: var(--ink);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
@@ -78,17 +77,15 @@ body {
 
 input, select, textarea {
   font-family: inherit;
-  background-color: var(--bg-card);
-  background-image: var(--paper-texture);
-  background-repeat: repeat;
+  background-color: #ffffff;
+  background-image: none;
   color: var(--ink);
 }
 
 .paper-card,
 [data-card] {
-  background-color: var(--bg-app);
-  background-image: var(--paper-texture);
-  background-repeat: repeat;
+  background-color: #ffffff;
+  background-image: none;
 }
 
 button {
