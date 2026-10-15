@@ -750,56 +750,14 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
             padding: '40px 24px 100px'
           }}
         >
-          {/* 중앙 미니멀 타이틀 */}
-          <div style={{ textAlign: 'center', marginBottom: 28 }}>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '4px 12px',
-                borderRadius: 20,
-                background: '#ece7de',
-                border: '1px solid #dcd5c9',
-                fontSize: 13.5,
-                fontWeight: 700,
-                color: '#475569',
-                marginBottom: 12
-              }}
-            >
-              <span>점진적 정보 전개 워크스페이스</span>
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 14,
-                marginBottom: 4
-              }}
-            >
-              <img
-                src="/SPACE_logo.png"
-                alt="SPACE 공식 로고"
-                data-uia="v3-zero-hero-logo"
-                style={{ height: 32, width: 'auto', objectFit: 'contain', display: 'block' }}
-              />
-              <h1
-                style={{
-                  fontSize: 32,
-                  fontWeight: 900,
-                  color: '#0f172a',
-                  letterSpacing: '-0.8px',
-                  margin: 0,
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                Advisor <span style={{ color: '#2563eb' }}>상담지원3</span>
-              </h1>
-            </div>
-            <p style={{ fontSize: 14.5, color: '#64748b', marginTop: 8, fontWeight: 500 }}>
-              전화번호, 고객사명, 장비 모델, 증상 키워드를 구분 없이 한 줄에 입력하십시오.
-            </p>
+          {/* 중앙 로고 */}
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 28 }}>
+            <img
+              src="/SPACE_logo.png"
+              alt="SPACE 공식 로고"
+              data-uia="v3-zero-hero-logo"
+              style={{ height: 40, width: 'auto', objectFit: 'contain', display: 'block' }}
+            />
           </div>
 
           {/* 구글 스타일 중앙 옴니 검색창 */}
