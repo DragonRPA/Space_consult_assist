@@ -18,6 +18,7 @@ import {
   Upload, 
   FileAudio, 
   Loader2,
+  MicOff,
   X
 } from 'lucide-react';
 import { useCounselStore } from './store';
@@ -884,6 +885,15 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     // 오직 현재 스피커로 재생 완료된 시점(currentTimeSec)까지만 프레임 스캔 (미래 프레임 스캔 절대 금지)
     const targetFrame = Math.min(totalFrames, Math.floor(currentTimeSec * 10));
 
+    // 사용자가 수동으로 'STT 끄기'를 누른 상태면 커서만 현재 재생 시점으로 동기화하고 청음 건너뜀
+    if (!isRecordingRef.current && !isEnded) {
+      vad.cursorFrame = targetFrame;
+      vad.inSpeech = false;
+      vad.silenceFrames = 0;
+      setInterimSttText('');
+      return;
+    }
+
     // 사용자가 재생바를 뒤로 되감기한 경우 커서 리셋
     if (targetFrame < vad.cursorFrame - 3) {
       vad.cursorFrame = targetFrame;
@@ -1071,8 +1081,34 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     return `${m}:${s}`;
   };
 
-  // 통화 활성화 상태 (Faster-Whisper 스트리밍 수신 중이거나, Web Speech 녹음 중이거나, 오디오 재생 중)
-  const isCallActive = isAudioStreamingActive || (sttEngine === 'web_speech' && isRecording) || isAudioPlaying;
+  // 수동 STT 켜기/끄기 토글 (실제 마이크 음성 테스트 및 오디오 재생 중 수동 제어 겸용)
+  const toggleManualStt = useCallback(() => {
+    if (!isRecording) {
+      setRecording(true);
+      if (sttEngine === 'web_speech') {
+        startSttStreaming();
+      } else if (sttEngine === 'naver_clova' && activeAudioFile && globalAudioRef.current) {
+        const curSec = globalAudioRef.current.currentTime;
+        realtimeVadRef.current.cursorFrame = Math.floor(curSec * 10);
+        realtimeVadRef.current.inSpeech = false;
+        realtimeVadRef.current.silenceFrames = 0;
+      }
+      showToast(`STT 청음 시작 (${sttEngine === 'naver_clova' ? '네이버 클로바 STT' : '브라우저 내장 STT'})`);
+      setTimeout(() => clearToast(), 2500);
+    } else {
+      if (webSpeechCommitTimerRef.current) {
+        clearTimeout(webSpeechCommitTimerRef.current);
+        webSpeechCommitTimerRef.current = null;
+      }
+      stopSttStreaming();
+      setInterimSttText('');
+      showToast('STT 청음 중지');
+      setTimeout(() => clearToast(), 2500);
+    }
+  }, [isRecording, sttEngine, activeAudioFile, setRecording, startSttStreaming, stopSttStreaming, setInterimSttText, showToast, clearToast]);
+
+  // 통화 활성화 상태 (STT 녹음/수음 중이거나 오디오 재생 중)
+  const isCallActive = isAudioStreamingActive || isRecording || isAudioPlaying;
 
   // Call timer interval - 가상 오디오 스트리밍이 진행되는 동안에만 1초씩 카운트
   useEffect(() => {
@@ -1096,8 +1132,50 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     }
   }, [finalParagraphs, interimSttText, isUserScrolledUp]);
 
-  // Live Audio Level Visualizer
+  // Live Audio Level Visualizer + 실제 마이크 음성 네이버 클로바 실시간 청크 전송
   useEffect(() => {
+    let processorNode: ScriptProcessorNode | null = null;
+    let micSpeechSamples: number[] = [];
+    let micInSpeech = false;
+    let micSilenceChunks = 0;
+
+    const flushMicSamplesToClova = (samples16k: number[]) => {
+      if (samples16k.length < 16000 * 0.55) return;
+      const floatArr = new Float32Array(samples16k);
+      const wavBlob = encodeWav16kMono(floatArr, 16000);
+      const curSec = useCounselStore.getState().callSeconds;
+      const m = String(Math.floor(curSec / 60)).padStart(2, '0');
+      const s = String(Math.floor(curSec % 60)).padStart(2, '0');
+      const durSec = (samples16k.length / 16000).toFixed(1);
+
+      setInterimSttText(`[네이버 클로바 마이크 음성 변환 중... (${durSec}초)]`);
+      const formData = new FormData();
+      formData.append('file', wavBlob, `mic_${Date.now()}.wav`);
+
+      fetch(`http://127.0.0.1:8000/api/v1/stt/clova-chunk?start=${curSec}&end=${curSec + Number(durSec)}`, {
+        method: 'POST',
+        body: formData
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .then((data) => {
+          const cleanText = (data.text || '').trim();
+          if (cleanText) {
+            processIncomingSpeechUtterance(`[${m}:${s}] ${cleanText}`);
+          }
+        })
+        .catch((err) => {
+          console.warn('마이크 클로바 STT 전사 실패:', err);
+        })
+        .finally(() => {
+          if (!micInSpeech) {
+            setInterimSttText('');
+          }
+        });
+    };
+
     if (isRecording) {
       navigator.mediaDevices?.getUserMedia({ audio: true })
         .then((stream) => {
@@ -1112,6 +1190,63 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
 
           const source = audioCtx.createMediaStreamSource(stream);
           source.connect(analyser);
+
+          // 실제 마이크 테스트 모드 (음성 파일 재생 중이 아닐 때 네이버 클로바 STT가 선택된 경우 마이크 실시간 수음)
+          try {
+            processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
+            source.connect(processorNode);
+            processorNode.connect(audioCtx.destination);
+            const inRate = audioCtx.sampleRate || 48000;
+            const ratio = inRate / 16000;
+
+            processorNode.onaudioprocess = (e) => {
+              const out = e.outputBuffer.getChannelData(0);
+              for (let i = 0; i < out.length; i++) out[i] = 0;
+
+              const state = useCounselStore.getState();
+              if (!isRecordingRef.current || state.sttEngine !== 'naver_clova' || state.isAudioPlaying) {
+                return;
+              }
+
+              const input = e.inputBuffer.getChannelData(0);
+              const outLen = Math.floor(input.length / ratio);
+              let sumSq = 0;
+              const downsampled: number[] = new Array(outLen);
+              for (let i = 0; i < outLen; i++) {
+                const sample = input[Math.min(input.length - 1, Math.floor(i * ratio))];
+                downsampled[i] = sample;
+                const v = sample * 32767;
+                sumSq += v * v;
+              }
+              const rms = Math.sqrt(sumSq / Math.max(1, outLen));
+
+              if (rms > 240) {
+                micInSpeech = true;
+                micSilenceChunks = 0;
+                for (let i = 0; i < downsampled.length; i++) micSpeechSamples.push(downsampled[i]);
+                const dur = (micSpeechSamples.length / 16000).toFixed(1);
+                setInterimSttText(`[마이크 실시간 음성 수음 중... (${dur}초)]`);
+
+                if (micSpeechSamples.length >= 16000 * 3.8) {
+                  const toSend = micSpeechSamples;
+                  micSpeechSamples = [];
+                  micInSpeech = false;
+                  micSilenceChunks = 0;
+                  flushMicSamplesToClova(toSend);
+                }
+              } else if (micInSpeech) {
+                micSilenceChunks += 1;
+                for (let i = 0; i < downsampled.length; i++) micSpeechSamples.push(downsampled[i]);
+                if (micSilenceChunks >= 4) {
+                  const toSend = micSpeechSamples;
+                  micSpeechSamples = [];
+                  micInSpeech = false;
+                  micSilenceChunks = 0;
+                  flushMicSamplesToClova(toSend);
+                }
+              }
+            };
+          } catch (_) {}
 
           const dataArray = new Uint8Array(analyser.frequencyBinCount);
           const update = () => {
@@ -1136,11 +1271,19 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     }
 
     return () => {
+      if (micInSpeech && micSpeechSamples.length >= 16000 * 0.55) {
+        flushMicSamplesToClova(micSpeechSamples);
+        micSpeechSamples = [];
+        micInSpeech = false;
+      }
+      if (processorNode) {
+        try { processorNode.disconnect(); } catch (_) {}
+      }
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     };
-  }, [isRecording]);
+  }, [isRecording, processIncomingSpeechUtterance, setInterimSttText]);
 
   // Robust Persistent Web Speech API with Multi-Entity & Action Auto-Trigger
   useEffect(() => {
@@ -1849,16 +1992,35 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                 </div>
               </div>
               
-              {/* Dynamic Mic Activity Indicator */}
+              {/* Dynamic Mic Activity Indicator & Manual STT Toggle Button */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, whiteSpace: 'nowrap' }}>
                 {isRecording && (
                   <span style={{ fontSize: '12.5px', color: '#047857', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
                     <Volume2 size={13} className="animate-pulse" /> 수신 중 ({Math.max(15, micAudioLevel)}%)
                   </span>
                 )}
-                <span style={{ fontSize: '12.5px', color: isRecording ? '#047857' : '#475569', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                  {isRecording ? "● 가동 중" : "대기 상태"}
-                </span>
+                <button
+                  onClick={toggleManualStt}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '4px 11px',
+                    borderRadius: '6px',
+                    border: isRecording ? '1px solid #b91c1c' : '1px solid #047857',
+                    backgroundColor: isRecording ? '#dc2626' : '#059669',
+                    color: '#ffffff',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {isRecording ? <MicOff size={13} /> : <Mic size={13} />}
+                  <span>{isRecording ? 'STT 끄기' : 'STT 켜기'}</span>
+                </button>
               </div>
             </div>
 
@@ -1911,7 +2073,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
           <div style={{ 
             padding: '8px 12px', 
             borderBottom: '1px solid var(--hairline)', 
-            backgroundColor: activeAudioFile ? '#e0f2fe' : '#f8fafc',
+            backgroundColor: activeAudioFile ? '#e0f2fe' : isRecording ? '#ecfdf5' : '#f8fafc',
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center',
@@ -1931,16 +2093,18 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                   </span>
                 </div>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '13.5px', color: '#475569', fontWeight: 600 }}>
-                    음성 파일(.m4a)을 선택하여 실시간 통화 데모를 시작하세요
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: '13.5px', color: isRecording ? '#065f46' : '#475569', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    {isRecording
+                      ? '● 마이크 실시간 음성 테스트 진행 중 (말씀하시면 즉시 전사됩니다)'
+                      : '음성 파일(.m4a) 열기 또는 [STT 켜기]로 실시간 음성 테스트를 시작하세요'}
                   </span>
                 </div>
               )}
             </div>
 
-            {/* Right: PLAY / PAUSE / STOP BUTTONS (DIRECTLY ABOVE TEXT BOX) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            {/* Right: PLAY / PAUSE / STOP / STT ON-OFF BUTTONS (DIRECTLY ABOVE TEXT BOX) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
               {activeAudioFile ? (
                 <>
                   <button
@@ -1957,7 +2121,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                       fontSize: '13.5px',
                       fontWeight: 700,
                       cursor: 'pointer',
-                      boxShadow: isAudioPlaying ? '0 0 10px rgba(239, 68, 68, 0.4)' : '0 0 10px rgba(37, 99, 235, 0.4)'
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     {isAudioPlaying ? <Pause size={12} /> : <Play size={12} />}
@@ -2008,7 +2172,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                       color: 'var(--ink)', 
                       fontSize: '13.5px', 
                       cursor: 'pointer', 
-                      fontWeight: 600 
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     <Upload size={12} />
@@ -2016,7 +2181,28 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                   </button>
                 </>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                  <button
+                    onClick={toggleManualStt}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '5px 12px',
+                      backgroundColor: isRecording ? '#dc2626' : '#059669',
+                      border: 'none',
+                      borderRadius: '4px',
+                      color: '#fff',
+                      fontSize: '13.5px',
+                      cursor: 'pointer',
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {isRecording ? <MicOff size={13} /> : <Mic size={13} />}
+                    <span>{isRecording ? 'STT 끄기' : 'STT 켜기'}</span>
+                  </button>
+
                   <button 
                     onClick={() => fileInputRef.current?.click()}
                     title="음성(.m4a) 파일 열기"
@@ -2032,7 +2218,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                       fontSize: '13.5px', 
                       cursor: 'pointer', 
                       fontWeight: 700,
-                      boxShadow: '0 0 10px rgba(37, 99, 235, 0.4)'
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     <Upload size={13} />
