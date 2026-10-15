@@ -133,6 +133,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     audioCurrentTime,
     audioDuration,
     sttEngine,
+    setSttEngine,
     setActiveAudioFile,
     clearAudioFile,
     setIsAudioPlaying,
@@ -1464,6 +1465,61 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                 <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
                   전사 자막 및 개체 감지
                 </span>
+                
+                {/* STT 엔진 선택 세그먼트 버튼 */}
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  backgroundColor: 'var(--surface-3)',
+                  padding: '2px',
+                  borderRadius: '5px',
+                  border: '1px solid var(--hairline)',
+                  gap: '2px'
+                }}>
+                  <button
+                    onClick={() => {
+                      setSttEngine('naver_clova');
+                      showToast('STT 엔진: NAVER CLOVA Speech 전환');
+                      setTimeout(() => clearToast(), 2500);
+                    }}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: '12.5px',
+                      fontWeight: sttEngine === 'naver_clova' ? 700 : 500,
+                      color: sttEngine === 'naver_clova' ? '#4ade80' : 'var(--ink-muted)',
+                      backgroundColor: sttEngine === 'naver_clova' ? 'rgba(3, 199, 90, 0.2)' : 'transparent',
+                      border: sttEngine === 'naver_clova' ? '1px solid rgba(3, 199, 90, 0.45)' : '1px solid transparent',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    네이버 클로바 STT
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setSttEngine('web_speech');
+                      showToast('STT 엔진: 브라우저 Web Speech 전환');
+                      setTimeout(() => clearToast(), 2500);
+                    }}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: '12.5px',
+                      fontWeight: sttEngine === 'web_speech' ? 700 : 500,
+                      color: sttEngine === 'web_speech' ? '#93c5fd' : 'var(--ink-muted)',
+                      backgroundColor: sttEngine === 'web_speech' ? 'rgba(37, 99, 235, 0.25)' : 'transparent',
+                      border: sttEngine === 'web_speech' ? '1px solid rgba(37, 99, 235, 0.45)' : '1px solid transparent',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    브라우저 내장 STT
+                  </button>
+                </div>
               </div>
               
               {/* Dynamic Mic Activity Indicator */}
