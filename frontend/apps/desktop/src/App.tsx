@@ -201,6 +201,23 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     dispatched?: boolean;
   }[]>([]);
   const decodedPcm16kRef = useRef<Float32Array | null>(null);
+  const realtimeVadRef = useRef<{
+    cursorFrame: number;
+    inSpeech: boolean;
+    speechStartFrame: number;
+    silenceFrames: number;
+    noiseFloor: number;
+    inflightCount: number;
+    lastChunkLabel: string;
+  }>({
+    cursorFrame: 0,
+    inSpeech: false,
+    speechStartFrame: 0,
+    silenceFrames: 0,
+    noiseFloor: 220,
+    inflightCount: 0,
+    lastChunkLabel: '',
+  });
   // ── STT 청크 시간 설정 ─────────────────────────────────────────────────────
   const whisperMaxChunkSec = 1.2;   // Whisper 최대 세그먼트 (초)
   const whisperSilenceSec = 0.2;     // Whisper 무음 감지 (초)
@@ -602,9 +619,18 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   }, [selectCustomer]);
 
   const processAudioWithActiveEngine = useCallback(async (file: File) => {
-    // 이전 세그먼트 및 세션 초기화
+    // 이전 세그먼트 및 실시간 VAD 커서 초기화
     audioSegmentsRef.current = [];
     decodedPcm16kRef.current = null;
+    realtimeVadRef.current = {
+      cursorFrame: 0,
+      inSpeech: false,
+      speechStartFrame: 0,
+      silenceFrames: 0,
+      noiseFloor: 220,
+      inflightCount: 0,
+      lastChunkLabel: '',
+    };
     resetSessionForNewAudio();
     applyCallerHintFromFilename(file.name);
     setActiveAudioFile(file);
@@ -618,8 +644,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       } catch (_) {}
     }
 
-    // 전체 파일을 한 번에 서버로 던지지 않고, 브라우저에서 16kHz PCM 디코딩 후 발화 타임 윈도우만 구성하여
-    // 통화 재생 진행(currentTime)에 맞춰 해당 순간의 발화 청크만 실시간으로 NAVER CLOVA CSR에 전송합니다.
+    // 사전 구간 분할(Pre-segmentation)이나 미래 구간 참조(Lookahead) 일절 없이,
+    // 16kHz PCM 버퍼만 준비해 두고 실제 스피커 재생 시점(currentTimeSec)이 지나간 파형만 실시간 수음하여 발화 종료 시점에 Clova로 전송합니다.
     try {
       const arrayBuffer = await file.arrayBuffer();
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -634,79 +660,12 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       src.connect(offlineCtx.destination);
       src.start(0);
       const rendered = await offlineCtx.startRendering();
-      const pcm16k = rendered.getChannelData(0);
-      decodedPcm16kRef.current = pcm16k;
+      decodedPcm16kRef.current = rendered.getChannelData(0);
 
-      // 100ms 에너지 VAD 기반 발화 구간 인덱싱 (전사는 통화 진행 시 실시간 수행)
-      const frameLen = Math.floor(targetSr * 0.1);
-      const nFrames = Math.floor(pcm16k.length / frameLen);
-      const energies: number[] = new Array(nFrames);
-      for (let i = 0; i < nFrames; i++) {
-        let sumSq = 0;
-        const base = i * frameLen;
-        for (let j = 0; j < frameLen; j++) {
-          const v = pcm16k[base + j] * 32767;
-          sumSq += v * v;
-        }
-        energies[i] = Math.sqrt(sumSq / frameLen);
-      }
-
-      const sorted = [...energies].sort((a, b) => a - b);
-      const p30 = sorted[Math.floor(sorted.length * 0.3)] || 0;
-      const threshold = Math.max(180, Math.min(400, p30 * 2.2));
-
-      const windows: {
-        start: number;
-        end: number;
-        text: string;
-        state: 'pending' | 'inflight' | 'ready' | 'done';
-        dispatched: boolean;
-      }[] = [];
-
-      let inSpeech = false;
-      let segStart = 0;
-      let silenceCount = 0;
-
-      for (let i = 0; i < nFrames; i++) {
-        if (energies[i] > threshold) {
-          if (!inSpeech) {
-            inSpeech = true;
-            segStart = Math.max(0, i - 1);
-          }
-          silenceCount = 0;
-        } else if (inSpeech) {
-          silenceCount++;
-          if (silenceCount >= 5 || (i - segStart) * 0.1 >= 5.5) {
-            const segEnd = i;
-            if ((segEnd - segStart) * 0.1 >= 0.8) {
-              windows.push({
-                start: Number((segStart * 0.1).toFixed(2)),
-                end: Number((segEnd * 0.1).toFixed(2)),
-                text: '',
-                state: 'pending',
-                dispatched: false
-              });
-            }
-            inSpeech = false;
-            silenceCount = 0;
-          }
-        }
-      }
-      if (inSpeech && (nFrames - segStart) * 0.1 >= 0.8) {
-        windows.push({
-          start: Number((segStart * 0.1).toFixed(2)),
-          end: Number((nFrames * 0.1).toFixed(2)),
-          text: '',
-          state: 'pending',
-          dispatched: false
-        });
-      }
-
-      audioSegmentsRef.current = windows;
-      showToast(`[${file.name}] 실시간 통화 시뮬레이션 시작 (${windows.length}개 발화 구간 실시간 청크 대기)`);
+      showToast(`[${file.name}] 실시간 통화 재생 및 음성 수음 시작`);
       setTimeout(() => clearToast(), 3000);
     } catch (err) {
-      console.warn("실시간 오디오 청크 디코딩 실패:", err);
+      console.warn("실시간 오디오 버퍼 디코딩 실패:", err);
     }
 
     if (sttEngine === 'web_speech') {
@@ -796,104 +755,163 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     }
   }, [isAudioPlaying, activeAudioUrl]);
 
-  const handleAudioTimeUpdate = useCallback((currentTimeSec: number) => {
-    const segments = audioSegmentsRef.current;
+  const flushCompletedSpeechChunkToClova = useCallback((startSec: number, endSec: number, currentPlayheadSec: number) => {
     const pcm16k = decodedPcm16kRef.current;
-    if (!segments || segments.length === 0) return;
+    if (!pcm16k) return;
 
-    // NAVER CLOVA 모드일 때: 통화 진행 시간에 맞춰 현재 발화 중인 단일 청크만 실시간 API 전송
-    if (sttEngine === 'naver_clova' && pcm16k) {
-      // 1) 현재 재생 위치에서 발화 중인 세그먼트가 있으면 실시간 수음/인식 중 인디케이터 표시
-      const activeSpeakingSeg = segments.find(
-        (s) => !s.dispatched && currentTimeSec >= Math.max(0, s.start - 0.15) && currentTimeSec <= s.end + 0.8
-      );
-      if (activeSpeakingSeg) {
-        const m1 = String(Math.floor(activeSpeakingSeg.start / 60)).padStart(2, '0');
-        const s1 = String(Math.floor(activeSpeakingSeg.start % 60)).padStart(2, '0');
-        const m2 = String(Math.floor(activeSpeakingSeg.end / 60)).padStart(2, '0');
-        const s2 = String(Math.floor(activeSpeakingSeg.end % 60)).padStart(2, '0');
-        setInterimSttText(`[네이버 클로바 실시간 청크 수음 및 전사 중... (${m1}:${s1} ~ ${m2}:${s2})]`);
-      }
+    // 인과율 강제(Zero Future Lookahead): 절대로 현재 재생 시점(currentPlayheadSec) 이후의 미래 샘플은 잘라내지 못하도록 하드 클램핑
+    const safeEndSec = Math.min(endSec, currentPlayheadSec);
+    if (safeEndSec - startSec < 0.65) return;
 
-      // 2) 통화 진행 시간이 도달한 발화 청크만 개별 실시간 전송 (전체 파일 일괄 전송 금지)
-      for (const seg of segments) {
-        if (seg.state === 'pending' && currentTimeSec >= Math.max(0, seg.start - 0.25)) {
-          seg.state = 'inflight';
-          const startSample = Math.max(0, Math.floor(seg.start * 16000));
-          const endSample = Math.min(pcm16k.length, Math.ceil(seg.end * 16000));
-          const slice = pcm16k.subarray(startSample, endSample);
-          const wavBlob = encodeWav16kMono(slice, 16000);
+    const startSample = Math.max(0, Math.floor(startSec * 16000));
+    const endSample = Math.min(pcm16k.length, Math.floor(safeEndSec * 16000));
+    if (endSample <= startSample) return;
 
-          const formData = new FormData();
-          formData.append('file', wavBlob, `chunk_${seg.start.toFixed(1)}_${seg.end.toFixed(1)}.wav`);
+    const slice = pcm16k.subarray(startSample, endSample);
+    const wavBlob = encodeWav16kMono(slice, 16000);
 
-          fetch(`http://127.0.0.1:8000/api/v1/stt/clova-chunk?start=${seg.start}&end=${seg.end}`, {
-            method: 'POST',
-            body: formData
-          })
-            .then(async (res) => {
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              return res.json();
-            })
-            .then((data) => {
-              seg.text = (data.text || '').trim();
-              seg.state = 'ready';
-              const liveNow = globalAudioRef.current ? globalAudioRef.current.currentTime : currentTimeSec;
-              if (!seg.dispatched && liveNow >= Math.min(seg.end - 0.3, seg.start + 1.2)) {
-                seg.dispatched = true;
-                seg.state = 'done';
-                if (seg.text) {
-                  const m = String(Math.floor(seg.start / 60)).padStart(2, '0');
-                  const s = String(Math.floor(seg.start % 60)).padStart(2, '0');
-                  processIncomingSpeechUtterance(`[${m}:${s}] ${seg.text}`);
-                }
-                const stillActive = audioSegmentsRef.current.some((item) => item.state === 'inflight');
-                if (!stillActive) setInterimSttText('');
-              }
-            })
-            .catch((err) => {
-              console.warn('Clova 실시간 청크 전사 실패:', err);
-              seg.state = 'done';
-              seg.dispatched = true;
-            });
+    const m1 = String(Math.floor(startSec / 60)).padStart(2, '0');
+    const s1 = String(Math.floor(startSec % 60)).padStart(2, '0');
+    const m2 = String(Math.floor(safeEndSec / 60)).padStart(2, '0');
+    const s2 = String(Math.floor(safeEndSec % 60)).padStart(2, '0');
+    const chunkLabel = `${m1}:${s1} ~ ${m2}:${s2}`;
+
+    const vad = realtimeVadRef.current;
+    vad.inflightCount += 1;
+    vad.lastChunkLabel = chunkLabel;
+
+    const formData = new FormData();
+    formData.append('file', wavBlob, `chunk_${startSec.toFixed(1)}_${safeEndSec.toFixed(1)}.wav`);
+
+    fetch(`http://127.0.0.1:8000/api/v1/stt/clova-chunk?start=${startSec.toFixed(2)}&end=${safeEndSec.toFixed(2)}`, {
+      method: 'POST',
+      body: formData
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        const cleanText = (data.text || '').trim();
+        if (cleanText) {
+          processIncomingSpeechUtterance(`[${m1}:${s1}] ${cleanText}`);
         }
-
-        // 3) 이미 전사 응답이 도착한 청크가 발화 완료 시점에 도달하면 즉시 화면 표출 및 개체 감지
-        if (seg.state === 'ready' && !seg.dispatched && currentTimeSec >= Math.min(seg.end - 0.3, seg.start + 1.2)) {
-          seg.dispatched = true;
-          seg.state = 'done';
-          if (seg.text) {
-            const m = String(Math.floor(seg.start / 60)).padStart(2, '0');
-            const s = String(Math.floor(seg.start % 60)).padStart(2, '0');
-            processIncomingSpeechUtterance(`[${m}:${s}] ${seg.text}`);
-          }
-          const stillActive = segments.some((item) => item.state === 'inflight');
-          if (!stillActive) setInterimSttText('');
+      })
+      .catch((err) => {
+        console.warn('Clova 실시간 청크 전사 실패:', err);
+      })
+      .finally(() => {
+        const curVad = realtimeVadRef.current;
+        curVad.inflightCount = Math.max(0, curVad.inflightCount - 1);
+        if (!curVad.inSpeech && curVad.inflightCount === 0) {
+          setInterimSttText('');
         }
-      }
+      });
+  }, [processIncomingSpeechUtterance, setInterimSttText]);
+
+  const handleAudioTimeUpdate = useCallback((currentTimeSec: number, isEnded = false) => {
+    const pcm16k = decodedPcm16kRef.current;
+    if (!pcm16k || sttEngine !== 'naver_clova') return;
+
+    // 재생 중이 아닐 때(일시정지/정지 직후 currentTime=0 리셋 이벤트 등)는 수음/전송 금지
+    if (!isEnded && (!globalAudioRef.current || globalAudioRef.current.paused)) {
       return;
     }
 
-    // 기타 사전 분석 세그먼트 동기화 폴백
-    for (const seg of segments) {
-      if (!seg.dispatched && seg.text && currentTimeSec >= seg.start) {
-        seg.dispatched = true;
-        processIncomingSpeechUtterance(seg.text);
+    const vad = realtimeVadRef.current;
+    const frameLen = 1600; // 100ms @ 16kHz
+    const totalFrames = Math.floor(pcm16k.length / frameLen);
+    // 오직 현재 스피커로 재생 완료된 시점(currentTimeSec)까지만 프레임 스캔 (미래 프레임 스캔 절대 금지)
+    const targetFrame = Math.min(totalFrames, Math.floor(currentTimeSec * 10));
+
+    // 사용자가 재생바를 뒤로 되감기한 경우 커서 리셋
+    if (targetFrame < vad.cursorFrame - 3) {
+      vad.cursorFrame = targetFrame;
+      vad.inSpeech = false;
+      vad.silenceFrames = 0;
+    }
+
+    for (let f = vad.cursorFrame; f < targetFrame; f++) {
+      let sumSq = 0;
+      const base = f * frameLen;
+      for (let j = 0; j < frameLen; j++) {
+        const v = pcm16k[base + j] * 32767;
+        sumSq += v * v;
+      }
+      const rms = Math.sqrt(sumSq / frameLen);
+
+      if (!vad.inSpeech && rms < 400) {
+        vad.noiseFloor = vad.noiseFloor * 0.94 + Math.max(160, rms * 1.9) * 0.06;
+      }
+      const threshold = Math.max(195, Math.min(380, vad.noiseFloor));
+
+      if (rms > threshold) {
+        if (!vad.inSpeech) {
+          vad.inSpeech = true;
+          vad.speechStartFrame = Math.max(0, f - 1);
+        }
+        vad.silenceFrames = 0;
+
+        const speechDurSec = (f + 1 - vad.speechStartFrame) * 0.1;
+        // 발화가 3.0초 이상 이어지다가 호흡이 살짝 낮아지거나, 4.0초에 도달하면 이미 재생 완료된 현재 시점까지만 끊어서 전송
+        if ((speechDurSec >= 3.0 && rms < threshold * 1.35) || speechDurSec >= 4.0) {
+          flushCompletedSpeechChunkToClova(vad.speechStartFrame * 0.1, (f + 1) * 0.1, currentTimeSec);
+          vad.inSpeech = false;
+          vad.silenceFrames = 0;
+        }
+      } else if (vad.inSpeech) {
+        vad.silenceFrames += 1;
+        const speechDurSec = (f - vad.speechStartFrame) * 0.1;
+        // 발화 후 0.3초(3프레임) 침묵이 실제로 감지된 순간(발화가 끝난 직후)에만 해당 구간을 클로바로 전송
+        if (vad.silenceFrames >= 3) {
+          if (speechDurSec >= 0.7) {
+            flushCompletedSpeechChunkToClova(vad.speechStartFrame * 0.1, f * 0.1, currentTimeSec);
+          }
+          vad.inSpeech = false;
+          vad.silenceFrames = 0;
+        }
       }
     }
-  }, [sttEngine, setInterimSttText, processIncomingSpeechUtterance]);
 
-  // 실시간 통화 재생 중 200ms 주기로 발화 청크 감지 및 Clova 실시간 전송 동기화
+    vad.cursorFrame = targetFrame;
+
+    // 통화 파일이 끝까지 재생 완료된 경우 남아 있는 발화 버퍼 마무리 전송
+    if (isEnded && vad.inSpeech) {
+      const startSec = vad.speechStartFrame * 0.1;
+      vad.inSpeech = false;
+      vad.silenceFrames = 0;
+      if (currentTimeSec - startSec >= 0.65) {
+        flushCompletedSpeechChunkToClova(startSec, currentTimeSec, currentTimeSec);
+      }
+    }
+
+    // 실시간 상태 표시줄 업데이트
+    if (vad.inSpeech) {
+      const startSec = vad.speechStartFrame * 0.1;
+      const m1 = String(Math.floor(startSec / 60)).padStart(2, '0');
+      const s1 = String(Math.floor(startSec % 60)).padStart(2, '0');
+      const m2 = String(Math.floor(currentTimeSec / 60)).padStart(2, '0');
+      const s2 = String(Math.floor(currentTimeSec % 60)).padStart(2, '0');
+      const dur = Math.max(0.1, currentTimeSec - startSec).toFixed(1);
+      setInterimSttText(`[실시간 음성 수음 중... (${m1}:${s1} ~ ${m2}:${s2} / ${dur}초)]`);
+    } else if (vad.inflightCount > 0) {
+      setInterimSttText(`[네이버 클로바 STT 변환 중... (${vad.lastChunkLabel})]`);
+    } else {
+      setInterimSttText('');
+    }
+  }, [sttEngine, flushCompletedSpeechChunkToClova, setInterimSttText]);
+
+  // 실시간 통화 재생 중 150ms 주기로 스피커 재생 위치(currentTime)까지만 실시간 VAD 스캔
   useEffect(() => {
     if (!isAudioPlaying || !activeAudioFile) return;
     const timer = window.setInterval(() => {
-      if (globalAudioRef.current) {
+      if (globalAudioRef.current && !globalAudioRef.current.paused) {
         const cur = globalAudioRef.current.currentTime;
         const dur = globalAudioRef.current.duration || 0;
         setAudioTime(cur, dur);
-        handleAudioTimeUpdate(cur);
+        handleAudioTimeUpdate(cur, false);
       }
-    }, 200);
+    }, 150);
     return () => clearInterval(timer);
   }, [isAudioPlaying, activeAudioFile, setAudioTime, handleAudioTimeUpdate]);
 
@@ -931,12 +949,15 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       globalAudioRef.current.pause();
       globalAudioRef.current.currentTime = 0;
     }
-    if (audioSegmentsRef.current) {
-      audioSegmentsRef.current.forEach((s) => {
-        s.dispatched = false;
-        s.state = s.text ? 'ready' : 'pending';
-      });
-    }
+    realtimeVadRef.current = {
+      cursorFrame: 0,
+      inSpeech: false,
+      speechStartFrame: 0,
+      silenceFrames: 0,
+      noiseFloor: 220,
+      inflightCount: 0,
+      lastChunkLabel: '',
+    };
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
       try { loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' })); } catch (_) {}
     }
@@ -958,6 +979,15 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     }
     audioSegmentsRef.current = [];
     decodedPcm16kRef.current = null;
+    realtimeVadRef.current = {
+      cursorFrame: 0,
+      inSpeech: false,
+      speechStartFrame: 0,
+      silenceFrames: 0,
+      noiseFloor: 220,
+      inflightCount: 0,
+      lastChunkLabel: '',
+    };
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
       try { loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' })); } catch (_) {}
     }
@@ -1388,7 +1418,12 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
             target.play().catch(() => {});
           }
         }}
-        onEnded={() => {
+        onEnded={(e) => {
+          const target = e.currentTarget;
+          handleAudioTimeUpdate(target.duration || target.currentTime, true);
+          if (realtimeVadRef.current.inflightCount === 0) {
+            setInterimSttText('');
+          }
           setIsAudioPlaying(false);
           setRecording(false);
           showToast("⏹️ 음성 파일 재생 완료 (STT 수신이 자동으로 종료되었습니다)");
@@ -1739,6 +1774,13 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                 }}>
                   <button
                     onClick={() => {
+                      if (recognitionRef.current) {
+                        try { recognitionRef.current.stop(); } catch (_) {}
+                      }
+                      const curSec = globalAudioRef.current ? globalAudioRef.current.currentTime : 0;
+                      realtimeVadRef.current.cursorFrame = curSec > 2.0 ? Math.floor(curSec * 10) : 0;
+                      realtimeVadRef.current.inSpeech = false;
+                      realtimeVadRef.current.silenceFrames = 0;
                       setSttEngine('naver_clova');
                       showToast('STT 엔진: NAVER CLOVA Speech 전환');
                       setTimeout(() => clearToast(), 2500);
@@ -1763,6 +1805,10 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                   <button
                     onClick={() => {
                       setSttEngine('web_speech');
+                      setInterimSttText('');
+                      if (isAudioPlaying && recognitionRef.current) {
+                        try { recognitionRef.current.start(); } catch (_) {}
+                      }
                       showToast('STT 엔진: 브라우저 Web Speech 전환');
                       setTimeout(() => clearToast(), 2500);
                     }}
