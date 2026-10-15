@@ -224,7 +224,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
     manualOverrideKeyword: ''
   }),
 
-  sttEngine: 'whisper_large_v3',
+  sttEngine: 'web_speech',
   setSttEngine: (engine) => set({ sttEngine: engine }),
 
   isContextCorrectionEnabled: true,
