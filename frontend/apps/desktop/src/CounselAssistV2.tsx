@@ -27,7 +27,7 @@ import { SelfActionGuideModal, type SitePhotoSketchEvidence } from './SelfAction
 import { SymptomPhotoManagerModal } from './SymptomPhotoManagerModal';
 import { EquipmentManualModal } from './EquipmentManualModal';
 import { applyContextualCorrection, computeJamoSimilarity } from './contextCorrector';
-import { DOMAIN_KEYWORD_REGISTRY } from './keywordAssist';
+import { DOMAIN_KEYWORD_REGISTRY, extractNegativeStateExpressions } from './keywordAssist';
 
 // ─── 타입 정의 ─────────────────────────────────────────────────────────────────
 export interface Customer {
@@ -320,6 +320,35 @@ export function calculateSymptomMatchScore(preset: SymptomPreset, query: string)
     if (isSamePreset && (entity.synonyms.test(rawQ) || entity.synonyms.test(correctedQ))) {
       score = Math.max(score, 85);
       break;
+    }
+  }
+
+  // 0-B. 부정적 상태표현 구문 추출기 ([OOO + 안됨/불가/파손/깨짐/부서짐/빠짐/뽑힘]) 매칭
+  const negStates = [
+    ...extractNegativeStateExpressions(correctedQ),
+    ...extractNegativeStateExpressions(rawQ)
+  ];
+  for (const st of negStates) {
+    if (st.mappedKeywordId) {
+      const entity = DOMAIN_KEYWORD_REGISTRY.find(e => e.id === st.mappedKeywordId);
+      if (entity) {
+        const isSamePreset =
+          (preset.id && entity.canonicalId === preset.id) ||
+          (preset.part_code && entity.partCode === preset.part_code) ||
+          preset.title.includes(entity.keyword.split('/')[0].trim());
+        if (isSamePreset) {
+          score = Math.max(score, 92);
+        }
+      }
+    }
+    if (st.target && st.target.length >= 2) {
+      if (
+        matchesChosungOrText(preset.title, st.target) ||
+        preset.aliases?.some(a => matchesChosungOrText(a, st.target)) ||
+        matchesChosungOrText(preset.symptom, st.target)
+      ) {
+        score = Math.max(score, 78);
+      }
     }
   }
 

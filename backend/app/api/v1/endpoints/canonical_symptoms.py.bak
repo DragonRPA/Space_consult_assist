@@ -1,0 +1,899 @@
+"""
+전사 표준 장애 유형 분류 체계 (16대 Canonical Failure Types)
+도메인: 산업용/상업용 바닥 세정기 및 청소 장비
+목적: 수백 가지 자연어 발화 파편을 16개 표준 장애 유형으로 정규화하여 0ms 직관 대응
+진단 판정 SOP: 각 조치 단계별 [방법], [정상 판정 조건], [불량 판정 조건], [후속 조치] 탑재
+"""
+
+from typing import List, Dict, Any, Optional
+
+AVAILABLE_MODELS = ["전체", "J600T", "J800", "S7", "S5", "S1", "S3", "쓰담"]
+
+OFFICIAL_12_ERROR_CODES: List[Dict[str, Any]] = [
+    {
+        "code": "888",
+        "name": "자체 점검 (Self-Test)",
+        "category": "시스템",
+        "meaning": "키 스위치 ON 시 2초간 시스템 자체 점검 후 누적 사용 시간(Hour) 표시",
+        "call_script": "고객님, 키를 켤 때 888이 뜨는 것은 2초간 시스템 자체 점검이며, 이후 뜨는 숫자는 고장이 아닌 누적 사용 시간(Hour)입니다. 장비는 정상 작동 상태입니다.",
+        "resolution_type": "RESOLVED",
+        "part_code": None,
+        "action_desc": "정상 동작 안내 후 상담 완료"
+    },
+    {
+        "code": "0-F",
+        "name": "폐수탱크 만수",
+        "category": "탱크/센서",
+        "meaning": "오수(폐수)탱크에 물이 가득 차 부표 플로트 센서 작동으로 흡입 모터 안전 차단",
+        "call_script": "고객님, 계기판의 0-F 코드는 오수탱크가 가득 찼다는 신호입니다. 오수 배출 호스로 물을 완전히 비우고 탱크 내부 부표망을 헹궈주시면 정상 작동합니다.",
+        "resolution_type": "RESOLVED",
+        "part_code": "FLOAT-VALVE-ASSY",
+        "action_desc": "오수 탱크 배출 및 부표망 청소 안내"
+    },
+    {
+        "code": "0-C",
+        "name": "세수탱크 물없음",
+        "category": "탱크/센서",
+        "meaning": "세수(정수)탱크 수위 저하로 펌프 및 밸브 보호를 위해 장비 안전 차단",
+        "call_script": "고객님, 계기판의 0-C 코드는 깨끗한 물(정수)이 떨어졌다는 알림입니다. 정수 탱크에 물을 보충해 주시면 즉시 정상 작동합니다.",
+        "resolution_type": "RESOLVED",
+        "part_code": "SOLENOID-VALVE-24V",
+        "action_desc": "세수탱크 물 보충 안내"
+    },
+    {
+        "code": "0-0",
+        "name": "배터리 저전압",
+        "category": "배터리",
+        "meaning": "배터리 잔량이 컷오프 전압 이하로 방전되어 BMS 저전압 셧다운",
+        "call_script": "고객님, 0-0 코드는 배터리가 완전 방전된 상태입니다. 장비 전원을 끄고 전용 충전기에 연결하여 최소 8시간 동안 완충해 주십시오.",
+        "resolution_type": "RESOLVED",
+        "part_code": "BATTERY-PACK-24V",
+        "action_desc": "전용 충전기 8시간 완충 사이클 안내"
+    },
+    {
+        "code": "1-0",
+        "name": "브러시 과부하",
+        "category": "브러시",
+        "meaning": "브러시 모터에 과부하가 걸려 서킷 브레이커(차단기) 트립 또는 모터 보호 차단",
+        "call_script": "고객님, 1-0 코드는 브러시에 이물질이 감겼을 때 뜹니다. 브러시를 떼어내고 회전축에 감긴 노끈이나 비닐을 제거한 뒤 후면 차단기 버튼을 딸깍 눌러주십시오.",
+        "resolution_type": "RESOLVED",
+        "part_code": "BRUSH-MOTOR-ASSY",
+        "action_desc": "이물 제거 및 후면 차단기 리셋 안내"
+    },
+    {
+        "code": "1-5",
+        "name": "브러시 단락/합선",
+        "category": "브러시",
+        "meaning": "브러시 모터 내부 코일 합선 또는 전원 배선 단락 감지",
+        "call_script": "고객님, 1-5 코드는 브러시 모터 내부 코일 손상이 감지된 상태입니다. 안전을 위해 전원을 끄고 정비사 방문 점검을 접수해 드리겠습니다.",
+        "resolution_type": "VISIT_REQUIRED",
+        "part_code": "BRUSH-MOTOR-ASSY",
+        "action_desc": "브러시 모터 어셈블리 교체 출장 접수"
+    },
+    {
+        "code": "1-H",
+        "name": "브러시 과열",
+        "category": "브러시",
+        "meaning": "브러시 모터 내부 온도가 과열 임계치 초과",
+        "call_script": "고객님, 1-H 코드는 브러시 모터가 과열된 상태입니다. 키 스위치를 끄고 통풍이 잘되는 그늘에서 30분간 식힌 뒤 다시 켜주십시오.",
+        "resolution_type": "RESOLVED",
+        "part_code": "BRUSH-MOTOR-ASSY",
+        "action_desc": "30분 전원 차단 후 자연 냉각 안내"
+    },
+    {
+        "code": "2-0",
+        "name": "흡입 모터 과부하",
+        "category": "흡입",
+        "meaning": "흡입 호스 막힘 또는 오수 넘침으로 진공 모터 부압/과전류 발생",
+        "call_script": "고객님, 2-0 코드는 흡입 모터에 과부하가 걸린 것입니다. 오수 탱크를 비우고 흡입 호스 내부 이물질과 필터를 청소해 주십시오.",
+        "resolution_type": "RESOLVED",
+        "part_code": "VACUUM-MOTOR-ASSY",
+        "action_desc": "흡입 호스 및 필터 이물 세척 안내"
+    },
+    {
+        "code": "2-5",
+        "name": "흡입 모터 단락/합선",
+        "category": "흡입",
+        "meaning": "흡입 모터 내부 코일 소손 또는 배선 단락 감지",
+        "call_script": "고객님, 2-5 코드는 흡입 모터 내부 단락 상태입니다. 추가 손상을 막기 위해 전원을 끄시고, 모터 교체 출동을 즉시 배차해 드리겠습니다.",
+        "resolution_type": "VISIT_REQUIRED",
+        "part_code": "VACUUM-MOTOR-ASSY",
+        "action_desc": "흡입 모터 어셈블리 교체 출장 접수"
+    },
+    {
+        "code": "2-H",
+        "name": "흡입 모터 과열",
+        "category": "흡입",
+        "meaning": "흡입 모터 내부 온도가 과열 임계치 초과",
+        "call_script": "고객님, 2-H 코드는 흡입 모터 과열 상태입니다. 흡입 스위치를 끄고 30분간 모터를 냉각시킨 후 재작동해 주십시오.",
+        "resolution_type": "RESOLVED",
+        "part_code": "VACUUM-MOTOR-ASSY",
+        "action_desc": "30분 흡입 모터 냉각 안내"
+    },
+    {
+        "code": "3-0",
+        "name": "밸브 과전류",
+        "category": "세척수",
+        "meaning": "세척수 공급 솔레노이드 밸브에 과전류 감지",
+        "call_script": "고객님, 3-0 코드는 물 분사 밸브에 이물질이 걸린 상태입니다. 정수 탱크 하단 스트레이너 거름망 필터를 돌려 빼서 석회질을 세척해 주십시오.",
+        "resolution_type": "RESOLVED",
+        "part_code": "SOLENOID-VALVE-24V",
+        "action_desc": "정수 스트레이너 필터 세척 안내"
+    },
+    {
+        "code": "3-5",
+        "name": "밸브 단락/합선",
+        "category": "세척수",
+        "meaning": "솔레노이드 밸브 코일 단락 또는 액추에이터 고착 파손",
+        "call_script": "고객님, 3-5 코드는 전자 급수 밸브 코일 단락 상태입니다. 수동 급수 밸브를 잠그고 부품 교체 출동을 접수해 드리겠습니다.",
+        "resolution_type": "VISIT_REQUIRED",
+        "part_code": "SOLENOID-VALVE-24V",
+        "action_desc": "솔레노이드 밸브 부품 교체 출장 접수"
+    }
+]
+
+
+CANONICAL_FAILURE_TYPES: List[Dict[str, Any]] = [
+    # ── [1] 충전/전원 계통 (4종) ────────────────────────────────────────────────
+    {
+        "id": "PWR_BAT_DEGRADE",
+        "category": "충전/전원",
+        "title": "배터리 조기 방전",
+        "symptom": "완충 후 15~30분 이내 전원 꺼짐 또는 배터리 경고음 발생",
+        "aliases": [
+            "배터리 조기 방전 / 수명 열화", "수명 열화", "가동 시간 급감", "20분 방전", "30분 정지", "15분 전원 차단",
+            "배터리 부족 경고음", "배터리 수명 저하", "완충 방전", "용량 급감", "배터리 방전"
+        ],
+        "urgency": "긴급",
+        "part_code": "BATTERY-PACK-24V",
+        "action_plan": {
+            "keyword": "배터리 조기 방전",
+            "part_code": "BATTERY-PACK-24V",
+            "urgency": "긴급",
+            "can_self_resolve": False,
+            "call_script": "고객님, 배터리 조기 방전 증상은 완충 사이클 점검과 셀 열화 상태 확인을 안내해 드리겠습니다.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "전용 충전기로 8시간 완충 사이클 점검",
+                    "method": "장비 전원 OFF 후 전용 충전기를 연결하여 최소 8시간 동안 완전 충전 사이클을 수행합니다.",
+                    "criteria_normal": "완충 후 계기판 배터리 잔량 게이지가 100%(만충)로 표시되고 충전기 녹색등 점등",
+                    "criteria_fault": "완충 후 사용하는데 15분~30분 이내에 배터리 경고음이 울리며 전원이 차단됨",
+                    "fault_action": "STEP 2 배터리 단자 충전 전압 측정으로 진행"
+                },
+                {
+                    "step_no": 2,
+                    "title": "배터리 메인 단자 충전 전압 측정",
+                    "method": "충전기 분리 10분 후 멀티미터 DC 200V 레인지로 배터리 메인 단자(+, -)에 프로브를 접촉하여 전압을 측정합니다.",
+                    "criteria_normal": "24V 모델(J600T, J800, S7): 25.2V ~ 28.8V | 12V 모델(쓰담): 12.6V ~ 14.4V",
+                    "criteria_fault": "24V 모델: 21.0V 이하 (완전 방전/셀 손상) | 12V 모델: 10.5V 이하 (BMS 저전압 차단)",
+                    "fault_action": "STEP 3 배터리 교체 배차 접수로 진행"
+                },
+                {
+                    "step_no": 3,
+                    "title": "배터리 팩 교체 배차 접수",
+                    "method": "장비 모델별 정격 배터리 규격을 확인하고 고객사와 교체 일정을 확정합니다.",
+                    "criteria_normal": "배터리 팩 출고 및 교체 일정 예약 확정",
+                    "criteria_fault": "고객사 승인 지연 시 임시 대차 검토",
+                    "fault_action": "A/S 정비사 현장 출동 예약 확정"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {
+                "part_code": "BATTERY-PACK-24V-120AH",
+                "step_overrides": {
+                    2: {
+                        "criteria_normal": "25.2V ~ 28.8V (24V 120Ah 납산 만충)",
+                        "criteria_fault": "21.0V 이하 (셀 열화/교체 필요)"
+                    }
+                }
+            },
+            "J800": {
+                "part_code": "BATTERY-PACK-24V-200AH",
+                "step_overrides": {
+                    2: {
+                        "criteria_normal": "25.2V ~ 28.8V (24V 200Ah 납산 만충)",
+                        "criteria_fault": "21.0V 이하 (셀 열화/교체 필요)"
+                    }
+                }
+            },
+            "S7": {"part_code": "BATTERY-PACK-24V-105AH"},
+            "S5": {"part_code": "BATTERY-PACK-24V-85AH"},
+            "S1": {
+                "part_code": "BATTERY-PACK-24V-LITHIUM-50AH",
+                "step_overrides": {
+                    2: {
+                        "criteria_normal": "25.6V ~ 29.2V (24V 리튬 정상)",
+                        "criteria_fault": "22.0V 이하 (BMS 저전압 차단)"
+                    }
+                }
+            },
+            "S3": {"part_code": "BATTERY-PACK-24V-70AH"},
+            "쓰담": {
+                "part_code": "BATTERY-PACK-12V-LITHIUM",
+                "step_overrides": {
+                    2: {
+                        "criteria_normal": "12.6V ~ 14.4V (12V 리튬 만충)",
+                        "criteria_fault": "10.5V 이하 (BMS 저전압 차단/셀 교체)"
+                    }
+                }
+            }
+        }
+    },
+    {
+        "id": "PWR_CHG_FAIL",
+        "category": "충전/전원",
+        "title": "배터리 충전 불가",
+        "symptom": "충전기를 연결해도 충전이 되지 않거나 충전기 에러 표시등 점멸",
+        "aliases": [
+            "배터리 충전 불가 / 충전 불량", "충전 불량", "충전기 적색등 점멸", "충전기 표시등 미점등", "계기판 깜빡임",
+            "충전 에러코드", "충전 안됨", "충전기 고장", "충전 중단", "충전 불가"
+        ],
+        "urgency": "긴급",
+        "part_code": "CHARGER-UNIT-24V",
+        "action_plan": {
+            "keyword": "배터리 충전 불가",
+            "part_code": "CHARGER-UNIT-24V",
+            "urgency": "긴급",
+            "can_self_resolve": True,
+            "call_script": "고객님, 충전 불량의 경우 충전 단자 접속 상태와 벽면 콘센트 전압 확인을 먼저 진행해 주셔야 합니다.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "장비 전원 OFF 후 충전 플러그 체결 상태 재확인",
+                    "method": "장비 키 스위치를 끄고, 충전 플러그를 뽑았다가 '딸깍' 소리가 나도록 끝까지 밀어 넣어 재결속합니다.",
+                    "criteria_normal": "체결 즉시 충전기 전면 램프에 불이 들어오며 충전 전류 인가 시작",
+                    "criteria_fault": "플러그를 재체결해도 충전기에 불이 전혀 안 들어오거나 계속 램프가 깜빡임",
+                    "fault_action": "STEP 2 벽면 콘센트 전원 확인으로 진행"
+                },
+                {
+                    "step_no": 2,
+                    "title": "벽면 220V 콘센트 정상 전원 공급 여부 확인 (멀티탭 배제)",
+                    "method": "멀티탭을 제거하고 충전기 코드를 건물 벽면 220V 콘센트에 직접 꽂아 다른 기기가 작동하는지 확인합니다.",
+                    "criteria_normal": "벽면 콘센트 직결 시 충전기 램프 정상 점등",
+                    "criteria_fault": "벽면 콘센트에 다른 기기는 작동하나 충전기만 꽂으면 차단기가 떨어지거나 무반응",
+                    "fault_action": "STEP 3 충전 단자 핀 점검으로 진행"
+                },
+                {
+                    "step_no": 3,
+                    "title": "충전기 연결 단자 핀 부식 및 이물질 확인",
+                    "method": "충전 커넥터 구리 핀 내부를 육안으로 확인하여 핀 휨, 흑색 그을림(스파크 자국), 슬러지 유무를 점검합니다.",
+                    "criteria_normal": "구리 핀 광택 유지 및 흔들림 없이 견고하게 결속됨",
+                    "criteria_fault": "핀이 타거나 휘어져서 접촉 불가",
+                    "fault_action": "충전기 또는 배터리 팩 정비 출동 접수"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "CHARGER-24V-15A"},
+            "J800": {"part_code": "CHARGER-24V-25A"},
+            "S7": {"part_code": "CHARGER-24V-12A"},
+            "S5": {"part_code": "CHARGER-24V-10A"},
+            "S1": {"part_code": "CHARGER-24V-LITHIUM"},
+            "S3": {"part_code": "CHARGER-24V-10A"},
+            "쓰담": {"part_code": "CHARGER-12V-LITHIUM"}
+        }
+    },
+    {
+        "id": "PWR_MAIN_FAIL",
+        "category": "충전/전원",
+        "title": "메인 전원 미인가",
+        "symptom": "키 스위치를 돌려도 전원이 들어오지 않거나 계기판 먹통 상태",
+        "aliases": [
+            "메인 전원 미인가 / 작동 정지", "작동 정지", "키 스위치 무반응", "전원 안 켜짐", "작동 중 갑자기 꺼짐",
+            "전원 불통", "비상정지 스위치", "전원 불량", "전원 미작동"
+        ],
+        "urgency": "긴급",
+        "part_code": "KEY-SWITCH-RELAY",
+        "action_plan": {
+            "keyword": "메인 전원 미인가",
+            "part_code": "KEY-SWITCH-RELAY",
+            "urgency": "긴급",
+            "can_self_resolve": True,
+            "call_script": "고객님, 전원 무반응 증상은 비상정지 버튼 눌림 여부와 메인 커넥터 체결 상태를 먼저 점검해 주십시오.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "적색 비상정지 스위치 눌림 해제",
+                    "method": "장비 상단 또는 핸들에 위치한 커다란 빨간색 비상정지 버튼을 시계방향으로 1/4바퀴 돌려 '탁' 튀어나오게 합니다.",
+                    "criteria_normal": "버튼이 위로 튀어나오며 계기판에 전원 램프 점등",
+                    "criteria_fault": "버튼을 돌려 해제해도 계기판에 아무런 반응 없음",
+                    "fault_action": "STEP 2 배터리실 메인 앤더슨 커넥터 점검으로 진행"
+                },
+                {
+                    "step_no": 2,
+                    "title": "배터리실 메인 앤더슨 커넥터 체결 상태 재결속",
+                    "method": "오수 탱크를 젖히고 배터리실 내부의 굵은 앤더슨 커넥터를 분리 후 힘을 주어 재결속합니다.",
+                    "criteria_normal": "커넥터 재결속 후 키 스위치 ON 시 계기판 정상 켜짐",
+                    "criteria_fault": "커넥터 결속 후에도 전원 완전 무반응",
+                    "fault_action": "메인 릴레이 또는 퓨즈 단선 -> 정비사 출동 접수"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "RELAY-24V-MAIN"},
+            "J800": {"part_code": "RELAY-24V-HEAVY"},
+            "S7": {"part_code": "RELAY-24V-COMPACT"},
+            "S5": {"part_code": "KEY-SWITCH-S5"},
+            "S1": {"part_code": "BMS-POWER-SWITCH"},
+            "S3": {"part_code": "KEY-SWITCH-S3"},
+            "쓰담": {"part_code": "MAIN-SWITCH-LITE"}
+        }
+    },
+    {
+        "id": "PWR_CONN_ERR",
+        "category": "충전/전원",
+        "title": "충전 단자 접촉 불량",
+        "symptom": "충전 단자가 헐겁거나 계기판 배터리 잔량 표시가 불규칙하게 튐",
+        "aliases": [
+            "충전 단자 접촉 불량 / 잔량 표시 오류", "잔량 표시 오류", "충전 단자 헐거움", "단자 흔들어야 충전", "배터리 잔량 게이지 튐",
+            "배터리 팩 접점 인식 오류", "단자 열화", "단자 헐거움"
+        ],
+        "urgency": "보통",
+        "part_code": "CONNECTOR-ANDERSON-50A",
+        "action_plan": {
+            "keyword": "충전 단자 접촉 불량",
+            "part_code": "CONNECTOR-ANDERSON-50A",
+            "urgency": "보통",
+            "can_self_resolve": True,
+            "call_script": "고객님, 단자 접촉 불량은 커넥터 핀 마모 및 결속 텐션 상태 점검을 안내해 드립니다.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "충전 커넥터 핀 텐션 및 결속 유격 점검",
+                    "method": "충전 플러그를 꽂은 상태에서 손으로 상하좌우 흔들었을 때 충전기 램프가 깜빡이는지 확인합니다.",
+                    "criteria_normal": "흔들어도 충전 램프가 끊김 없이 지속 점등 유지",
+                    "criteria_fault": "손으로 꽉 누르고 있어야만 충전되고 손을 떼면 꺼짐",
+                    "fault_action": "앤더슨 커넥터 하우징 및 핀 마모 확정 -> 커넥터 부품 교체 배차"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "CONNECTOR-ANDERSON-50A"},
+            "J800": {"part_code": "CONNECTOR-ANDERSON-120A"},
+            "S7": {"part_code": "CONNECTOR-ANDERSON-50A"},
+            "S5": {"part_code": "CONNECTOR-S5-PIN"},
+            "S1": {"part_code": "CONNECTOR-MAGNET-S1"},
+            "S3": {"part_code": "CONNECTOR-ANDERSON-50A"},
+            "쓰담": {"part_code": "CONNECTOR-DC-JACK"}
+        }
+    },
+
+    # ── [2] 흡입/잔수 계통 (4종) ────────────────────────────────────────────────
+    {
+        "id": "SUC_WATER_LEFTOVER",
+        "category": "흡입/잔수",
+        "title": "바닥 잔수 과다",
+        "symptom": "세척 후 바닥에 물기가 흥건하게 남고 스퀴지 흡입력이 약함",
+        "aliases": [
+            "바닥 잔수 과다 / 흡입력 저하", "흡입력 저하", "바닥에 물기 남음", "물 흡입 불량", "흡입력 약화",
+            "스퀴지 물기 끌림", "물 안 빨림", "바닥 잔수", "흡입 불량"
+        ],
+        "urgency": "보통",
+        "part_code": "SQUEEGEE-RUBBER",
+        "action_plan": {
+            "keyword": "바닥 잔수 과다",
+            "part_code": "SQUEEGEE-RUBBER",
+            "urgency": "보통",
+            "can_self_resolve": True,
+            "call_script": "고객님, 바닥 잔수 증상은 스퀴지 고무 상태와 흡입 호스 내부 이물질 막힘을 먼저 안내해 드리겠습니다.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "스퀴지 고무 블레이드 이물질 및 호스 점검",
+                    "method": "스퀴지를 들어 올려 고무 날 사이에 모래알/철사가 끼었는지 확인하고 흡입 호스를 털어냅니다.",
+                    "criteria_normal": "스퀴지 청소 후 바닥 물기가 95% 이상 깨끗하게 흡입됨",
+                    "criteria_fault": "스퀴지가 깨끗한데도 바닥에 물이 흥건하게 남음",
+                    "fault_action": "STEP 2 손바닥 흡입구 진공 부압 테스트로 진행"
+                },
+                {
+                    "step_no": 2,
+                    "title": "손바닥 흡입구 진공 부압 테스트",
+                    "method": "흡입 스위치를 켠 상태에서 흡입 호스 끝단을 손바닥으로 완전히 막아 손바닥이 빨려 들어가는 힘을 확인합니다.",
+                    "criteria_normal": "손바닥을 떼기 힘들 정도로 강하게 밀착 흡착됨 (모터 정상 -> 오수탱크 가스켓 점검)",
+                    "criteria_fault": "손바닥에 흡착력이 거의 안 느껴지거나 약한 바람만 나옴",
+                    "fault_action": "흡입 모터 임펠러 파손 또는 배관 파손 -> 모터 교체 출동 접수"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "SQUEEGEE-RUBBER-850MM"},
+            "J800": {"part_code": "SQUEEGEE-RUBBER-1050MM"},
+            "S7": {"part_code": "SQUEEGEE-RUBBER-750MM"},
+            "S5": {"part_code": "SQUEEGEE-RUBBER-650MM"},
+            "S1": {"part_code": "SQUEEGEE-RUBBER-450MM"},
+            "S3": {"part_code": "SQUEEGEE-RUBBER-550MM"},
+            "쓰담": {"part_code": "SUCTION-STRIP-SWEP"}
+        }
+    },
+    {
+        "id": "SUC_SQUEEGEE_STRIPE",
+        "category": "흡입/잔수",
+        "title": "바닥 줄무늬 잔수",
+        "symptom": "장비가 지나간 자리에 물줄기 줄무늬가 선명하게 남음",
+        "aliases": [
+            "스퀴지 줄무늬 잔수 (편마모/이물)", "스퀴지 편마모", "줄무늬 잔수", "고무 찢어짐", "편마모", "스퀴지 들뜸",
+            "고무 패킹 손상", "스퀴지 자국", "와이퍼 찢김"
+        ],
+        "urgency": "보통",
+        "part_code": "SQUEEGEE-BLADE",
+        "action_plan": {
+            "keyword": "바닥 줄무늬 잔수",
+            "part_code": "SQUEEGEE-BLADE",
+            "urgency": "보통",
+            "can_self_resolve": True,
+            "call_script": "고객님, 줄무늬 잔수는 스퀴지 틈새에 모래나 핀이 끼었거나 고무 날이 파손된 경우 발생합니다.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "스퀴지 고무 날 틈새 모래알 제거 및 4면 반전 장착",
+                    "method": "스퀴지 노브를 풀어 고무 날을 빼낸 후 반대쪽 면이나 상하를 뒤집어 새로운 각(Edge)으로 재장착합니다.",
+                    "criteria_normal": "고무 날 반전 장착 후 줄무늬 없이 매끄럽게 건조됨",
+                    "criteria_fault": "고무 날 전체가 찢어지거나 경화되어 반전해도 줄무늬 지속",
+                    "fault_action": "스퀴지 고무 소모품 신품 교체 출고"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "SQUEEGEE-BLADE-J600"},
+            "J800": {"part_code": "SQUEEGEE-BLADE-J800"},
+            "S7": {"part_code": "SQUEEGEE-BLADE-S7"},
+            "S5": {"part_code": "SQUEEGEE-BLADE-S5"},
+            "S1": {"part_code": "SQUEEGEE-BLADE-S1"},
+            "S3": {"part_code": "SQUEEGEE-BLADE-S3"},
+            "쓰담": {"part_code": "SQUEEGEE-BLADE-SD"}
+        }
+    },
+    {
+        "id": "SUC_MOTOR_NOISE",
+        "category": "흡입/잔수",
+        "title": "흡입 모터 이상 소음",
+        "symptom": "흡입 스위치 작동 시 모터에서 굉음이 발생하거나 탄 냄새 발생",
+        "aliases": [
+            "흡입 모터 이상 소음 / 과열", "모터 과열", "흡입 모터 굉음", "모터에서 탄 냄새", "모터 작동 중 정지",
+            "오수 유입", "모터 과열", "흡입 소음", "흡입모터 과열"
+        ],
+        "urgency": "긴급",
+        "part_code": "VACUUM-MOTOR-ASSY",
+        "action_plan": {
+            "keyword": "흡입 모터 이상 소음",
+            "part_code": "VACUUM-MOTOR-ASSY",
+            "urgency": "긴급",
+            "can_self_resolve": False,
+            "call_script": "고객님, 모터 이상 소음은 오수 유입 또는 베어링 파손 우려가 있어 즉시 흡입 스위치를 꺼주셔야 합니다.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "흡입 모터 즉시 전원 OFF 및 오수 탱크 넘침 확인",
+                    "method": "모터 굉음/탄내 발생 시 즉시 스위치를 끄고, 오수 탱크가 만수선 위로 넘쳤는지 확인합니다.",
+                    "criteria_normal": "오수 배출 및 건조 후 모터 정상음 복구",
+                    "criteria_fault": "오수 탱크가 비어있는데도 모터에서 쇠 긁는 굉음 및 탄내 발생",
+                    "fault_action": "흡입 모터 베어링/코일 소손 확정 -> 모터 교체 출동 접수"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "VACUUM-MOTOR-24V-500W"},
+            "J800": {"part_code": "VACUUM-MOTOR-24V-650W"},
+            "S7": {"part_code": "VACUUM-MOTOR-24V-450W"},
+            "S5": {"part_code": "VACUUM-MOTOR-24V-400W"},
+            "S1": {"part_code": "VACUUM-MOTOR-24V-300W"},
+            "S3": {"part_code": "VACUUM-MOTOR-24V-350W"},
+            "쓰담": {"part_code": "VACUUM-MOTOR-12V-250W"}
+        }
+    },
+    {
+        "id": "SUC_FLOAT_EARLY_STOP",
+        "category": "흡입/잔수",
+        "title": "오수 탱크 조기 차단",
+        "symptom": "오수 탱크가 비어있거나 조금 찼는데 흡입이 차단되고 경보 발생",
+        "aliases": [
+            "오수 탱크 만수 센서 오작동 (조기 차단)", "만수 센서 오작동", "오수탱크 안 찼는데 차단", "부표 일찍 올라옴", "거품 차단",
+            "만수 센서 오류", "만수 경보 울림", "플로트 센서"
+        ],
+        "urgency": "보통",
+        "part_code": "FLOAT-VALVE-ASSY",
+        "action_plan": {
+            "keyword": "오수 탱크 조기 차단",
+            "part_code": "FLOAT-VALVE-ASSY",
+            "urgency": "보통",
+            "can_self_resolve": True,
+            "call_script": "고객님, 오수 탱크 조기 차단은 거품 발생 또는 부표 센서에 찌꺼기 고착 여부를 점검해 주십시오.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "부표 케이지 이물질 고착 해제 및 소포제 투입",
+                    "method": "오수 탱크 뚜껑 안쪽의 부표 케이지를 손으로 흔들어 부표가 위아래로 원활히 움직이는지 확인하고 소포제를 투입합니다.",
+                    "criteria_normal": "부표 유동 원활 및 거품 가라앉은 후 정상 흡입 지속",
+                    "criteria_fault": "부표가 바닥에 있는데도 계속 만수 경보가 울리고 흡입 차단",
+                    "fault_action": "전자식 수위 센서 단락 -> 센서 부품 교체 접수"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "FLOAT-VALVE-J600"},
+            "J800": {"part_code": "FLOAT-VALVE-J800"},
+            "S7": {"part_code": "FLOAT-VALVE-S7"},
+            "S5": {"part_code": "FLOAT-VALVE-S5"},
+            "S1": {"part_code": "FLOAT-SENSOR-S1"},
+            "S3": {"part_code": "FLOAT-VALVE-S3"},
+            "쓰담": {"part_code": "FLOAT-VALVE-SD"}
+        }
+    },
+
+    # ── [3] 브러시/구동 계통 (4종) ────────────────────────────────────────────────
+    {
+        "id": "DRV_BRUSH_STALL",
+        "category": "브러시/구동",
+        "title": "브러시 모터 회전 불가",
+        "symptom": "브러시가 돌지 않거나 헛돌고, 구동 중 과부하 차단기가 튀어나옴",
+        "aliases": [
+            "브러시 모터 회전 불량 / 과부하 멈춤", "브러시 모터 회전 불량", "과부하 멈춤", "브러시 안 돎", "브러시 모터 헛돎", "브러시 과부하 차단",
+            "브러시에서 연기", "브러시 작동 불능", "브러시 회전 불량", "브러시미회전"
+        ],
+        "urgency": "긴급",
+        "part_code": "BRUSH-MOTOR-ASSY",
+        "action_plan": {
+            "keyword": "브러시 모터 회전 불가",
+            "part_code": "BRUSH-MOTOR-ASSY",
+            "urgency": "긴급",
+            "can_self_resolve": True,
+            "call_script": "고객님, 브러시 회전 불량은 하부 패드 중심축 이물질 감김을 먼저 점검해 주셔야 합니다.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "브러시 패드 탈거 후 모터 축 노끈/테이프 감김 제거",
+                    "method": "전원 OFF 후 브러시를 떼어내고 모터 회전축에 노끈, 비닐, 포장용 테이프가 엉켜있는지 확인 후 커터칼로 제거합니다.",
+                    "criteria_normal": "이물질 제거 후 손으로 브러시 커플러를 돌렸을 때 부드럽게 회전",
+                    "criteria_fault": "이물질이 없는데도 손으로 전혀 안 돌아가거나 헛돎",
+                    "fault_action": "STEP 2 브러시 서킷 브레이커 리셋으로 진행"
+                },
+                {
+                    "step_no": 2,
+                    "title": "장비 후면 브러시 서킷 브레이커(차단기) 리셋 핀 인입",
+                    "method": "장비 후면 또는 컨트롤 패널 옆에 튀어나온 브러시 서킷 브레이커 버튼을 손가락으로 '딸깍' 소리가 나게 누릅니다.",
+                    "criteria_normal": "버튼이 안으로 고정되며 브러시 스위치 켰을 때 정상 회전",
+                    "criteria_fault": "버튼을 눌러도 고정되지 않고 즉시 튀어나오거나 누르자마자 모터 탄내 발생",
+                    "fault_action": "브러시 모터 코일 소손 확정 -> 모터 교체 출동 배차"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "BRUSH-MOTOR-24V-550W"},
+            "J800": {"part_code": "BRUSH-MOTOR-24V-750W"},
+            "S7": {"part_code": "BRUSH-MOTOR-24V-500W"},
+            "S5": {"part_code": "BRUSH-MOTOR-24V-450W"},
+            "S1": {"part_code": "BRUSH-MOTOR-24V-250W"},
+            "S3": {"part_code": "BRUSH-MOTOR-24V-350W"},
+            "쓰담": {"part_code": "SIDE-BRUSH-MOTOR-12V"}
+        }
+    },
+    {
+        "id": "DRV_WHEEL_DRIVE",
+        "category": "브러시/구동",
+        "title": "주행 구동 불가",
+        "symptom": "전진 레버를 당겨도 장비가 나가지 않거나 직진 시 한쪽으로 심하게 쏠림",
+        "aliases": [
+            "주행 구동 불량 / 직진 쏠림", "주행 구동 불량", "직진 쏠림", "장비가 안 나감", "직진 주행 쏠림", "구동 바퀴 헛돎",
+            "전후진 레버 불량", "주행 불가", "바퀴 구동 이상", "쏠림"
+        ],
+        "urgency": "긴급",
+        "part_code": "TRANSAXLE-DRIVE-WHEEL",
+        "action_plan": {
+            "keyword": "주행 구동 불가",
+            "part_code": "TRANSAXLE-DRIVE-WHEEL",
+            "urgency": "긴급",
+            "can_self_resolve": True,
+            "call_script": "고객님, 주행 불가 증상은 수동 견인 레버(중립 클러치) 체결 여부를 먼저 확인해 주십시오.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "감속기 전자 브레이크 수동 해제 레버(견인 모드) 점검",
+                    "method": "장비 하부 구동축 모터 뒤쪽의 수동 견인 레버가 '주행 모드(Lock)'에 있는지 확인합니다.",
+                    "criteria_normal": "레버를 잠금 모드로 맞춘 후 전진 레버를 당기면 정상 주행",
+                    "criteria_fault": "레버가 잠겨있는데도 모터 돌아가는 소리만 나고 바퀴가 안 굴러감",
+                    "fault_action": "감속기 내부 차동기어 파손 -> 트랜스액슬 교체 배차"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "TRANSAXLE-24V-400W"},
+            "J800": {"part_code": "TRANSAXLE-24V-600W"},
+            "S7": {"part_code": "TRANSAXLE-24V-350W"},
+            "S5": {"part_code": "DRIVE-WHEEL-S5"},
+            "S1": {"part_code": "DRIVE-CASTER-S1"},
+            "S3": {"part_code": "DRIVE-WHEEL-S3"},
+            "쓰담": {"part_code": "DRIVE-MOTOR-SD"}
+        }
+    },
+    {
+        "id": "DRV_BELT_SLIP",
+        "category": "브러시/구동",
+        "title": "구동 벨트 슬립",
+        "symptom": "브러시 또는 주행 시 끼익거리는 고무 마찰음이 발생하고 회전력이 떨어짐",
+        "aliases": [
+            "구동 벨트 슬립 / 이상 소음", "이상 소음", "벨트 소음", "벨트 슬립", "삐걱거리는 소리",
+            "벨트 헐거움", "벨트 파손", "벨트 끊어짐"
+        ],
+        "urgency": "보통",
+        "part_code": "TIMING-BELT",
+        "action_plan": {
+            "keyword": "구동 벨트 슬립",
+            "part_code": "TIMING-BELT",
+            "urgency": "보통",
+            "can_self_resolve": True,
+            "call_script": "고객님, 벨트 소음은 텐션 스프링 장력 느슨함 또는 고무 마모 시 발생합니다.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "구동 벨트 장력 확인 및 텐션 재조정",
+                    "method": "브러시 상부 커버를 열고 타이밍 벨트 중앙을 손가락으로 눌러 처짐량과 텐션 스프링 상태를 점검합니다.",
+                    "criteria_normal": "손가락으로 세게 눌렀을 때 5~8mm 이내로 탄력 있게 눌림",
+                    "criteria_fault": "벨트가 헐렁하게 늘어져 있거나 톱니가 닳아 헛돎",
+                    "fault_action": "구동 벨트 신품 교체 발송 또는 출동"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "TIMING-BELT-8M-J600"},
+            "J800": {"part_code": "TIMING-BELT-8M-J800"},
+            "S7": {"part_code": "TIMING-BELT-S7"},
+            "S5": {"part_code": "DRIVE-BELT-S5"},
+            "S1": {"part_code": "DRIVE-BELT-S1"},
+            "S3": {"part_code": "DRIVE-BELT-S3"},
+            "쓰담": {"part_code": "BRUSH-BELT-SD"}
+        }
+    },
+    {
+        "id": "DRV_BRUSH_LIFT",
+        "category": "브러시/구동",
+        "title": "브러시 승강 작동 불가",
+        "symptom": "브러시 페달 또는 승강 스위치를 조작해도 브러시 헤드가 바닥으로 하강하지 않음",
+        "aliases": [
+            "브러시 승강 장치 / 레버 작동 불가", "승강 레버 작동 불가", "브러시 하강 불가", "브러시 승강 레버 뻑뻑함",
+            "액추에이터 모터 불통", "브러시 안 내려감", "승강 불량"
+        ],
+        "urgency": "보통",
+        "part_code": "LIFT-ACTUATOR-LEVER",
+        "action_plan": {
+            "keyword": "브러시 승강 작동 불가",
+            "part_code": "LIFT-ACTUATOR-LEVER",
+            "urgency": "보통",
+            "can_self_resolve": True,
+            "call_script": "고객님, 브러시 하강 불가는 승강 와이어 이탈 또는 힌지 링크 고착 여부를 점검해 주십시오.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "승강 페달 록킹 래치 및 와이어 연결 확인",
+                    "method": "승강 페달을 발로 밟으면서 걸쇠(래치)가 풀리는지, 와이어가 풀리 가이드에서 빠지지 않았는지 확인합니다.",
+                    "criteria_normal": "페달 조작 시 브러시 데크가 부드럽게 하강하고 바닥에 밀착",
+                    "criteria_fault": "페달이 뻑뻑해서 안 밟히거나 와이어가 끊어져 헛돎",
+                    "fault_action": "승강 와이어 교체 또는 힌지 교체 배차"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "LIFT-ACTUATOR-24V"},
+            "J800": {"part_code": "LIFT-ACTUATOR-24V-HEAVY"},
+            "S7": {"part_code": "LIFT-CABLE-S7"},
+            "S5": {"part_code": "LIFT-LEVER-S5"},
+            "S1": {"part_code": "LIFT-PEDAL-S1"},
+            "S3": {"part_code": "LIFT-LEVER-S3"},
+            "쓰담": {"part_code": "LIFT-ARM-SD"}
+        }
+    },
+
+    # ── [4] 세척수/배관 계통 (2종) ────────────────────────────────────────────────
+    {
+        "id": "WAT_NO_SPRAY",
+        "category": "세척수/배관",
+        "title": "세척수 미분사",
+        "symptom": "정수 탱크에 세척수가 채워져 있으나 바닥으로 물이 분사되지 않음",
+        "aliases": [
+            "세척수 미분사 / 노즐 막힘", "노즐 막힘", "물 안 나옴", "세제 안 나옴", "노즐 막힘",
+            "솔레노이드 안 열림", "세척수 분사 불량", "물 공급 불가", "미분사"
+        ],
+        "urgency": "보통",
+        "part_code": "SOLENOID-VALVE-24V",
+        "action_plan": {
+            "keyword": "세척수 미분사",
+            "part_code": "SOLENOID-VALVE-24V",
+            "urgency": "보통",
+            "can_self_resolve": True,
+            "call_script": "고객님, 세척수 미분사는 수동 급수 밸브 열림 상태와 하부 필터 막힘을 먼저 점검해 주십시오.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "수동 급수 볼 밸브 열림 확인 및 투명 스트레이너 필터 세척",
+                    "method": "정수 탱크 하단 수동 밸브가 열려 있는지 확인하고, 투명 필터 컵을 돌려 빼내어 거름망 석회질을 세척합니다.",
+                    "criteria_normal": "필터 세척 후 물 분사 스위치 켰을 때 바닥으로 물이 원활히 공급됨",
+                    "criteria_fault": "필터가 깨끗한데도 물이 전혀 안 나옴",
+                    "fault_action": "STEP 2 솔레노이드 밸브 작동음 점검으로 진행"
+                },
+                {
+                    "step_no": 2,
+                    "title": "솔레노이드 밸브 작동음('딱' 소리) 점검",
+                    "method": "분사 스위치를 켰다 껐다 할 때 장비 하부에서 '딱' 하는 솔레노이드 밸브 흡착음이 들리는지 확인합니다.",
+                    "criteria_normal": "'딱' 소리가 나면 밸브 정상 -> 분사 노즐 구멍 바늘 관통 청소",
+                    "criteria_fault": "'딱' 소리가 전혀 안 남 (전원 미인가 또는 코일 단선)",
+                    "fault_action": "솔레노이드 밸브 교체 출동 접수"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "SOLENOID-VALVE-24V-NC"},
+            "J800": {"part_code": "SOLENOID-VALVE-24V-HIGHFLOW"},
+            "S7": {"part_code": "SOLENOID-VALVE-24V-NC"},
+            "S5": {"part_code": "WATER-PUMP-24V-S5"},
+            "S1": {"part_code": "GRAVITY-VALVE-S1"},
+            "S3": {"part_code": "SOLENOID-VALVE-24V-S3"},
+            "쓰담": {"part_code": "SPRAY-PUMP-12V"}
+        }
+    },
+    {
+        "id": "WAT_LEAK",
+        "category": "세척수/배관",
+        "title": "세척수 누수",
+        "symptom": "장비를 정지해 두어도 바닥으로 물이 계속 새어나오거나 호스 피팅에서 누수 발생",
+        "aliases": [
+            "세척수 라인 누수 / 밸브 불량", "밸브 불량", "물 누수", "세제 누수", "장비 세워둬도 물 샘",
+            "호스 피팅 누수", "밸브 누수", "물 샙니다", "누수"
+        ],
+        "urgency": "보통",
+        "part_code": "WATER-HOSE-FITTING",
+        "action_plan": {
+            "keyword": "세척수 누수",
+            "part_code": "WATER-HOSE-FITTING",
+            "urgency": "보통",
+            "can_self_resolve": True,
+            "call_script": "고객님, 물 누수 증상은 솔레노이드 내부 이물질로 인한 밸브 미닫힘 및 호스 체결 상태를 점검해 주십시오.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "수동 밸브 차단 후 누수 지속 여부 확인",
+                    "method": "장비 전원을 끄고 정수 수동 볼 밸브를 잠갔을 때 바닥으로 물이 계속 떨어지는지 확인합니다.",
+                    "criteria_normal": "수동 밸브를 잠그면 누수가 즉시 멈춤 -> 솔레노이드 밸브 이물질 끼임 세척",
+                    "criteria_fault": "수동 밸브를 잠가도 호스 연결부나 탱크 하부에서 계속 물이 샘",
+                    "fault_action": "원터치 피팅 파손 또는 탱크 크랙 -> 피팅 교체 배차"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "HOSE-FITTING-12MM"},
+            "J800": {"part_code": "HOSE-FITTING-15MM"},
+            "S7": {"part_code": "HOSE-FITTING-10MM"},
+            "S5": {"part_code": "HOSE-FITTING-10MM"},
+            "S1": {"part_code": "HOSE-FITTING-8MM"},
+            "S3": {"part_code": "HOSE-FITTING-10MM"},
+            "쓰담": {"part_code": "HOSE-FITTING-6MM"}
+        }
+    },
+
+    # ── [5] 외관/기타 계통 (2종) ────────────────────────────────────────────────
+    {
+        "id": "EXT_ERROR_CODE",
+        "category": "외관/기타",
+        "title": "계기판 에러 코드 점멸",
+        "official_error_codes": OFFICIAL_12_ERROR_CODES,
+        "symptom": "계기판에 알 수 없는 영문/숫자 에러 코드가 깜빡이며 경보 부저가 계속 울림",
+        "aliases": [
+            "계기판 에러 코드 점멸 / 경고음", "경고음 계속 울림", "에러 코드 점멸", "경고등 깜빡임", "경고음 계속 울림",
+            "EH 에러", "E01 에러", "컨트롤러 에러", "에러코드"
+        ],
+        "urgency": "긴급",
+        "part_code": "MAIN-CONTROLLER-PCB",
+        "action_plan": {
+            "keyword": "계기판 에러 코드 점멸",
+            "part_code": "MAIN-CONTROLLER-PCB",
+            "urgency": "긴급",
+            "can_self_resolve": True,
+            "call_script": "고객님, 계기판에 표시된 에러 코드 알파벳과 숫자를 말씀해 주시면 즉시 리셋 절차를 안내해 드리겠습니다.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "에러 코드 확인 및 컨트롤러 소프트웨어 전원 리셋",
+                    "method": "계기판 에러 코드(E01, EH 등)를 확인 후, 키를 끄고 비상버튼을 누른 뒤 30초 대기했다가 다시 켭니다.",
+                    "criteria_normal": "재기동 후 에러 코드가 사라지고 정상 작동 대기 상태로 복구",
+                    "criteria_fault": "리셋 후에도 즉시 동일 에러 코드가 깜빡이며 경보음 울림",
+                    "fault_action": "메인 컨트롤러 PCB 기판 이상 -> 정비사 출동 접수"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "MAIN-PCB-J600"},
+            "J800": {"part_code": "MAIN-PCB-J800"},
+            "S7": {"part_code": "MAIN-PCB-S7"},
+            "S5": {"part_code": "MAIN-PCB-S5"},
+            "S1": {"part_code": "MAIN-PCB-S1"},
+            "S3": {"part_code": "MAIN-PCB-S3"},
+            "쓰담": {"part_code": "MAIN-PCB-SD"}
+        }
+    },
+    {
+        "id": "EXT_SWITCH_DAMAGE",
+        "category": "외관/기타",
+        "title": "외장 부품 파손",
+        "symptom": "운전 핸들 스위치, 레버, 외장 범퍼 또는 탱크 커버가 부러지거나 파손됨",
+        "aliases": [
+            "스위치·레버 파손 / 기계적 파손", "스위치 파손", "기계적 파손", "스위치 부러짐", "레버 파손", "커버 파손",
+            "범퍼 깨짐", "손잡이 파손", "힌지 이탈", "경첩 파손"
+        ],
+        "urgency": "보통",
+        "part_code": "CHASSIS-PARTS",
+        "action_plan": {
+            "keyword": "외장 부품 파손",
+            "part_code": "CHASSIS-PARTS",
+            "urgency": "보통",
+            "can_self_resolve": False,
+            "call_script": "고객님, 스위치 또는 외장 파손 부품은 안전한 운행을 위해 부품 사진 확인 후 즉시 교체 출동을 접수해 드리겠습니다.",
+            "steps": [
+                {
+                    "step_no": 1,
+                    "title": "파손 부위 육안 안전 점검 및 문자 사진 채증",
+                    "method": "파손된 부위(스위치, 레버, 힌지) 전선 노출 여부를 확인하고 핸드폰으로 명판 및 파손 부위 사진을 전송받습니다.",
+                    "criteria_normal": "외장 단순 파손으로 임시 운행 가능 -> 해당 부품 택배 출고",
+                    "criteria_fault": "전선 피복 노출, 레버 파손으로 조향/제어 불가",
+                    "fault_action": "즉시 운행 중지 안내 및 긴급 정비 출동 배차"
+                }
+            ]
+        },
+        "model_overrides": {
+            "J600T": {"part_code": "CHASSIS-LEVER-J600"},
+            "J800": {"part_code": "CHASSIS-BUMPER-J800"},
+            "S7": {"part_code": "CHASSIS-COVER-S7"},
+            "S5": {"part_code": "CHASSIS-SWITCH-S5"},
+            "S1": {"part_code": "CHASSIS-HANDLE-S1"},
+            "S3": {"part_code": "CHASSIS-LEVER-S3"},
+            "쓰담": {"part_code": "CHASSIS-HOOD-SD"}
+        }
+    }
+]
+
+
+def resolve_symptoms_for_model(model_name: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    선택된 장비 모델에 맞게 표준 16대 장애 유형을 해석하여 반환.
+    - model_name이 특정 모델(예: J600T, 쓰담)일 경우, 해당 모델 전용 부품코드 및 세부 단계 기준(step_overrides)이 자동 바인딩됨.
+    - model_name이 '전체'이거나 미지정일 경우, 범용 표준 16대 유형 반환.
+    """
+    target_model = (model_name or "전체").strip()
+    
+    # 모델명 부분 일치 검색
+    matched_model = None
+    if target_model != "전체":
+        for m in AVAILABLE_MODELS:
+            if m != "전체" and (m.lower() in target_model.lower() or target_model.lower() in m.lower()):
+                matched_model = m
+                break
+
+    resolved_list = []
+    for item in CANONICAL_FAILURE_TYPES:
+        entry = dict(item)
+        action_plan = dict(entry["action_plan"])
+        
+        # 기본 steps 복사 (깊은 복사)
+        steps_copy = [dict(s) for s in action_plan.get("steps", [])]
+        
+        # 모델별 오버라이드 적용
+        if matched_model and "model_overrides" in entry:
+            overrides = entry["model_overrides"].get(matched_model)
+            if overrides:
+                if "part_code" in overrides:
+                    entry["part_code"] = overrides["part_code"]
+                    action_plan["part_code"] = overrides["part_code"]
+                if "call_script" in overrides:
+                    action_plan["call_script"] = overrides["call_script"]
+                
+                # 단계별 수치 오버라이드 (step_overrides)
+                if "step_overrides" in overrides:
+                    for step_idx, step_data in overrides["step_overrides"].items():
+                        for s in steps_copy:
+                            if s.get("step_no") == step_idx:
+                                s.update(step_data)
+        
+        action_plan["steps"] = steps_copy
+        entry["action_plan"] = action_plan
+        resolved_list.append(entry)
+
+    return resolved_list

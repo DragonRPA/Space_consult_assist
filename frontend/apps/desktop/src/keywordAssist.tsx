@@ -43,8 +43,8 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-solenoid',
     canonicalId: 'WTR_SPRAY_FAIL',
     keyword: '솔레노이드 밸브 / 급수 불량',
-    synonyms: /솔레노이드|솔리노이드|솔노이드|소레노이드|솔래노이드|솔밸브|급수\s*밸브|전자\s*밸브|노즐\s*막힘|분사구\s*막힘|세척수\s*미분사|(?:물|세제|청수|세수|액)[이가은는을를]?\s*(?:아예\s*|전혀\s*|하나도\s*|잘\s*|계속\s*)?(?:안|못)\s*(?:나와|나오|나옴|뿌려|뿌리|내려|떨어|공급)|(?:안|못)\s*(?:나와|나오|뿌려).{0,8}(?:물|세제|청수)|브러시.{0,8}물.{0,8}(?:안|못)|필터\s*열어서|필터가?\s*막혀|세수\s*필터/i,
-    fuzzyPhrases: ['솔레노이드밸브', '물이안나와요', '물안나옴', '세척수미분사', '급수밸브불량', '청수안나옴', '노즐막힘'],
+    synonyms: /솔레노이드|솔리노이드|솔노이드|소레노이드|솔래노이드|솔밸브|급수\s*밸브|전자\s*밸브|노즐\s*막힘|분사구\s*막힘|세척수\s*미분사|(?:솔레노이드|솔밸브|급수|세척수|청수|세수|물\s*분사|분사구?|노즐)[이가은는]?\s*(?:작동\s*)?(?:안\s*됨|안\s*돼|안\s*되|불가|불량|고장|막힘|파손|깨짐|부서짐|빠짐|뽑힘)|(?:물|세제|청수|세수|액)[이가은는을를]?\s*(?:아예\s*|전혀\s*|하나도\s*|잘\s*|계속\s*)?(?:안|못)\s*(?:나와|나오|나옴|뿌려|뿌리|내려|떨어|공급)|(?:안|못)\s*(?:나와|나오|뿌려).{0,8}(?:물|세제|청수)|브러시.{0,8}물.{0,8}(?:안|못)|필터\s*열어서|필터가?\s*막혀|세수\s*필터/i,
+    fuzzyPhrases: ['솔레노이드밸브', '물이안나와요', '물안나옴', '세척수미분사', '급수밸브불량', '급수안됨', '급수불가', '노즐막힘'],
     category: 'WATER / 급수·솔레노이드',
     partCode: 'SOLENOID-VALVE-24V',
     partName: '전자식 급수 솔레노이드 밸브 24V',
@@ -64,8 +64,8 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-water-leak',
     canonicalId: 'WTR_LEAK',
     keyword: '세척수 누수 / 호스·밸브 물샘',
-    synonyms: /누수|물\s*샘|물이?\s*새|물이?\s*샜|물이?\s*줄줄|물이?\s*뚝뚝|(?:꺼놨|껐|정지|가만히).{0,12}물.{0,8}(?:나와|새|흘러)|(?:밑|바닥|호스|배관|이음새|통).{0,10}물[이가]?\s*(?:새|흘러|떨어져|고여)|호스\s*피팅\s*누수|밸브\s*닫힘\s*불량/i,
-    fuzzyPhrases: ['세척수누수', '물이계속새요', '바닥에물이새요', '호스물샘', '밸브누수'],
+    synonyms: /누수|물\s*샘|물이?\s*새|물이?\s*샜|물이?\s*줄줄|물이?\s*뚝뚝|(?:꺼놨|껐|정지|가만히).{0,12}물.{0,8}(?:나와|새|흘러)|(?:밑|바닥|호스|배관|이음새|통).{0,10}물[이가]?\s*(?:새|흘러|떨어져|고여)|(?:배관|피팅|엘보|급수관)[이가은는]?\s*(?:파손|깨짐|깨졌|부서짐|빠짐|빠졌|뽑힘|뽑혔|누수)|호스\s*피팅\s*누수|밸브\s*닫힘\s*불량/i,
+    fuzzyPhrases: ['세척수누수', '물이계속새요', '바닥에물이새요', '호스물샘', '밸브누수', '배관파손', '피팅빠짐'],
     category: 'WATER / 배관·누수계통',
     partCode: 'WATER-HOSE-FITTING',
     partName: '솔레노이드 시트 및 급수 호스 피팅 어셈블리',
@@ -85,8 +85,8 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-squeegee',
     canonicalId: 'SUC_RESIDUAL_WATER',
     keyword: '스퀴지 마모 / 바닥 잔수·줄무늬',
-    synonyms: /스퀴지|스퀴즈|스키지|스끼지|와이퍼|바닥\s*물기|잔수|줄무늬|고무\s*블레이드|고무\s*날|고무날|뒷\s*고무|뒤에\s*고무|물\s*자국|고무\s*패드|패드\s*거치대|고정판|판\s*거치대|(?:물|물기|바닥|오수)[이가은는을를]?\s*(?:잘\s*|제대로\s*|전혀\s*|하나도\s*)?(?:안|못)\s*(?:빨아|먹어|끌어|건조|마르|올라오|올라와)|(?:물|물기|자국)[이가]?\s*(?:남아|남네|흥건|그대로|질질|줄줄)|빨아들이지\s*못|중간\s*부분|양쪽\s*끝.*달라붙|편마모|고무.{0,8}(?:닳|찢어|갈라|들떠)/i,
-    fuzzyPhrases: ['바닥잔수과다', '스퀴지마모', '물이안빨려요', '바닥에물기가남아요', '고무날찢어짐', '줄무늬잔수'],
+    synonyms: /스퀴지|스퀴즈|스키지|스끼지|와이퍼|바닥\s*물기|잔수|줄무늬|고무\s*블레이드|고무\s*날|고무날|뒷\s*고무|뒤에\s*고무|물\s*자국|고무\s*패드|패드\s*거치대|고정판|판\s*거치대|(?:스퀴지|와이퍼|고무날?|블레이드|물받이)[이가은는]?\s*(?:안\s*됨|안\s*돼|불가|파손|깨짐|깨졌|부서짐|부서졌|부러짐|빠짐|빠졌|뽑힘|뽑혔|찢어짐|찢어졌|마모)|(?:물|물기|바닥|오수)[이가은는을를]?\s*(?:잘\s*|제대로\s*|전혀\s*|하나도\s*)?(?:안|못)\s*(?:빨아|먹어|끌어|건조|마르|올라오|올라와)|(?:물|물기|자국)[이가]?\s*(?:남아|남네|흥건|그대로|질질|줄줄)|빨아들이지\s*못|중간\s*부분|양쪽\s*끝.*달라붙|편마모|고무.{0,8}(?:닳|찢어|갈라|들떠|빠져|뽑혀)/i,
+    fuzzyPhrases: ['바닥잔수과다', '스퀴지마모', '스퀴지파손', '스퀴지빠짐', '고무날뽑힘', '물이안빨려요', '바닥에물기가남아요', '고무날찢어짐', '줄무늬잔수'],
     category: 'WEARABLE / 스퀴지·소모품',
     partCode: 'SQUEEGEE-RUBBER',
     partName: '내유성 우레탄 스퀴지 블레이드 세트',
@@ -106,8 +106,8 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-suction',
     canonicalId: 'SUC_MOTOR_NOISE',
     keyword: '흡입모터 과열 / 흡입력 저하·소음',
-    synonyms: /흡입\s*모터|흡입\s*모타|석션\s*모터|바큠\s*모터|진공\s*모터|흡입력|흡입\s*부분|흡입이?\s*(?:약|안|떨어|불량|문제)|진공압\s*저하|모터\s*굉음|모터\s*과열|모터.{0,8}(?:소리|소음|냄새|연기|뜨거|멈춰|안\s*돌)|타는\s*냄새|탄\s*냄새|탄내|쇠\s*갈리는\s*소리|비명\s*소리|소음\s*발생|소리가?\s*크게/i,
-    fuzzyPhrases: ['흡입모터과열', '흡입력저하', '흡입불량', '모터소음발생', '모터에서타는냄새'],
+    synonyms: /흡입\s*모터|흡입\s*모타|석션\s*모터|바큠\s*모터|진공\s*모터|흡입력|흡입\s*부분|(?:흡입\s*모터|석션\s*모터|진공\s*모터|흡입력?|석션|바큠|진공)[이가은는]?\s*(?:작동\s*)?(?:약|안\s*됨|안\s*돼|안\s*되|불가|불량|고장|문제|떨어|멈춤|파손)|진공압\s*저하|모터\s*굉음|모터\s*과열|모터.{0,8}(?:소리|소음|냄새|연기|뜨거|멈춰|안\s*돌|안\s*됨|고장|불량)|타는\s*냄새|탄\s*냄새|탄내|쇠\s*갈리는\s*소리|비명\s*소리|소음\s*발생|소리가?\s*크게/i,
+    fuzzyPhrases: ['흡입모터과열', '흡입력저하', '흡입불량', '흡입안됨', '흡입불가', '석션안됨', '모터소음발생', '모터에서타는냄새'],
     category: 'POWER / 흡입·구동계통',
     partCode: 'SUCTION-500W',
     partName: '흡입모터 24V 500W 어셈블리',
@@ -128,8 +128,8 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-float-sensor',
     canonicalId: 'SUC_FLOAT_EARLY_STOP',
     keyword: '오수탱크 조기 차단 / 플로트 밸브(부표)',
-    synonyms: /플로트\s*밸브|플로트\s*볼|부표|만수\s*센서|만수\s*경보|만수\s*차단|(?:오수|폐수|물통).{0,10}(?:비었|안\s*찼|조금\s*찼).{0,10}(?:차단|멈춰|꺼져|안\s*빨)|거품.{0,8}(?:차단|넘쳐|가득)|소포제/i,
-    fuzzyPhrases: ['만수센서오작동', '플로트밸브고착', '오수탱크조기차단', '부표일찍올라옴'],
+    synonyms: /플로트\s*밸브|플로트\s*볼|부표|만수\s*센서|만수\s*경보|만수\s*차단|(?:플로트\s*밸브|플로트\s*볼|플로트|부표|만수\s*센서|수위\s*센서)[이가은는]?\s*(?:안\s*됨|안\s*돼|불가|불량|고장|파손|깨짐|깨졌|부서짐|빠짐|빠졌|뽑힘|고착)|(?:오수|폐수|물통).{0,10}(?:비었|안\s*찼|조금\s*찼).{0,10}(?:차단|멈춰|꺼져|안\s*빨)|거품.{0,8}(?:차단|넘쳐|가득)|소포제/i,
+    fuzzyPhrases: ['만수센서오작동', '플로트밸브고착', '플로트밸브파손', '부표빠짐', '오수탱크조기차단', '부표일찍올라옴'],
     category: 'SENSOR / 오수탱크·만수차단',
     partCode: 'FLOAT-VALVE-ASSY',
     partName: '오수탱크 플로트 밸브(부표 케이지) 어셈블리',
@@ -170,8 +170,8 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-battery',
     canonicalId: 'PWR_CHG_FAIL',
     keyword: '배터리 충전 불량 / 충전기 이상',
-    synonyms: /배터리\s*충전|충전\s*불량|충전\s*불가|충전\s*문제|충전이?\s*안|충전기\s*고장|충전기.{0,10}(?:안\s*들어|깜빡|점멸|빨간\s*불|적색|소리|에러)|충전.{0,8}(?:안\s*돼|안\s*되|안\s*됨|중단|멈춰)|배터리\s*문제|220\s*볼트|220V|콘센트/i,
-    fuzzyPhrases: ['배터리충전불량', '충전안됨', '충전기고장', '충전문제', '배터리문제'],
+    synonyms: /배터리\s*충전|충전\s*불량|충전\s*불가|충전\s*문제|충전이?\s*안|충전기\s*고장|(?:충전기?|어댑터|콘센트)[이가은는]?\s*(?:작동\s*)?(?:안\s*됨|안\s*돼|안\s*되|불가|불량|고장|파손|깨짐|부서짐)|충전기.{0,10}(?:안\s*들어|깜빡|점멸|빨간\s*불|적색|소리|에러)|충전.{0,8}(?:안\s*돼|안\s*되|안\s*됨|불가|중단|멈춰)|배터리\s*문제|220\s*볼트|220V|콘센트/i,
+    fuzzyPhrases: ['배터리충전불량', '충전안됨', '충전불가', '충전기고장', '충전기파손', '충전문제', '배터리문제'],
     category: 'ELECTRICAL / 충전기·전원계통',
     partCode: 'CHARGER-UNIT-24V',
     partName: '전용 스마트 충전기 24V 어셈블리',
@@ -191,8 +191,8 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-power-dead',
     canonicalId: 'PWR_TOTAL_DEAD',
     keyword: '전원 완전 인입 불가 / 계기판 먹통',
-    synonyms: /전원\s*불량|전원이?\s*안\s*켜|전원\s*먹통|계기판\s*먹통|시동이?\s*안\s*걸|아예\s*안\s*켜|묵묵부답|(?:키|스위치|전원|계기판|불)[이가은는을를]?\s*(?:돌려도|켜도|눌러도)?\s*(?:전혀\s*|아예\s*|하나도\s*)?(?:안\s*들어|안\s*켜|안\s*와|반응\s*없|먹통|꺼져)|비상\s*정지\s*버튼|작동\s*멈춤/i,
-    fuzzyPhrases: ['전원안켜짐', '전원완전인입불가', '계기판먹통', '시동안걸림', '아예작동안함'],
+    synonyms: /전원\s*불량|전원이?\s*안\s*켜|전원\s*먹통|계기판\s*먹통|시동이?\s*안\s*걸|아예\s*안\s*켜|묵묵부답|(?:전원|시동|계기판|키\s*스위치|키\s*박스|비상\s*정지|장비\s*작동|작동|가동)[이가은는]?\s*(?:인입\s*|작동\s*)?(?:안\s*됨|안\s*돼|안\s*되|불가|불능|먹통|고장)|(?:키|스위치|전원|계기판|불)[이가은는을를]?\s*(?:돌려도|켜도|눌러도)?\s*(?:전혀\s*|아예\s*|하나도\s*)?(?:안\s*들어|안\s*켜|안\s*와|반응\s*없|먹통|꺼져)|비상\s*정지\s*버튼|작동\s*멈춤/i,
+    fuzzyPhrases: ['전원안켜짐', '전원안됨', '전원불가', '시동안됨', '작동불가', '전원완전인입불가', '계기판먹통', '시동안걸림', '아예작동안함'],
     category: 'ELECTRICAL / 메인전원·비상정지',
     partCode: 'MAIN-POWER-RELAY',
     partName: '메인 전원 릴레이 및 키 스위치 어셈블리',
@@ -212,8 +212,8 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-terminal-loose',
     canonicalId: 'PWR_TERMINAL_LOOSE',
     keyword: '충전 단자 접촉 불량 / 잔량 표시 오류',
-    synonyms: /앤더슨\s*커넥터|단자\s*접촉|충전\s*단자|충전\s*잭|커넥터\s*헐거|단자\s*유격|(?:잔량|게이지|배터리\s*칸)[이가]?\s*(?:튀어|튐|왔다\s*갔다|깜빡|오류|안\s*맞)/i,
-    fuzzyPhrases: ['충전단자접촉불량', '앤더슨커넥터파손', '배터리게이지오류', '단자헐거움'],
+    synonyms: /앤더슨\s*커넥터|단자\s*접촉|충전\s*단자|충전\s*잭|커넥터\s*헐거|단자\s*유격|(?:앤더슨\s*커넥터|커넥터|충전\s*단자|단자|충전\s*잭|잭|배선|전선|케이블|코드|플러그)[이가은는]?\s*(?:접촉\s*)?(?:안\s*됨|안\s*돼|불가|불량|파손|깨짐|깨졌|부서짐|부서졌|빠짐|빠졌|뽑힘|뽑혔|끊어짐|끊어졌)|(?:잔량|게이지|배터리\s*칸)[이가]?\s*(?:튀어|튐|왔다\s*갔다|깜빡|오류|안\s*맞|안\s*됨|불량)/i,
+    fuzzyPhrases: ['충전단자접촉불량', '앤더슨커넥터파손', '단자빠짐', '전선뽑힘', '배선뽑힘', '커넥터깨짐', '배터리게이지오류', '단자헐거움'],
     category: 'ELECTRICAL / 단자·커넥터',
     partCode: 'ANDERSON-CONNECTOR',
     partName: '앤더슨 파워 커넥터 50A/120A 하우징 세트',
@@ -232,8 +232,8 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-brush-stall',
     canonicalId: 'DRV_BRUSH_STALL',
     keyword: '브러시 회전 불가 / 과부하 차단기 트립',
-    synonyms: /브러시\s*모터|브러시\s*회전|브러시\s*미회전|(?:브러시|솔|패드|밑에\s*판)[이가은는]?\s*(?:전혀\s*|아예\s*|잘\s*)?(?:안\s*돌|못\s*돌|멈춰|헛돌|안\s*돌아)|(?:안\s*돌아|안\s*돌고|멈췄).{0,8}(?:브러시|솔|패드)|서킷\s*브레이커|과부하\s*차단|퓨즈함/i,
-    fuzzyPhrases: ['브러시모터회전불가', '브러시안돌아감', '솔이안돌아요', '브러시과부하차단'],
+    synonyms: /브러시\s*모터|브러시\s*회전|브러시\s*미회전|(?:브러시\s*모터|브러시\s*회전|브러시|솔|서킷\s*브레이커|차단기)[이가은는]?\s*(?:회전\s*|작동\s*)?(?:안\s*됨|안\s*돼|안\s*되|불가|불량|고장|멈춤)|(?:브러시|솔|패드|밑에\s*판)[이가은는]?\s*(?:전혀\s*|아예\s*|잘\s*)?(?:안\s*돌|못\s*돌|멈춰|헛돌|안\s*돌아)|(?:안\s*돌아|안\s*돌고|멈췄).{0,8}(?:브러시|솔|패드)|서킷\s*브레이커|과부하\s*차단|퓨즈함/i,
+    fuzzyPhrases: ['브러시모터회전불가', '브러시안돌아감', '브러시안됨', '브러시불가', '솔이안돌아요', '브러시과부하차단'],
     category: 'DRIVE / 브러시구동·차단기',
     partCode: 'BRUSH-MOTOR-ASSY',
     partName: '브러시 구동 기어드 모터 어셈블리',
@@ -248,13 +248,13 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     selfActionGuide: '브러시가 돌지 않는다면 먼저 튀어나온 과부하 차단기(서킷브레이커) 버튼을 눌러 리셋하고, 브러시 축에 노끈이나 비닐이 감기지 않았는지 확인하세요.'
   },
 
-  // [11] 브러시·패드판 체결 / 노브·볼트 이상 (DRV_PAD_HOLDER)
+  // [11] 브러시·패드판 체결 / 노브·볼트 이상 (DRV_BRUSH_STALL 연계)
   {
     id: 'kw-brush-deck',
-    canonicalId: 'DRV_PAD_HOLDER',
+    canonicalId: 'DRV_BRUSH_STALL',
     keyword: '브러시·패드판 체결 / 노브·볼트 이상',
-    synonyms: /패드\s*드라이버|패드판|페드판|브러시\s*장착|브러시\s*탈착|데크|노브|볼트\s*(?:조정|풀림|부재)|녹이?\s*슬|녹\s*발생|(?:브러시|패드판?)[이가은는을를]?\s*(?:빠져|떨어져|안\s*끼워|안\s*맞|흔들|덜덜)/i,
-    fuzzyPhrases: ['패드드라이버파손', '패드판체결불량', '브러시노브파손', '데크볼트풀림'],
+    synonyms: /패드\s*드라이버|패드판|페드판|브러시\s*장착|브러시\s*탈착|데크|노브|볼트\s*(?:조정|풀림|부재)|녹이?\s*슬|녹\s*발생|(?:패드\s*드라이버|패드판?|데크|노브|볼트|너트|삼발이|클러치|거치대)[이가은는]?\s*(?:체결\s*|장착\s*|탈착\s*|고정\s*)?(?:안\s*됨|안\s*돼|불가|불량|파손|깨짐|깨졌|부서짐|부서졌|부러짐|부러졌|빠짐|빠졌|뽑힘|뽑혔|풀림|풀렸)|(?:브러시|패드판?)[이가은는을를]?\s*(?:빠짐|빠져|빠졌|뽑힘|뽑혔|깨짐|부서짐|파손|떨어져|안\s*끼워|안\s*맞|흔들|덜덜)/i,
+    fuzzyPhrases: ['패드드라이버파손', '패드판체결불량', '패드판빠짐', '브러시빠짐', '노브깨짐', '노브부서짐', '데크볼트풀림'],
     category: 'DECK / 브러시·데크계통',
     partCode: 'PAD-DRIVER-19',
     partName: '패드 드라이버 및 데크 고정 노브 어셈블리',
@@ -273,8 +273,8 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-wheel-drive',
     canonicalId: 'DRV_WHEEL_DRIVE',
     keyword: '주행 구동 불가 / 전후진 먹통·쏠림',
-    synonyms: /주행\s*불가|주행\s*불량|구동\s*불량|트랜스액슬|포텐셔미터|전후진|직진\s*쏠림|(?:앞으로|뒤로|전진|후진|바퀴|주행|장비)[이가은는도]?\s*(?:전혀\s*|아예\s*|잘\s*)?(?:안\s*가|안\s*나|안\s*되|안\s*움직|멈춰|안\s*굴러|헛돌|먹통|뻑뻑)|한쪽으로\s*쏠림/i,
-    fuzzyPhrases: ['주행구동불가', '앞으로안가요', '전진후진불량', '바퀴가안움직여요', '주행불량'],
+    synonyms: /주행\s*불가|주행\s*불량|구동\s*불량|트랜스액슬|포텐셔미터|전후진|직진\s*쏠림|(?:주행|전진|후진|전후진|구동|이동|운행|조향|트랜스액슬|포텐셔미터|브레이크)[이가은는]?\s*(?:작동\s*)?(?:안\s*됨|안\s*돼|안\s*되|불가|불능|불량|고장|먹통)|(?:앞으로|뒤로|전진|후진|바퀴|주행|장비)[이가은는도]?\s*(?:전혀\s*|아예\s*|잘\s*)?(?:안\s*가|안\s*나|안\s*되|안\s*움직|멈춰|안\s*굴러|헛돌|먹통|뻑뻑)|한쪽으로\s*쏠림/i,
+    fuzzyPhrases: ['주행구동불가', '주행안됨', '전진안됨', '후진불가', '앞으로안가요', '전진후진불량', '바퀴가안움직여요', '주행불량'],
     category: 'DRIVE / 주행·트랜스액슬',
     partCode: 'TRANSAXLE-DRIVE-WHEEL',
     partName: '주행 트랜스액슬 구동 모터 및 전자브레이크',
@@ -293,8 +293,8 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-belt-slip',
     canonicalId: 'DRV_BELT_SLIP',
     keyword: '구동 벨트 슬립 / 마찰 소음·장력 저하',
-    synonyms: /벨트\s*슬립|타이밍\s*벨트|벨트\s*마모|벨트\s*늘어짐|벨트\s*끊어짐|끼익\s*(?:소리|소음)|고무\s*마찰음|회전력\s*저하/i,
-    fuzzyPhrases: ['구동벨트슬립', '벨트끊어짐', '끼익소리발생', '벨트장력불량'],
+    synonyms: /벨트\s*슬립|타이밍\s*벨트|벨트\s*마모|벨트\s*늘어짐|벨트\s*끊어짐|(?:타이밍\s*벨트|구동\s*벨트|벨트|텐셔너)[이가은는]?\s*(?:안\s*됨|불가|불량|파손|부서짐|빠짐|빠졌|뽑힘|뽑혔|끊어짐|끊어졌)|끼익\s*(?:소리|소음)|고무\s*마찰음|회전력\s*저하/i,
+    fuzzyPhrases: ['구동벨트슬립', '벨트끊어짐', '벨트빠짐', '벨트파손', '끼익소리발생', '벨트장력불량'],
     category: 'DRIVE / 벨트·전동계통',
     partCode: 'TIMING-BELT',
     partName: '고장력 폴리우레탄 타이밍 벨트',
@@ -313,8 +313,8 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-lift-fail',
     canonicalId: 'DRV_LIFT_FAIL',
     keyword: '브러시·스퀴지 승강 불량 / 리프트·액추에이터',
-    synonyms: /액추에이터|승강\s*불량|승강\s*장치|리프트\s*불량|(?:브러시|스퀴지|헤드|데크|페달|레버)[이가은는을를]?\s*(?:안\s*내려|안\s*올라|고착|안\s*움직|들려\s*있|안\s*떨어져)|내려가지\s*않|올라가지\s*않/i,
-    fuzzyPhrases: ['브러시승강불량', '액추에이터고장', '브러시안내려감', '리프트모터불량'],
+    synonyms: /액추에이터|승강\s*불량|승강\s*장치|리프트\s*불량|(?:액추에이터|승강|리프트|와이어)[이가은는]?\s*(?:작동\s*)?(?:안\s*됨|안\s*돼|안\s*되|불가|불량|고장|파손|깨짐|부서짐|빠짐|뽑힘|끊어짐|고착)|(?:브러시|스퀴지|헤드|데크|페달|레버)[이가은는을를]?\s*(?:안\s*내려|안\s*올라|고착|안\s*움직|들려\s*있|안\s*떨어져)|내려가지\s*않|올라가지\s*않/i,
+    fuzzyPhrases: ['브러시승강불량', '승강안됨', '승강불가', '리프트안됨', '액추에이터고장', '액추에이터파손', '브러시안내려감', '리프트모터불량'],
     category: 'DRIVE / 승강·액추에이터',
     partCode: 'LIFT-ACTUATOR',
     partName: '전동 리프트 액추에이터 / 승강 페달 링크',
@@ -353,8 +353,8 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-chassis-damage',
     canonicalId: 'EXT_CHASSIS_DAMAGE',
     keyword: '외장 커버·레버·호스 파손',
-    synonyms: /외장\s*파손|커버\s*파손|범퍼\s*파손|핸들\s*파손|레버\s*부러|스위치\s*깨짐|호스\s*찢어|호스\s*터짐|호스\s*막힘|드레인\s*호스|흡입\s*호스|(?:뚜껑|커버|레버|손잡이|바퀴|호스)[이가은는]?\s*(?:깨졌|부러졌|파손|찢어졌|빠졌)/i,
-    fuzzyPhrases: ['외장부품파손', '레버부러짐', '흡입호스찢어짐', '드레인호스파손', '호스막힘'],
+    synonyms: /외장\s*파손|커버\s*파손|범퍼\s*파손|핸들\s*파손|레버\s*부러|스위치\s*깨짐|호스\s*찢어|호스\s*터짐|호스\s*막힘|드레인\s*호스|흡입\s*호스|(?:외장|커버|뚜껑|범퍼|핸들|손잡이|레버|스위치|호스|드레인\s*호스|흡입\s*호스|배수\s*호스|배수구?|배수\s*캡|물통|탱크|오수통|청수통|바퀴|캐스터|휠|페달|투명창|창|케이스|핀|고정핀|걸쇠|고리|클램프|마개|거름망)[이가은는]?\s*(?:안\s*됨|불가|파손|파손됨|깨짐|깨졌|부서짐|부서졌|부러짐|부러졌|빠짐|빠졌|뽑힘|뽑혔|찢어짐|찢어졌|터짐|터졌|막힘|막혔)/i,
+    fuzzyPhrases: ['외장부품파손', '레버부러짐', '레버부서짐', '물통깨짐', '뚜껑깨짐', '호스빠짐', '호스뽑힘', '흡입호스찢어짐', '드레인호스파손', '호스막힘'],
     category: 'CHASSIS / 외장·호스·레버',
     partCode: 'CHASSIS-PARTS',
     partName: '외장 커버·레버 및 흡입/드레인 호스 세트',
@@ -369,10 +369,284 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
   }
 ];
 
+// ── 1-B. 부정적 상태표현 구문 구조 추출기 ([대상 OOO] + [안됨/불가/파손/깨짐/부서짐/빠짐/뽑힘]) ──
+export type NegativeStateCategory =
+  | 'NON_FUNCTION' // 안됨, 불가, 먹통, 작동불가, 멈춤
+  | 'FRACTURE'     // 파손, 깨짐, 부서짐, 부러짐, 균열, 박살
+  | 'DETACHMENT'   // 빠짐, 뽑힘, 이탈, 탈거, 풀림, 헐거움, 떨어짐
+  | 'TEAR_CUT'     // 끊어짐, 찢어짐, 터짐, 절단, 단선
+  | 'BLOCK_LEAK'   // 막힘, 누수, 물샘, 고착, 끼임
+  | 'DEFECT_WEAR'; // 고장, 불량, 마모, 닳음
+
+export interface ExtractedNegativeState {
+  rawPhrase: string;
+  target: string;
+  predicate: string;
+  canonicalPredicate: string;
+  category: NegativeStateCategory;
+  stateSummary: string;
+  mappedKeywordId?: string;
+}
+
+// 대상 명사(OOO) 오탐 방지용 대화 불용어/시간어/대명사
+const NEGATIVE_STATE_STOPWORDS = new Set([
+  '그게', '이게', '저게', '그거', '이거', '저거', '무슨', '어떤', '아무', '전체', '전부',
+  '하나도', '아예', '전혀', '계속', '자꾸', '갑자기', '원래', '지금', '오늘', '어제',
+  '내일', '방금', '아까', '제가', '우리가', '거기', '여기', '저기', '말이', '연락',
+  '통화', '시간', '일정', '예약', '방문', '출장', '결제', '계산', '생각', '기억',
+  '확인', '점검', '테스트', '해결', '조치', '수리', '교체', '처리', '진행'
+]);
+
+function classifyNegativePredicate(rawPred: string): {
+  canonicalPredicate: string;
+  category: NegativeStateCategory;
+} {
+  const p = rawPred.replace(/\s+/g, '');
+  if (/뽑힘|뽑혔|뽑혀|뽑힌/.test(p)) {
+    return { canonicalPredicate: '뽑힘', category: 'DETACHMENT' };
+  }
+  if (/빠짐|빠졌|빠져|빠진|이탈|탈거|풀림|풀렸|헐거|들뜸|들떴|떨어짐|떨어졌/.test(p)) {
+    return { canonicalPredicate: '빠짐', category: 'DETACHMENT' };
+  }
+  if (/부서짐|부서졌|부서져|부서진|부러짐|부러졌|부러져|부러진|박살/.test(p)) {
+    return { canonicalPredicate: /부러/.test(p) ? '부러짐' : '부서짐', category: 'FRACTURE' };
+  }
+  if (/깨짐|깨졌|깨져|깨진|균열|금감|금이갔|갈라짐|갈라졌/.test(p)) {
+    return { canonicalPredicate: '깨짐', category: 'FRACTURE' };
+  }
+  if (/파손|완파/.test(p)) {
+    return { canonicalPredicate: '파손', category: 'FRACTURE' };
+  }
+  if (/끊어짐|끊어졌|끊어져|끊어진|절단|단선|찢어짐|찢어졌|찢어져|찢어진|터짐|터졌|터져|터진/.test(p)) {
+    return { canonicalPredicate: /찢/.test(p) ? '찢어짐' : /터/.test(p) ? '터짐' : '끊어짐', category: 'TEAR_CUT' };
+  }
+  if (/막힘|막혔|막혀|막힌|누수|물샘|고착|끼임|끼었/.test(p)) {
+    return { canonicalPredicate: /누수|샘/.test(p) ? '누수' : /고착|끼/.test(p) ? '고착' : '막힘', category: 'BLOCK_LEAK' };
+  }
+  if (/불가|불능/.test(p)) {
+    return { canonicalPredicate: '불가', category: 'NON_FUNCTION' };
+  }
+  if (/안됨|안돼|안되|안됌|먹통|마비|멈춤|멈췄|안돌|안켜|안나|안먹/.test(p)) {
+    return { canonicalPredicate: '안됨', category: 'NON_FUNCTION' };
+  }
+  return { canonicalPredicate: '고장/불량', category: 'DEFECT_WEAR' };
+}
+
+// 추출된 [대상(OOO)] + [부정상태 분류]를 16대 표준 고장 엔티티 ID로 의미 매핑
+export function resolveTargetToKeywordId(
+  target: string,
+  category: NegativeStateCategory,
+  canonicalPredicate: string
+): string | undefined {
+  const t = target.replace(/\s+/g, '').toLowerCase();
+  if (!t) return undefined;
+
+  // 1. 스퀴지 / 고무날 / 잔수
+  if (/스퀴지|와이퍼|고무날|블레이드|물받이|뒷고무|잔수|물기|건조|지지휠/.test(t)) {
+    return 'kw-squeegee';
+  }
+  // 2. 솔레노이드 / 급수 / 세척수 / 노즐 / 분사
+  if (/솔레노이드|솔밸브|급수|세척수|청수|세수|분사구?|노즐|전자밸브|세제/.test(t)) {
+    if (canonicalPredicate === '누수') return 'kw-water-leak';
+    return 'kw-solenoid';
+  }
+  if (/^(?:물|물공급|물토출)$/.test(t)) {
+    if (canonicalPredicate === '누수') return 'kw-water-leak';
+    return 'kw-solenoid';
+  }
+  // 3. 배관 / 피팅 / 누수
+  if (/누수|물샘|배관|피팅|엘보|급수관/.test(t)) {
+    return 'kw-water-leak';
+  }
+  // 4. 플로트 밸브 / 부표 / 만수센서
+  if (/플로트|부표|만수|수위센서|차단볼/.test(t)) {
+    return 'kw-float-sensor';
+  }
+  // 5. 흡입모터 / 석션 / 진공 (단, 흡입호스 물리 파손/빠짐은 외장/호스로 분기)
+  if (/흡입호스|석션호스|드레인호스|배수호스/.test(t)) {
+    return 'kw-chassis-damage';
+  }
+  if (/흡입|석션|바큠|진공|모터소음/.test(t)) {
+    return 'kw-suction';
+  }
+  // 6. 단자 / 커넥터 / 앤더슨 / 전선 / 배선 / 케이블 / 코드 / 잭
+  if (/앤더슨|커넥터|단자|충전잭|잭|플러그|배선|전선|케이블|코드|게이지|잔량계|전기선/.test(t)) {
+    return 'kw-terminal-loose';
+  }
+  // 7. 배터리 방전 / 수명
+  if (/방전|배터리수명|사용시간|가동시간|증류수/.test(t)) {
+    return 'kw-battery-degrade';
+  }
+  // 8. 충전 / 충전기 / 배터리
+  if (/충전|어댑터|콘센트|배터리/.test(t)) {
+    return 'kw-battery';
+  }
+  // 9. 패드판 / 패드드라이버 / 노브 / 볼트 / 데크 / 삼발이
+  if (/패드|데크|노브|볼트|너트|삼발이|클러치|거치대|고정판|장착|탈착/.test(t)) {
+    return 'kw-brush-deck';
+  }
+  // 10. 브러시 / 솔 / 차단기 (빠짐/뽑힘/파손/깨짐은 체결부 이상, 안됨/불가/멈춤은 회전불가)
+  if (/브러시|솔|서킷브레이커|차단기|회전/.test(t)) {
+    if ((category === 'DETACHMENT' || category === 'FRACTURE') && !/모터|차단기/.test(t)) {
+      return 'kw-brush-deck';
+    }
+    return 'kw-brush-stall';
+  }
+  // 11. 벨트 / 타이밍벨트 / 텐셔너
+  if (/벨트|텐셔너/.test(t)) {
+    return 'kw-belt-slip';
+  }
+  // 12. 액추에이터 / 승강 / 리프트 / 와이어
+  if (/액추에이터|승강|리프트|상하|올림|내림|와이어/.test(t)) {
+    return 'kw-lift-fail';
+  }
+  // 13. 주행 / 전진 / 후진 / 구동 / 트랜스액슬 / 포텐셔미터 / 브레이크
+  if (/주행|전진|후진|전후진|구동|이동|운행|조향|트랜스액슬|포텐셔미터|속도조절|브레이크|견인/.test(t)) {
+    return 'kw-wheel-drive';
+  }
+  // 14. 에러코드 / 경고음 / 부저
+  if (/에러|오류|경고음|경보음|부저|알람/.test(t)) {
+    return 'kw-error-code';
+  }
+  // 15. 전원 / 시동 / 계기판 / 키 / 스위치 (물리적 깨짐/부서짐/빠짐은 외장 파손, 안됨/불가/먹통은 전원불량)
+  if (/전원|시동|계기판|메인|릴레이|퓨즈|비상정지|키스위치|키박스|장비|기계|작동|가동/.test(t)) {
+    if (category === 'FRACTURE' || category === 'DETACHMENT') {
+      return 'kw-chassis-damage';
+    }
+    return 'kw-power-dead';
+  }
+  // 16. 외장 / 커버 / 호스 / 레버 / 물통 / 바퀴 / 스위치 등 물리 부품
+  if (/외장|커버|뚜껑|범퍼|핸들|손잡이|레버|스위치|호스|드레인|배수|물통|탱크|오수통|청수통|바퀴|캐스터|휠|페달|투명창|창|케이스|핀|고정핀|걸쇠|고리|클램프|마개|캡|거름망|전조등|라이트/.test(t)) {
+    return 'kw-chassis-damage';
+  }
+
+  // 17. 자모 음운 유사도로 대상(OOO) 명칭 퍼지 추론 (예: "솔노드 안됨", "스키지 빠짐", "액추에이타 불가")
+  const FUZZY_TARGET_MAP: Array<{ sample: string; kwId: string }> = [
+    { sample: '솔레노이드', kwId: 'kw-solenoid' },
+    { sample: '급수밸브', kwId: 'kw-solenoid' },
+    { sample: '스퀴지', kwId: 'kw-squeegee' },
+    { sample: '흡입모터', kwId: 'kw-suction' },
+    { sample: '플로트밸브', kwId: 'kw-float-sensor' },
+    { sample: '충전기', kwId: 'kw-battery' },
+    { sample: '앤더슨커넥터', kwId: 'kw-terminal-loose' },
+    { sample: '브러시모터', kwId: 'kw-brush-stall' },
+    { sample: '패드드라이버', kwId: 'kw-brush-deck' },
+    { sample: '트랜스액슬', kwId: 'kw-wheel-drive' },
+    { sample: '타이밍벨트', kwId: 'kw-belt-slip' },
+    { sample: '액추에이터', kwId: 'kw-lift-fail' }
+  ];
+  if (t.length >= 2) {
+    let bestKwId: string | undefined;
+    let bestSim = 0;
+    for (const item of FUZZY_TARGET_MAP) {
+      if (Math.abs(t.length - item.sample.length) > 3) continue;
+      const sim = computeJamoSimilarity(t, item.sample);
+      if (sim >= 0.74 && sim > bestSim) {
+        bestSim = sim;
+        bestKwId = item.kwId;
+      }
+    }
+    if (bestKwId) return bestKwId;
+  }
+
+  // 18. 미등록 일반 부품(OOO)이라도 파손/깨짐/부서짐/빠짐/뽑힘/끊어짐/찢어짐 상태면 외장·부품 파손(kw-chassis-damage)으로 자동 귀속
+  if (category === 'FRACTURE' || category === 'DETACHMENT' || category === 'TEAR_CUT') {
+    return 'kw-chassis-damage';
+  }
+
+  return undefined;
+}
+
+function cleanExtractedTarget(rawTarget: string): string {
+  // 앞부분 장비 모델명 토큰 제거 및 끝부분 조사 제거
+  let cleaned = rawTarget
+    .replace(/^\b(?:J600T?|J800(?:AD)?|J900|S12L?|S7P?|S5|S3|S2|S1|W12|W15|R3)\b\s*/i, '')
+    .trim();
+  // 어절 단위로 보아 앞의 불용어 제거
+  const tokens = cleaned.split(/\s+/).filter(Boolean);
+  while (tokens.length > 1 && NEGATIVE_STATE_STOPWORDS.has(tokens[0])) {
+    tokens.shift();
+  }
+  cleaned = tokens.join(' ');
+  // 끝 조사(이/가/은/는/을/를/도/만/의) 제거 (단, 2글자 이상 명사 보존)
+  if (cleaned.length >= 2) {
+    cleaned = cleaned.replace(/[이가은는을를도만의]$/, '');
+  }
+  return cleaned.trim();
+}
+
+/**
+ * 문장 내 "OOO 안됨", "OOO 불가", "OOO 파손", "OOO 깨짐", "OOO 부서짐", "OOO 빠짐", "OOO 뽑힘" 등
+ * 부정적 상태표현 구문을 구조화 추출하여 반환
+ */
+export function extractNegativeStateExpressions(text: string): ExtractedNegativeState[] {
+  if (!text || !text.trim()) return [];
+  const results: ExtractedNegativeState[] = [];
+  const seenSummaries = new Set<string>();
+
+  // 패턴 1 (정순): [대상 OOO] + (조사) + (부사/보조용언) + [부정적 상태표현]
+  const forwardRegex = /([가-힣A-Za-z0-9]{1,10}(?:\s+[가-힣A-Za-z0-9]{1,10})?)\s*(?:아예|전혀|완전히|자꾸|계속|갑자기|잘)?\s*(?:작동[이가은는]?\s*|가동[이가은는]?\s*|회전[이가은는]?\s*|체결[이가은는]?\s*|고정[이가은는]?\s*)?(안\s*됨|안\s*돼(?:요|서|네)?|안\s*되(?:요|네|고|더|는|니)?|안\s*됌|불가(?:능|합니다|해요)?|파손(?:됨|됐|되었|되)?|깨짐|깨졌(?:어요|어|네|습니다)?|깨져(?:요|서|있)?|부서짐|부서졌(?:어요|어|네|습니다)?|부서져(?:요|서|있)?|부러짐|부러졌(?:어요|어|네|습니다)?|부러져(?:요|서|있)?|빠짐|빠졌(?:어요|어|네|습니다)?|빠져(?:요|서|버렸|있)?|뽑힘|뽑혔(?:어요|어|네|습니다)?|뽑혀(?:요|서|버렸|있)?|끊어짐|끊어졌(?:어요|어|네)?|찢어짐|찢어졌(?:어요|어|네)?|터짐|터졌(?:어요|어|네)?|막힘|막혔(?:어요|어|네)?|고장(?:남|났)?|불량|먹통)/gi;
+
+  let match: RegExpExecArray | null;
+  while ((match = forwardRegex.exec(text)) !== null) {
+    const rawPhrase = match[0].trim();
+    const rawTarget = match[1].trim();
+    const rawPred = match[2].trim();
+    const target = cleanExtractedTarget(rawTarget);
+    if (!target || target.length < 1 || NEGATIVE_STATE_STOPWORDS.has(target)) continue;
+
+    const { canonicalPredicate, category } = classifyNegativePredicate(rawPred);
+    const mappedKeywordId = resolveTargetToKeywordId(target, category, canonicalPredicate);
+    const stateSummary = `${target} ${canonicalPredicate}`;
+
+    if (!seenSummaries.has(stateSummary)) {
+      seenSummaries.add(stateSummary);
+      results.push({
+        rawPhrase,
+        target,
+        predicate: rawPred,
+        canonicalPredicate,
+        category,
+        stateSummary,
+        mappedKeywordId
+      });
+    }
+  }
+
+  // 패턴 2 (관형형 역순): [깨진/부서진/부러진/빠진/뽑힌/파손된/끊어진/찢어진/막힌/고장난] + [대상 OOO]
+  const modifierRegex = /(파손된|깨진|부서진|부러진|빠진|뽑힌|끊어진|찢어진|터진|막힌|고장\s*난)\s+([가-힣A-Za-z0-9]{1,10}(?:\s+[가-힣A-Za-z0-9]{1,8})?)/gi;
+  while ((match = modifierRegex.exec(text)) !== null) {
+    const rawPhrase = match[0].trim();
+    const rawPred = match[1].trim();
+    const target = cleanExtractedTarget(match[2].trim());
+    if (!target || target.length < 1 || NEGATIVE_STATE_STOPWORDS.has(target)) continue;
+
+    const { canonicalPredicate, category } = classifyNegativePredicate(rawPred);
+    const mappedKeywordId = resolveTargetToKeywordId(target, category, canonicalPredicate);
+    const stateSummary = `${target} ${canonicalPredicate}`;
+
+    if (!seenSummaries.has(stateSummary)) {
+      seenSummaries.add(stateSummary);
+      results.push({
+        rawPhrase,
+        target,
+        predicate: rawPred,
+        canonicalPredicate,
+        category,
+        stateSummary,
+        mappedKeywordId
+      });
+    }
+  }
+
+  return results;
+}
+
 /**
  * 문장(또는 슬라이딩 윈도우 문맥)에서 매칭되는 모든 표준 증상 엔티티를 반환
  * 1차: 구어체 조합 정규식(synonyms) 매칭
- * 2차: 정규식 미매칭 시 한국어 자모 음운 유사도(fuzzyPhrases) 기반 매칭 (유사도 >= 0.78)
+ * 2차: 부정적 상태표현 구문 추출기([OOO 안됨/불가/파손/깨짐/부서짐/빠짐/뽑힘]) 기반 의미 매핑
+ * 3차: 정규식/구문 미매칭 시 한국어 자모 음운 유사도(fuzzyPhrases) 기반 매칭 (유사도 >= 0.78)
  */
 export function findMatchingSymptomEntities(text: string): KeywordEntity[] {
   if (!text || !text.trim()) return [];
@@ -387,7 +661,19 @@ export function findMatchingSymptomEntities(text: string): KeywordEntity[] {
     }
   }
 
-  // 2차: 정규식으로 아무것도 안 잡혔을 때, 어절 슬라이딩 윈도우 자모 음운 유사도 검사
+  // 2차: 부정적 상태표현 구문 추출기 ([OOO + 안됨/불가/파손/깨짐/부서짐/빠짐/뽑힘]) 병행 실행
+  const extractedStates = extractNegativeStateExpressions(text);
+  for (const st of extractedStates) {
+    if (st.mappedKeywordId && !seenIds.has(st.mappedKeywordId)) {
+      const entity = DOMAIN_KEYWORD_REGISTRY.find(e => e.id === st.mappedKeywordId);
+      if (entity) {
+        matched.push(entity);
+        seenIds.add(entity.id);
+      }
+    }
+  }
+
+  // 3차: 1·2차로 아무것도 안 잡혔을 때, 어절 슬라이딩 윈도우 자모 음운 유사도 검사
   if (matched.length === 0) {
     const clean = text.replace(/[\[\]0-9:.,!?~()]/g, ' ').trim();
     const words = clean.split(/\s+/).filter(w => w.length >= 2);
@@ -420,6 +706,7 @@ export function findMatchingSymptomEntities(text: string): KeywordEntity[] {
 
   return matched;
 }
+
 
 // ── 2. Comprehensive 5-Category Named Entity Registry (High-Contrast Solid UI) ──
 export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
@@ -696,8 +983,15 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-chassis',
     type: 'symptom',
     label: '고장증상',
-    pattern: /드레인\s*호스|흡입\s*호스|호스\s*찢어짐|호스\s*막힘|레버\s*부러짐|외장\s*파손|커버\s*파손/i,
+    pattern: /드레인\s*호스|흡입\s*호스|배수\s*호스|호스\s*찢어짐|호스\s*막힘|호스\s*빠짐|호스\s*뽑힘|레버\s*부러짐|레버\s*부서짐|물통\s*깨짐|뚜껑\s*깨짐|외장\s*파손|커버\s*파손/i,
     keywordId: 'kw-chassis-damage',
+    colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
+  },
+  {
+    id: 'ent-sym-negative-state',
+    type: 'symptom',
+    label: '부정상태',
+    pattern: /(?:솔레노이드|솔밸브|급수|세척수|청수|분사구?|노즐|배관|피팅|스퀴지|와이퍼|고무날?|블레이드|흡입\s*모터|흡입력?|석션|진공|플로트|부표|만수\s*센서|배터리|충전기?|단자|커넥터|앤더슨|전선|배선|케이블|코드|잭|전원|시동|계기판|키\s*스위치|키\s*박스|브러시|솔|차단기|패드\s*드라이버|패드판?|데크|노브|볼트|삼발이|주행|전진|후진|전후진|구동|트랜스액슬|포텐셔미터|브레이크|벨트|텐셔너|액추에이터|승강|리프트|와이어|호스|레버|핸들|손잡이|뚜껑|커버|범퍼|물통|탱크|오수통|청수통|바퀴|캐스터|휠|페달|투명창|케이스|고정핀|핀|걸쇠|클램프|마개|캡|거름망|스위치)[이가은는을를도]?\s*(?:작동\s*|가동\s*|회전\s*|체결\s*)?(?:안\s*됨|안\s*돼(?:요|서)?|안\s*되(?:요|네)?|불가(?:능)?|파손(?:됨|됐)?|깨짐|깨졌(?:어요|어)?|부서짐|부서졌(?:어요|어)?|부러짐|부러졌(?:어요|어)?|빠짐|빠졌(?:어요|어)?|뽑힘|뽑혔(?:어요|어)?|끊어짐|끊어졌(?:어요|어)?|찢어짐|찢어졌(?:어요|어)?|막힘|막혔(?:어요|어)?)/i,
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
 
@@ -772,17 +1066,23 @@ export function renderMultiColorHighlightedText(
     const matchedRule = NAMED_ENTITY_REGISTRY.find(r => r.pattern.test(part));
 
     if (matchedRule) {
+      const resolvedSymptomEntity =
+        matchedRule.type === 'symptom'
+          ? (matchedRule.keywordId
+              ? DOMAIN_KEYWORD_REGISTRY.find(k => k.id === matchedRule.keywordId)
+              : undefined) || findMatchingSymptomEntities(part)[0]
+          : undefined;
+
       let isSelected = false;
-      if (matchedRule.type === 'symptom' && matchedRule.keywordId === activeKeywordId) {
+      if (matchedRule.type === 'symptom' && resolvedSymptomEntity?.id === activeKeywordId) {
         isSelected = true;
       } else if ((matchedRule.type === 'customer' || matchedRule.type === 'site') && matchedRule.customerId === activeCustomerId) {
         isSelected = true;
       }
 
       const handleClick = () => {
-        if (matchedRule.type === 'symptom' && matchedRule.keywordId) {
-          const kw = DOMAIN_KEYWORD_REGISTRY.find(k => k.id === matchedRule.keywordId);
-          if (kw) handlers.onSymptomClick(kw);
+        if (matchedRule.type === 'symptom' && resolvedSymptomEntity) {
+          handlers.onSymptomClick(resolvedSymptomEntity);
         } else if ((matchedRule.type === 'customer' || matchedRule.type === 'site') && matchedRule.customerId && customerList) {
           const cust = customerList.find(c => c.id === matchedRule.customerId);
           if (cust && handlers.onCustomerClick) {
@@ -795,6 +1095,7 @@ export function renderMultiColorHighlightedText(
         }
       };
 
+      const extractedNeg = matchedRule.type === 'symptom' ? extractNegativeStateExpressions(part)[0] : undefined;
       const titleText = matchedRule.type === 'customer' 
         ? `[고객사: ${part}]` 
         : matchedRule.type === 'site' 
@@ -803,6 +1104,8 @@ export function renderMultiColorHighlightedText(
         ? `[장비모델: ${part}]`
         : matchedRule.type === 'action'
         ? `[조치사항: ${part}]` 
+        : extractedNeg
+        ? `[부정상태 추출: ${extractedNeg.stateSummary}]`
         : `[증상: ${part}]`;
 
       return (

@@ -695,7 +695,19 @@ _BACKEND_DOMAIN_NORMALIZATIONS = [
     (re.compile(r"앤더슨\s*잭|엔더슨\s*잭|언더슨\s*잭|안데르센\s*잭|엔더슨\s*커넥터", re.I), "앤더슨 커넥터"),
     (re.compile(r"패트\s*드라이버|팻\s*드라이버|페드\s*드라이버|패드\s*드라이바|페드판", re.I), "패드 드라이버"),
     (re.compile(r"밧데리|빠떼리|바떼리|배떠리|밧때리", re.I), "배터리"),
+    (re.compile(r"(?:부셔|뿌셔)(?:짐|졌(?:어요|어|네)?|져(?:요|서)?)", re.I), "부서짐"),
+    (re.compile(r"뿌러(?:짐|졌(?:어요|어|네)?|져(?:요|서)?)", re.I), "부러짐"),
+    (re.compile(r"(?:뽀혔|뽀힘|뽑훴)(?:어요|어|네)?", re.I), "뽑힘"),
 ]
+
+_BACKEND_NEG_STATE_REGEX = re.compile(
+    r"([가-힣A-Za-z0-9]{1,10}(?:\s+[가-힣A-Za-z0-9]{1,10})?)\s*"
+    r"(?:아예\s*|전혀\s*|자꾸\s*)?(?:작동[이가은는]?\s*|가동[이가은는]?\s*|회전[이가은는]?\s*)?"
+    r"(안\s*됨|안\s*돼(?:요|서)?|안\s*되(?:요|네)?|안\s*됌|불가(?:능)?|"
+    r"파손(?:됨|됐)?|깨짐|깨졌(?:어요|어)?|부서짐|부서졌(?:어요|어)?|부러짐|부러졌(?:어요|어)?|"
+    r"빠짐|빠졌(?:어요|어)?|뽑힘|뽑혔(?:어요|어)?|끊어짐|끊어졌(?:어요|어)?|찢어짐|찢어졌(?:어요|어)?|막힘|막혔(?:어요|어)?|고장|불량|먹통)",
+    re.I,
+)
 
 
 def _normalize_domain_query(raw: str) -> str:
@@ -703,6 +715,22 @@ def _normalize_domain_query(raw: str) -> str:
     for pat, repl in _BACKEND_DOMAIN_NORMALIZATIONS:
         res = pat.sub(repl, res)
     return res
+
+
+def _extract_negative_states_backend(text_val: str) -> list[dict]:
+    results = []
+    for m in _BACKEND_NEG_STATE_REGEX.finditer(text_val):
+        raw_target = re.sub(r"^(?:J600T?|J800(?:AD)?|J900|S12L?|S7P?|S5|S3|S2|S1|W12|W15|R3)\s*", "", m.group(1).strip(), flags=re.I)
+        target = re.sub(r"[이가은는을를도만의]$", "", raw_target).strip() if len(raw_target) >= 2 else raw_target.strip()
+        pred = m.group(2).strip()
+        if not target:
+            continue
+        results.append({
+            "target": target,
+            "predicate": pred,
+            "summary": f"{target} {pred}",
+        })
+    return results
 
 
 @router.post("/kb-search", dependencies=[Depends(check_rate_limit)])
@@ -715,10 +743,14 @@ async def kb_search(
     증상 텍스트 KB 복합 검색:
     1) OpenAI 1536차원 벡터 검색 (우선) → bge-m3 1024차원 (폴백) → ILIKE/pg_trgm (최종폴백)
     2) symptom_rules: pg_trgm 룰 기반 매칭
+    3) 부정적 상태표현 ([OOO 안됨/불가/파손/깨짐/부서짐/빠짐/뽑힘]) 대상 명사 추출 병행
     """
     query_text = _normalize_domain_query(req.text)
     if not query_text:
         raise HTTPException(status_code=400, detail="검색 텍스트가 비어 있습니다.")
+
+    extracted_neg_states = _extract_negative_states_backend(query_text)
+    target_hint = extracted_neg_states[0]["target"] if extracted_neg_states else query_text
 
     # ── 1) OpenAI 임베딩 우선 → bge-m3 폴백 ────────────────────
     embedding    = await _get_openai_embedding(query_text)
@@ -769,7 +801,7 @@ async def kb_search(
             for r in vec_rows
         ]
     else:
-        # ── 1-B) pg_trgm + ILIKE 텍스트 폴백 ────────────────────
+        # ── 1-B) pg_trgm + ILIKE 텍스트 폴백 (대상 명사 target_hint 병행 매칭) ──
         eq_cond = "AND equipment_model ILIKE :eq" if req.equipment_model else ""
         fb_sql = text(f"""
             SELECT id, summary, equipment_model, symptoms, parts_mentioned, action_items, urgency,
@@ -777,7 +809,9 @@ async def kb_search(
                      COALESCE(similarity(summary, :q), 0),
                      COALESCE(word_similarity(:q, summary), 0),
                      COALESCE(similarity(array_to_string(symptoms, ' '), :q), 0),
-                     COALESCE(word_similarity(:q, array_to_string(symptoms, ' ')), 0)
+                     COALESCE(word_similarity(:q, array_to_string(symptoms, ' ')), 0),
+                     COALESCE(word_similarity(:q_target, array_to_string(parts_mentioned, ' ')), 0),
+                     COALESCE(word_similarity(:q_target, array_to_string(symptoms, ' ')), 0)
                    ) AS sim
             FROM consult_knowledge
             WHERE call_type   = '증상수리'
@@ -785,6 +819,8 @@ async def kb_search(
               AND (
                 summary ILIKE '%' || :q_raw || '%'
                 OR array_to_string(symptoms, ' ') ILIKE '%' || :q_raw || '%'
+                OR summary ILIKE '%' || :q_target || '%'
+                OR array_to_string(parts_mentioned, ' ') ILIKE '%' || :q_target || '%'
                 OR word_similarity(:q, array_to_string(symptoms, ' ')) > 0.28
                 OR word_similarity(:q, summary) > 0.28
               )
@@ -792,7 +828,7 @@ async def kb_search(
             ORDER BY sim DESC
             LIMIT :lim
         """)
-        params: dict = {"q": query_text, "q_raw": query_text, "lim": req.limit}
+        params: dict = {"q": query_text, "q_raw": query_text, "q_target": target_hint, "lim": req.limit}
         if req.equipment_model:
             params["eq"] = f"%{req.equipment_model}%"
 
@@ -811,21 +847,23 @@ async def kb_search(
             for r in fb_res.fetchall()
         ]
 
-    # ── 2) 룰 기반 검색 (symptom_rules) ─────────────────────────
+    # ── 2) 룰 기반 검색 (symptom_rules: 전체 문장 + 추출된 대상 명사 병행) ──
     rule_sql = text("""
         SELECT keyword, part_code, action_script,
                GREATEST(
                  COALESCE(similarity(keyword, :q), 0),
-                 COALESCE(word_similarity(keyword, :q), 0)
+                 COALESCE(word_similarity(keyword, :q), 0),
+                 COALESCE(word_similarity(:q_target, keyword), 0)
                ) AS sim
         FROM symptom_rules
         WHERE similarity(keyword, :q) > 0.25
            OR word_similarity(keyword, :q) > 0.30
            OR keyword ILIKE '%' || :q_raw || '%'
+           OR keyword ILIKE '%' || :q_target || '%'
         ORDER BY sim DESC
         LIMIT 1
     """)
-    rule_res  = await db.execute(rule_sql, {"q": query_text, "q_raw": query_text})
+    rule_res  = await db.execute(rule_sql, {"q": query_text, "q_raw": query_text, "q_target": target_hint})
     rule_row  = rule_res.fetchone()
 
     rule_result = None
@@ -880,11 +918,12 @@ async def kb_search(
     embedding_count = 5854
 
     return {
-        "search_mode":     search_mode,
-        "action_plan":     action_plan,
-        "rule_result":     rule_result,
-        "kb_results":      kb_results,
-        "embedding_count": embedding_count,
+        "search_mode":               search_mode,
+        "action_plan":               action_plan,
+        "rule_result":               rule_result,
+        "kb_results":                kb_results,
+        "extracted_negative_states": extracted_neg_states,
+        "embedding_count":           embedding_count,
     }
 
 

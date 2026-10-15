@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ko">
+<head>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-1807CJ8GLZ"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-1807CJ8GLZ');
+</script>
+
+
+<meta charset="utf-8">
+<meta http-equiv="imagetoolbar" content="no">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>오류안내 페이지 | 스페이스 : 청소의 상식에 도전한다.</title>
+<link rel="stylesheet" href="https://www.space-dust.com/theme/basic/css/default.css?ver=1790433118">
+<link rel="stylesheet" href="https://www.space-dust.com/js/font-awesome/css/font-awesome.min.css?ver=1790433118">
+
+<link href="https://www.space-dust.com/theme/basic/css/default.css" rel="stylesheet">
+
+<!--[if lte IE 8]>
+<script src="https://www.space-dust.com/js/html5.js"></script>
+<![endif]-->
+<script>
+// 자바스크립트에서 사용하는 전역변수 선언
+var g5_url       = "https://www.space-dust.com";
+var g5_bbs_url   = "https://www.space-dust.com/bbs";
+var g5_is_member = "";
+var g5_is_admin  = "";
+var g5_is_mobile = "";
+var g5_bo_table  = "";
+var g5_sca       = "";
+var g5_editor    = "cheditor5";
+var g5_cookie_domain = "";
+var g5_theme_shop_url = "https://www.space-dust.com/theme/basic/shop";
+var g5_shop_url = "https://www.space-dust.com/shop";
+</script>
+
+
+<!-- google fonts -->
+<link href="//fonts.googleapis.com/css?family=Nanum+Gothic:400,700,800|Noto+Sans+KR:100,300,400,500,700,900|Open+Sans:300,300i,400,400i,600,600i,700,700i,800,800i|Raleway:100,100i,200,200i,300,300i,400,400i,500,500i,600,600i,700,700i,800,800i,900,900i|Roboto:100,100i,300,300i,400,400i,500,500i,700,700i,900,900i&display=swap" rel="stylesheet">
+
+<!-------------------------- 구글아이콘 -------------------------->
+<link rel="stylesheet" href="//fonts.googleapis.com/icon?family=Material+Icons">
+
+<!-- Bootstrap core CSS -->
+<link href="https://www.space-dust.com/theme/basic/assets/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+<!-- fontawesome -->
+<link rel="stylesheet" href="//use.fontawesome.com/releases/v5.5.0/css/all.css" integrity="sha384-B4dIYHKNBt8Bc12p+WXckhzcICo0wtJAoU8YZTY5qE0Id1GSseTk6S+L3BlXeVIU" crossorigin="anonymous">
+<!-- owl Carousel -->
+<link rel="stylesheet" href="https://www.space-dust.com/theme/basic/assets/owlcarousel/css/owl.carousel.min.css">
+<link rel="stylesheet" href="https://www.space-dust.com/theme/basic/assets/owlcarousel/css/owl.theme.default.min.css">
+
+<!-- countdown -->
+<link href="https://www.space-dust.com/theme/basic/assets/countdown/css/demo.css" rel="stylesheet">
+<!-- bootstrap-social icon -->
+<link href="https://www.space-dust.com/theme/basic/assets/bootstrap-social/bootstrap-social.css" rel="stylesheet">
+<link href="https://www.space-dust.com/theme/basic/css/animate.css" rel="stylesheet">
+<link href="https://www.space-dust.com/theme/basic/css/bootstrap-dropdownhover.css" rel="stylesheet">
+<!-- Custom -->
+<link href="https://www.space-dust.com/theme/basic/css/modern-business.css" rel="stylesheet">
+
+<!-- 스타링크
+<link href="https://www.space-dust.com/theme/basic/css/starlink.css" rel="stylesheet">
+ -->
+
+
+<link href="https://www.space-dust.com/theme/basic/css/mobile_shop.css" rel="stylesheet">
+
+
+<script src="https://www.space-dust.com/js/jquery-1.12.4.min.js?ver=1790433118"></script>
+<script src="https://www.space-dust.com/js/jquery-migrate-1.4.1.min.js?ver=1790433118"></script>
+<script src="https://www.space-dust.com/js/jquery.menu.js?ver=1790433118"></script>
+<script src="https://www.space-dust.com/js/common.js?ver=1790433118"></script>
+<script src="https://www.space-dust.com/js/wrest.js?ver=1790433118"></script>
+<script src="https://www.space-dust.com/js/placeholders.min.js?ver=1790433118"></script>
+</head>
+<body>
+
+<script>
+alert("잘못된 접근입니다.");
+history.back();
+</script>
+
+<noscript>
+<div id="validation_check">
+    <h1>다음 항목에 오류가 있습니다.</h1>
+    <p class="cbg">
+        잘못된 접근입니다.    </p>
+        <div class="btn_confirm">
+        <a href="">돌아가기</a>
+    </div>
+    
+</div>
+</noscript>
+
+
+
+<!-- ie6,7에서 사이드뷰가 게시판 목록에서 아래 사이드뷰에 가려지는 현상 수정 -->
+<!--[if lte IE 7]>
+<script>
+$(function() {
+    var $sv_use = $(".sv_use");
+    var count = $sv_use.length;
+
+    $sv_use.each(function() {
+        $(this).css("z-index", count);
+        $(this).css("position", "relative");
+        count = count - 1;
+    });
+});
+</script>
+<![endif]-->
+
+
+</body>
+</html>

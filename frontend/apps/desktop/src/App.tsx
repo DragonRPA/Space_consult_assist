@@ -28,6 +28,7 @@ import {
   DOMAIN_KEYWORD_REGISTRY, 
   NAMED_ENTITY_REGISTRY, 
   findMatchingSymptomEntities,
+  extractNegativeStateExpressions,
   renderMultiColorHighlightedText 
 } from './keywordAssist';
 import type { KeywordEntity, EntityRule } from './keywordAssist';
@@ -291,6 +292,11 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       }
     }
 
+    const extractedNegStates = [
+      ...extractNegativeStateExpressions(text),
+      ...extractNegativeStateExpressions(slidingContextText)
+    ];
+
     for (const entity of combinedMatches) {
       const alreadyDetected = liveStore.detectedKeywordEntities.some(e => e.id === entity.id);
       liveStore.addDetectedKeywordEntity(entity);
@@ -298,7 +304,11 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         liveStore.setActiveKeywordEntity(entity);
         setJustTriggeredKeyword(entity.keyword);
         setTimeout(() => setJustTriggeredKeyword(null), 3000);
-        liveStore.showToast(`[구어체/유사어 감지: ${entity.keyword}] 진단 및 조치 가이드 자동 표출`);
+        const matchedNeg = extractedNegStates.find(s => s.mappedKeywordId === entity.id);
+        const toastLabel = matchedNeg
+          ? `[부정상태 추출: ${matchedNeg.stateSummary} ➔ ${entity.keyword}] 진단 가이드 자동 표출`
+          : `[구어체/유사어 감지: ${entity.keyword}] 진단 및 조치 가이드 자동 표출`;
+        liveStore.showToast(toastLabel);
         setTimeout(() => liveStore.clearToast(), 3000);
       }
     }

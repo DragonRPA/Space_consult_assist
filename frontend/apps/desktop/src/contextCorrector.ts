@@ -231,6 +231,27 @@ const DOMAIN_CORRECTION_RULES: DomainRule[] = [
     pattern: /물이\s*안\s*나서/gi,
     replacement: '물이 안 나와서',
     category: '급수계통'
+  },
+  // [L] 부정 상태 서술어 구어체/오타 표준화 (부셔짐/뿌셔짐 ➔ 부서짐, 뿌러짐 ➔ 부러짐, 안됌 ➔ 안됨 등)
+  {
+    pattern: /(?:부셔|뿌셔)(?:짐|졌(?:어요|어|네|습니다)?|져(?:요|서)?)/gi,
+    replacement: '부서짐',
+    category: '상태서술어'
+  },
+  {
+    pattern: /뿌러(?:짐|졌(?:어요|어|네|습니다)?|져(?:요|서)?)/gi,
+    replacement: '부러짐',
+    category: '상태서술어'
+  },
+  {
+    pattern: /안\s*됌|안\s*됀다/gi,
+    replacement: '안됨',
+    category: '상태서술어'
+  },
+  {
+    pattern: /(?:뽀혔|뽀힘|뽑훴)(?:어요|어|네|습니다)?/gi,
+    replacement: '뽑힘',
+    category: '상태서술어'
   }
 ];
 
