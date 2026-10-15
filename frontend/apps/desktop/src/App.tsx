@@ -197,8 +197,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   // ── STT 청크 시간 설정 ─────────────────────────────────────────────────────
   const whisperMaxChunkSec = 1.2;   // Whisper 최대 세그먼트 (초)
   const whisperSilenceSec = 0.2;     // Whisper 무음 감지 (초)
-  const webSpeechSilenceSec = 1.0; // Web Speech 커밋 지연 (초)
-  const webSpeechSilenceSecRef = useRef(1.0);
+  const webSpeechSilenceSec = 1.8; // Web Speech 커밋 지연 (초, 문장 중간 끊김 방지)
+  const webSpeechSilenceSecRef = useRef(1.8);
   const webSpeechCommitTimerRef = useRef<number | null>(null);
 
   // Periodic Local GPU Server Heartbeat Monitor (Every 3 seconds)

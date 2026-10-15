@@ -287,13 +287,33 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
     const trimmed = (correctedText || rawText || '').trim();
     if (!trimmed) return state;
 
-    // ── 자막 중복 방어 (Deduplication Guard) ──────────────────────────────────
-    // 직전 문장과 100% 동일하거나, 직전 문장이 현재 문장을 완전히 포함하는 경우 중복 방지
+    // ── 자막 중복 및 점진적 확장 방어 (Deduplication & Prefix-Expansion Guard) ──
     const lastParagraph = state.finalParagraphs[state.finalParagraphs.length - 1];
     if (lastParagraph) {
-      const cleanLast = lastParagraph.replace(/[.,?!~]/g, '').trim();
-      const cleanCurrent = trimmed.replace(/[.,?!~]/g, '').trim();
-      if (cleanLast === cleanCurrent || (cleanLast.length > 5 && cleanLast.endsWith(cleanCurrent))) {
+      // 타임스탬프 [mm:ss] 제거 후 본문 비교
+      const cleanLast = lastParagraph.replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '').replace(/[.,?!~]/g, '').trim();
+      const cleanCurrent = trimmed.replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '').replace(/[.,?!~]/g, '').trim();
+
+      // 1) 직전 문장과 100% 동일한 경우 무시
+      if (cleanLast === cleanCurrent) {
+        return state;
+      }
+
+      // 2) 직전 문장이 현재 문장의 앞부분과 겹치는 경우 (미완성 문장이 길게 완성된 경우) -> 직전 줄을 현재 완성문장으로 교체(Update)
+      if (cleanLast.length >= 4 && cleanCurrent.startsWith(cleanLast)) {
+        const updatedRaw = [...state.rawParagraphs];
+        const updatedFinal = [...state.finalParagraphs];
+        updatedRaw[updatedRaw.length - 1] = rawText;
+        updatedFinal[updatedFinal.length - 1] = trimmed;
+        return {
+          rawParagraphs: updatedRaw,
+          finalParagraphs: updatedFinal,
+          correctionHistory: [...state.correctionHistory, ...newCorrections]
+        };
+      }
+
+      // 3) 직전 문장이 현재 문장의 뒷부분과 겹치거나 완전히 포함하고 있는 경우 무시
+      if (cleanLast.length > 5 && (cleanLast.endsWith(cleanCurrent) || cleanLast.includes(cleanCurrent))) {
         return state;
       }
     }
