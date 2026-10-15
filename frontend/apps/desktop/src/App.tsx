@@ -193,7 +193,14 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
-  const audioSegmentsRef = useRef<{ start: number; end: number; text: string; dispatched?: boolean }[]>([]);
+  const audioSegmentsRef = useRef<{
+    start: number;
+    end: number;
+    text: string;
+    state?: 'pending' | 'inflight' | 'ready' | 'done';
+    dispatched?: boolean;
+  }[]>([]);
+  const decodedPcm16kRef = useRef<Float32Array | null>(null);
   // ── STT 청크 시간 설정 ─────────────────────────────────────────────────────
   const whisperMaxChunkSec = 1.2;   // Whisper 최대 세그먼트 (초)
   const whisperSilenceSec = 0.2;     // Whisper 무음 감지 (초)
@@ -244,32 +251,55 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   const isRecordingRef = useRef(isRecording);
   isRecordingRef.current = isRecording;
 
-  // Standalone rule evaluator (Evaluates on live typing or speech without duplicate append)
-  const evaluateUtteranceRules = (text: string) => {
+  // Standalone rule evaluator (Uses live store state to prevent stale async closures)
+  const evaluateUtteranceRules = useCallback((text: string) => {
+    const liveStore = useCounselStore.getState();
+
     // 1. Symptom Keyword & Part Matching
     for (const entity of DOMAIN_KEYWORD_REGISTRY) {
       if (entity.synonyms.test(text)) {
-        addDetectedKeywordEntity(entity);
-        if (activeKeywordEntity?.id !== entity.id) {
-          setActiveKeywordEntity(entity);
+        liveStore.addDetectedKeywordEntity(entity);
+        if (liveStore.activeKeywordEntity?.id !== entity.id) {
+          liveStore.setActiveKeywordEntity(entity);
           setJustTriggeredKeyword(entity.keyword);
           setTimeout(() => setJustTriggeredKeyword(null), 3000);
-          showToast(`[구어체 감지: ${entity.keyword}] 진단 및 조치 가이드 자동 표출`);
-          setTimeout(() => clearToast(), 3000);
+          liveStore.showToast(`[구어체 감지: ${entity.keyword}] 진단 및 조치 가이드 자동 표출`);
+          setTimeout(() => liveStore.clearToast(), 3000);
         }
         break;
       }
     }
 
-    // 2. Customer Identification
+    // 2. Customer Identification (Preset + Dynamic Spoken Customer/Manager)
+    const afterSymptomStore = useCounselStore.getState();
+    const curCust = afterSymptomStore.selectedCustomer;
     for (const entRule of NAMED_ENTITY_REGISTRY) {
-      if (entRule.type === 'customer' && entRule.pattern.test(text)) {
-        if (entRule.customerId && selectedCustomer?.id !== entRule.customerId) {
-          const targetCust = customerList.find(c => c.id === entRule.customerId);
+      if ((entRule.type === 'customer' || entRule.type === 'site') && entRule.pattern.test(text)) {
+        if (entRule.customerId && curCust?.id !== entRule.customerId) {
+          const targetCust = afterSymptomStore.customerList.find(c => c.id === entRule.customerId);
           if (targetCust) {
-            selectCustomer(targetCust);
-            showToast(`[고객사 감지: ${targetCust.name}] 자동 선택 완료`);
-            setTimeout(() => clearToast(), 3000);
+            afterSymptomStore.selectCustomer(targetCust);
+            afterSymptomStore.showToast(`[고객사 감지: ${targetCust.name}] 자동 선택 완료`);
+            setTimeout(() => afterSymptomStore.clearToast(), 3000);
+          }
+        } else if (!entRule.customerId) {
+          const matched = text.match(entRule.pattern)?.[0]?.trim();
+          if (matched && curCust && !curCust.name.includes(matched)) {
+            if (entRule.type === 'customer') {
+              const isPersonRole = /(?:님|과장|소장|팀장|대리|실장|대표|이사)$/.test(matched);
+              afterSymptomStore.selectCustomer({
+                ...curCust,
+                name: isPersonRole ? curCust.name : matched,
+                manager: isPersonRole ? matched : curCust.manager
+              });
+              afterSymptomStore.showToast(`[통화 고객/담당자 감지: ${matched}] 고객 패널 실시간 반영`);
+              setTimeout(() => afterSymptomStore.clearToast(), 3000);
+            } else if (entRule.type === 'site') {
+              afterSymptomStore.selectCustomer({
+                ...curCust,
+                address: matched
+              });
+            }
           }
         }
         break;
@@ -279,27 +309,30 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     // 3. Model Identification
     for (const entRule of NAMED_ENTITY_REGISTRY) {
       if (entRule.type === 'model' && entRule.pattern.test(text)) {
-        if (entRule.modelId) {
-          setSelectedCustomerModel(entRule.modelId);
-          showToast(`[장비 모델 감지: ${entRule.modelId}] 고객 장비 매핑 완료`);
-          setTimeout(() => clearToast(), 3000);
+        const matchedModel = entRule.modelId || text.match(entRule.pattern)?.[0]?.toUpperCase();
+        if (matchedModel) {
+          useCounselStore.getState().setSelectedCustomerModel(matchedModel);
+          useCounselStore.getState().showToast(`[장비 모델 감지: ${matchedModel}] 고객 장비 매핑 완료`);
+          setTimeout(() => useCounselStore.getState().clearToast(), 3000);
         }
         break;
       }
     }
 
-    // 4. Action SOP Auto-Check
+    // 4. Action SOP Auto-Check (Reads fresh checklist after symptom trigger)
+    const latestChecklist = useCounselStore.getState().actionChecklist;
     for (const entRule of NAMED_ENTITY_REGISTRY) {
       if (entRule.type === 'action' && entRule.pattern.test(text)) {
-        if (entRule.actionIndex && actionChecklist[entRule.actionIndex - 1] && !actionChecklist[entRule.actionIndex - 1].checked) {
-          toggleChecklist(entRule.actionIndex);
-          showToast(`[조치 발화 감지: ${actionChecklist[entRule.actionIndex - 1].text.slice(0, 18)}...] 자동 체크 완료`);
-          setTimeout(() => clearToast(), 3000);
+        const targetIdx = entRule.actionIndex ? Math.min(entRule.actionIndex, latestChecklist.length) : 0;
+        if (targetIdx > 0 && latestChecklist[targetIdx - 1] && !latestChecklist[targetIdx - 1].checked) {
+          useCounselStore.getState().toggleChecklist(targetIdx);
+          useCounselStore.getState().showToast(`[조치 발화 감지: ${latestChecklist[targetIdx - 1].text.slice(0, 18)}...] 자동 체크 완료`);
+          setTimeout(() => useCounselStore.getState().clearToast(), 3000);
         }
         break;
       }
     }
-  };
+  }, []);
 
   const formatTimer = (sec: number) => {
     const m = String(Math.floor(sec / 60)).padStart(2, '0');
@@ -308,31 +341,34 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   };
 
   // Function to process incoming speech (Shared across Live Mic, Web Speech, and Digital Audio Sync)
-  const processIncomingSpeechUtterance = (rawText: string) => {
+  const processIncomingSpeechUtterance = useCallback((rawText: string) => {
     if (!rawText || !rawText.trim()) return;
     const trimmed = rawText.trim();
+    const liveStore = useCounselStore.getState();
     
     // 텍스트 앞머리에 이미 [mm:ss] 타임스탬프가 있는지 확인
     const hasTimestamp = /^\[\d{1,2}:\d{2}(?::\d{2})?\]/.test(trimmed);
     
     let timestampStr = '';
     if (!hasTimestamp) {
-      // 오디오 파일 재생 중일 때는 오디오의 실제 현재 재생 시간(currentTime)을 최우선 기준으로 타임스탬프 동기화
-      const currentAudioTime = globalAudioRef.current ? globalAudioRef.current.currentTime : audioCurrentTime;
-      const targetSec = activeAudioFile && currentAudioTime > 0 ? Math.floor(currentAudioTime) : callSeconds;
+      const currentAudioTime = globalAudioRef.current ? globalAudioRef.current.currentTime : liveStore.audioCurrentTime;
+      const targetSec = liveStore.activeAudioFile && currentAudioTime > 0 ? Math.floor(currentAudioTime) : liveStore.callSeconds;
       timestampStr = `[${formatTimer(targetSec)}] `;
+    } else {
+      const m = trimmed.match(/^(\[\d{1,2}:\d{2}(?::\d{2})?\])\s*/);
+      if (m) timestampStr = `${m[1]} `;
     }
 
-    const fullRawLine = `${timestampStr}${trimmed}`.trim();
+    const fullRawLine = hasTimestamp ? trimmed : `${timestampStr}${trimmed}`.trim();
 
     // 순수 텍스트(타임스탬프 분리된 본문)로 문맥 보정 및 규칙 평가
     const cleanContent = fullRawLine.replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '');
     const { correctedText, corrections } = applyContextualCorrection(cleanContent);
-    const fullCorrectedLine = hasTimestamp ? fullRawLine : `${timestampStr}${correctedText}`.trim();
+    const fullCorrectedLine = `${timestampStr}${correctedText}`.trim();
 
-    appendFinalParagraph(fullRawLine, fullCorrectedLine, corrections);
+    liveStore.appendFinalParagraph(fullRawLine, fullCorrectedLine, corrections);
     evaluateUtteranceRules(correctedText);
-  };
+  }, [evaluateUtteranceRules]);
 
   // Direct Text Conversation Parser (Instant Diagnosis & SOP Checklist trigger)
   const handlePasteText = (content: string, sourceName = '대화록 텍스트') => {
@@ -392,8 +428,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
 
 
   useEffect(() => {
-    // Faster-Whisper GPU 모드 또는 NAVER CLOVA 모드 및 로컬 서버가 켜져 있으면 상시 루프백 연결 (Always-On)
-    const isLoopbackEngine = sttEngine === 'whisper_large_v3' || sttEngine === 'naver_clova';
+    // 오디오 파일(.m4a) 재생 데모 중일 때는 하드웨어 WASAPI 루프백을 중지하여 중복/충돌 방지
+    const isLoopbackEngine = (sttEngine === 'whisper_large_v3' || sttEngine === 'naver_clova') && !activeAudioFile;
     if (!isLoopbackEngine || !gpuServerOnline) {
       if (loopbackWsRef.current) {
         try {
@@ -458,14 +494,11 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
           } catch (_) {}
         };
 
-
-
         ws.onerror = () => {};
 
         ws.onclose = () => {
           loopbackWsRef.current = null;
-          // 연결이 비정상 종료된 경우 3초 후 자동 재연결
-          if (!isDisposed && (sttEngine === 'whisper_large_v3' || sttEngine === 'naver_clova') && gpuServerOnline) {
+          if (!isDisposed && (sttEngine === 'whisper_large_v3' || sttEngine === 'naver_clova') && gpuServerOnline && !activeAudioFile) {
             reconnectTimeout = window.setTimeout(connectLoopback, 3000);
           }
         };
@@ -487,13 +520,93 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         loopbackWsRef.current = null;
       }
     };
-  }, [sttEngine, gpuServerOnline, loopbackDevice, appendFinalParagraph, showToast, clearToast, setRecording]);
+  }, [sttEngine, gpuServerOnline, loopbackDevice, activeAudioFile, appendFinalParagraph, showToast, clearToast, setRecording]);
 
+
+  // 16kHz Mono Float32Array -> 16-bit PCM WAV Blob 인코더 (실시간 단일 발화 청크 전송용)
+  const encodeWav16kMono = (samples: Float32Array, sampleRate = 16000): Blob => {
+    const numSamples = samples.length;
+    const buffer = new ArrayBuffer(44 + numSamples * 2);
+    const view = new DataView(buffer);
+    const writeStr = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + numSamples * 2, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, 'data');
+    view.setUint32(40, numSamples * 2, true);
+    let offset = 44;
+    for (let i = 0; i < numSamples; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    return new Blob([buffer], { type: 'audio/wav' });
+  };
+
+  // 통화 파일명에서 발신자/고객사/모델 힌트 초기 추출
+  const applyCallerHintFromFilename = useCallback((filename: string) => {
+    const stem = filename.replace(/\.[^.]+$/, '').replace(/^통화\s*녹음\s*/, '');
+    // 예: 20240423_100933_수림종합관리_담당자 또는 20180504_173816_유동준님(베스트환경산업)
+    const parts = stem.split('_').filter(p => !/^\d{6,8}$/.test(p) && p !== '파싱실패');
+    if (parts.length === 0) return;
+
+    const rawInfo = parts.join(' ');
+    const phoneMatch = rawInfo.match(/0\d{1,2}-?\d{3,4}-?\d{4}/);
+    const parenMatch = rawInfo.match(/([가-힣A-Za-z0-9]+)\(([^)]+)\)/);
+    let custName = '통화 발신 고객사 (음성 식별 대기)';
+    let mgrName = '발신 담당자';
+    let phoneStr = phoneMatch ? phoneMatch[0] : '발신번호 확인중';
+    let modelStr = '통화 중 장비모델 자동 식별 대기';
+
+    const modelMatch = rawInfo.match(/\b(J600T?|J800|S12L?|S7P?|S5|S3|S2|S1|R3)\b/i);
+    if (modelMatch) {
+      modelStr = modelMatch[1].toUpperCase();
+    }
+
+    if (parenMatch) {
+      mgrName = parenMatch[1].trim();
+      custName = parenMatch[2].trim();
+    } else {
+      const nonPhone = rawInfo.replace(/0\d{1,2}-?\d{3,4}-?\d{4}/g, '').replace(/\b(J600T?|J800|S12L?|S7P?|S5|S3|S2|S1|R3)\b/gi, '').trim();
+      if (nonPhone) {
+        const tokens = nonPhone.split(/\s+/);
+        custName = tokens[0] || custName;
+        if (tokens[1]) mgrName = tokens[1];
+      }
+    }
+
+    selectCustomer({
+      id: `live-call-${Date.now()}`,
+      name: custName,
+      manager: mgrName,
+      phone: phoneStr,
+      address: '통화 중 현장 위치 자동 식별',
+      addressDetail: `원본 통화: ${filename}`,
+      assetModel: modelStr,
+      serialNumber: 'SN-LIVE-DETECT',
+      salesType: '실시간 통화 분석',
+      warrantyRemaining: '보증 상태 확인중',
+      historyTimeline: [
+        { date: '실시간 통화', title: `[${filename}] 통화 음성 실시간 분석 진행 중` }
+      ]
+    });
+  }, [selectCustomer]);
 
   const processAudioWithActiveEngine = useCallback(async (file: File) => {
     // 이전 세그먼트 및 세션 초기화
     audioSegmentsRef.current = [];
+    decodedPcm16kRef.current = null;
     resetSessionForNewAudio();
+    applyCallerHintFromFilename(file.name);
     setActiveAudioFile(file);
     setIsAudioPlaying(true);
     setRecording(true);
@@ -505,42 +618,101 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       } catch (_) {}
     }
 
-    // 백엔드 고속 사전 전사 호출 (NAVER CLOVA 또는 Faster-Whisper 동기화 자막 생성)
+    // 전체 파일을 한 번에 서버로 던지지 않고, 브라우저에서 16kHz PCM 디코딩 후 발화 타임 윈도우만 구성하여
+    // 통화 재생 진행(currentTime)에 맞춰 해당 순간의 발화 청크만 실시간으로 NAVER CLOVA CSR에 전송합니다.
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const engineParam = sttEngine === 'naver_clova' ? 'naver_clova' : 'whisper_large_v3';
-      const res = await fetch(`http://127.0.0.1:8000/api/v1/stt/transcribe-file?engine=${engineParam}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer space-advisor-desktop-agent'
-        },
-        body: formData
-      });
+      const arrayBuffer = await file.arrayBuffer();
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const tempCtx = new AudioCtx();
+      const decoded = await tempCtx.decodeAudioData(arrayBuffer.slice(0));
+      await tempCtx.close().catch(() => {});
 
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.segments) && data.segments.length > 0) {
-          audioSegmentsRef.current = data.segments.map((seg: any) => ({
-            start: Number(seg.start) || 0,
-            end: Number(seg.end) || 0,
-            text: seg.text || '',
-            dispatched: false
-          }));
-          showToast(`[${file.name}] 음성 전사 완료 (${data.segments.length}개 세그먼트 실시간 동기화)`);
-          setTimeout(() => clearToast(), 3000);
+      const targetSr = 16000;
+      const offlineCtx = new OfflineAudioContext(1, Math.ceil(decoded.duration * targetSr), targetSr);
+      const src = offlineCtx.createBufferSource();
+      src.buffer = decoded;
+      src.connect(offlineCtx.destination);
+      src.start(0);
+      const rendered = await offlineCtx.startRendering();
+      const pcm16k = rendered.getChannelData(0);
+      decodedPcm16kRef.current = pcm16k;
+
+      // 100ms 에너지 VAD 기반 발화 구간 인덱싱 (전사는 통화 진행 시 실시간 수행)
+      const frameLen = Math.floor(targetSr * 0.1);
+      const nFrames = Math.floor(pcm16k.length / frameLen);
+      const energies: number[] = new Array(nFrames);
+      for (let i = 0; i < nFrames; i++) {
+        let sumSq = 0;
+        const base = i * frameLen;
+        for (let j = 0; j < frameLen; j++) {
+          const v = pcm16k[base + j] * 32767;
+          sumSq += v * v;
+        }
+        energies[i] = Math.sqrt(sumSq / frameLen);
+      }
+
+      const sorted = [...energies].sort((a, b) => a - b);
+      const p30 = sorted[Math.floor(sorted.length * 0.3)] || 0;
+      const threshold = Math.max(180, Math.min(400, p30 * 2.2));
+
+      const windows: {
+        start: number;
+        end: number;
+        text: string;
+        state: 'pending' | 'inflight' | 'ready' | 'done';
+        dispatched: boolean;
+      }[] = [];
+
+      let inSpeech = false;
+      let segStart = 0;
+      let silenceCount = 0;
+
+      for (let i = 0; i < nFrames; i++) {
+        if (energies[i] > threshold) {
+          if (!inSpeech) {
+            inSpeech = true;
+            segStart = Math.max(0, i - 1);
+          }
+          silenceCount = 0;
+        } else if (inSpeech) {
+          silenceCount++;
+          if (silenceCount >= 5 || (i - segStart) * 0.1 >= 5.5) {
+            const segEnd = i;
+            if ((segEnd - segStart) * 0.1 >= 0.8) {
+              windows.push({
+                start: Number((segStart * 0.1).toFixed(2)),
+                end: Number((segEnd * 0.1).toFixed(2)),
+                text: '',
+                state: 'pending',
+                dispatched: false
+              });
+            }
+            inSpeech = false;
+            silenceCount = 0;
+          }
         }
       }
+      if (inSpeech && (nFrames - segStart) * 0.1 >= 0.8) {
+        windows.push({
+          start: Number((segStart * 0.1).toFixed(2)),
+          end: Number((nFrames * 0.1).toFixed(2)),
+          text: '',
+          state: 'pending',
+          dispatched: false
+        });
+      }
+
+      audioSegmentsRef.current = windows;
+      showToast(`[${file.name}] 실시간 통화 시뮬레이션 시작 (${windows.length}개 발화 구간 실시간 청크 대기)`);
+      setTimeout(() => clearToast(), 3000);
     } catch (err) {
-      console.warn("파일 고속 전사 API 실패, 루프백/Web Speech 폴백 유지:", err);
+      console.warn("실시간 오디오 청크 디코딩 실패:", err);
     }
 
     if (sttEngine === 'web_speech') {
       startSttStreaming();
-      showToast(`[${file.name}] Web Speech STT 수신 시작`);
-      setTimeout(() => clearToast(), 3500);
     }
-  }, [sttEngine, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, setRecording, startSttStreaming, showToast, clearToast]);
+  }, [sttEngine, resetSessionForNewAudio, applyCallerHintFromFilename, setActiveAudioFile, setIsAudioPlaying, setRecording, startSttStreaming, showToast, clearToast]);
 
 
 
@@ -583,7 +755,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         }
 
 
-        // 2. If Audio file is dropped -> Process with active STT engine (Faster-Whisper GPU or Web Speech)
+        // 2. If Audio file is dropped -> Process with active STT engine
         if (file.name.match(/\.(m4a|mp3|wav|ogg|aac|flac)$/i)) {
           processAudioWithActiveEngine(file);
         }
@@ -624,17 +796,106 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     }
   }, [isAudioPlaying, activeAudioUrl]);
 
-  const handleAudioTimeUpdate = (currentTimeSec: number) => {
-    // 오디오 재생 시간에 맞추어 사전 분석된 STT 세그먼트를 실시간으로 화면과 규칙 엔진에 디스패치
-    if (audioSegmentsRef.current && audioSegmentsRef.current.length > 0) {
-      for (const seg of audioSegmentsRef.current) {
-        if (!seg.dispatched && currentTimeSec >= seg.start) {
+  const handleAudioTimeUpdate = useCallback((currentTimeSec: number) => {
+    const segments = audioSegmentsRef.current;
+    const pcm16k = decodedPcm16kRef.current;
+    if (!segments || segments.length === 0) return;
+
+    // NAVER CLOVA 모드일 때: 통화 진행 시간에 맞춰 현재 발화 중인 단일 청크만 실시간 API 전송
+    if (sttEngine === 'naver_clova' && pcm16k) {
+      // 1) 현재 재생 위치에서 발화 중인 세그먼트가 있으면 실시간 수음/인식 중 인디케이터 표시
+      const activeSpeakingSeg = segments.find(
+        (s) => !s.dispatched && currentTimeSec >= Math.max(0, s.start - 0.15) && currentTimeSec <= s.end + 0.8
+      );
+      if (activeSpeakingSeg) {
+        const m1 = String(Math.floor(activeSpeakingSeg.start / 60)).padStart(2, '0');
+        const s1 = String(Math.floor(activeSpeakingSeg.start % 60)).padStart(2, '0');
+        const m2 = String(Math.floor(activeSpeakingSeg.end / 60)).padStart(2, '0');
+        const s2 = String(Math.floor(activeSpeakingSeg.end % 60)).padStart(2, '0');
+        setInterimSttText(`[네이버 클로바 실시간 청크 수음 및 전사 중... (${m1}:${s1} ~ ${m2}:${s2})]`);
+      }
+
+      // 2) 통화 진행 시간이 도달한 발화 청크만 개별 실시간 전송 (전체 파일 일괄 전송 금지)
+      for (const seg of segments) {
+        if (seg.state === 'pending' && currentTimeSec >= Math.max(0, seg.start - 0.25)) {
+          seg.state = 'inflight';
+          const startSample = Math.max(0, Math.floor(seg.start * 16000));
+          const endSample = Math.min(pcm16k.length, Math.ceil(seg.end * 16000));
+          const slice = pcm16k.subarray(startSample, endSample);
+          const wavBlob = encodeWav16kMono(slice, 16000);
+
+          const formData = new FormData();
+          formData.append('file', wavBlob, `chunk_${seg.start.toFixed(1)}_${seg.end.toFixed(1)}.wav`);
+
+          fetch(`http://127.0.0.1:8000/api/v1/stt/clova-chunk?start=${seg.start}&end=${seg.end}`, {
+            method: 'POST',
+            body: formData
+          })
+            .then(async (res) => {
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              return res.json();
+            })
+            .then((data) => {
+              seg.text = (data.text || '').trim();
+              seg.state = 'ready';
+              const liveNow = globalAudioRef.current ? globalAudioRef.current.currentTime : currentTimeSec;
+              if (!seg.dispatched && liveNow >= Math.min(seg.end - 0.3, seg.start + 1.2)) {
+                seg.dispatched = true;
+                seg.state = 'done';
+                if (seg.text) {
+                  const m = String(Math.floor(seg.start / 60)).padStart(2, '0');
+                  const s = String(Math.floor(seg.start % 60)).padStart(2, '0');
+                  processIncomingSpeechUtterance(`[${m}:${s}] ${seg.text}`);
+                }
+                const stillActive = audioSegmentsRef.current.some((item) => item.state === 'inflight');
+                if (!stillActive) setInterimSttText('');
+              }
+            })
+            .catch((err) => {
+              console.warn('Clova 실시간 청크 전사 실패:', err);
+              seg.state = 'done';
+              seg.dispatched = true;
+            });
+        }
+
+        // 3) 이미 전사 응답이 도착한 청크가 발화 완료 시점에 도달하면 즉시 화면 표출 및 개체 감지
+        if (seg.state === 'ready' && !seg.dispatched && currentTimeSec >= Math.min(seg.end - 0.3, seg.start + 1.2)) {
           seg.dispatched = true;
-          processIncomingSpeechUtterance(seg.text);
+          seg.state = 'done';
+          if (seg.text) {
+            const m = String(Math.floor(seg.start / 60)).padStart(2, '0');
+            const s = String(Math.floor(seg.start % 60)).padStart(2, '0');
+            processIncomingSpeechUtterance(`[${m}:${s}] ${seg.text}`);
+          }
+          const stillActive = segments.some((item) => item.state === 'inflight');
+          if (!stillActive) setInterimSttText('');
         }
       }
+      return;
     }
-  };
+
+    // 기타 사전 분석 세그먼트 동기화 폴백
+    for (const seg of segments) {
+      if (!seg.dispatched && seg.text && currentTimeSec >= seg.start) {
+        seg.dispatched = true;
+        processIncomingSpeechUtterance(seg.text);
+      }
+    }
+  }, [sttEngine, setInterimSttText, processIncomingSpeechUtterance]);
+
+  // 실시간 통화 재생 중 200ms 주기로 발화 청크 감지 및 Clova 실시간 전송 동기화
+  useEffect(() => {
+    if (!isAudioPlaying || !activeAudioFile) return;
+    const timer = window.setInterval(() => {
+      if (globalAudioRef.current) {
+        const cur = globalAudioRef.current.currentTime;
+        const dur = globalAudioRef.current.duration || 0;
+        setAudioTime(cur, dur);
+        handleAudioTimeUpdate(cur);
+      }
+    }, 200);
+    return () => clearInterval(timer);
+  }, [isAudioPlaying, activeAudioFile, setAudioTime, handleAudioTimeUpdate]);
 
   const handleManualFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -646,7 +907,6 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   const toggleAudioPlayback = () => {
     if (!activeAudioUrl || !globalAudioRef.current) return;
     if (!isAudioPlaying) {
-      // 재생 시작 시 백엔드 잔여 버퍼 즉시 플러시
       if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
         try { loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' })); } catch (_) {}
       }
@@ -671,14 +931,17 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       globalAudioRef.current.pause();
       globalAudioRef.current.currentTime = 0;
     }
-    // 세그먼트 디스패치 플래그 초기화
     if (audioSegmentsRef.current) {
-      audioSegmentsRef.current.forEach((s: { dispatched?: boolean }) => { s.dispatched = false; });
+      audioSegmentsRef.current.forEach((s) => {
+        s.dispatched = false;
+        s.state = s.text ? 'ready' : 'pending';
+      });
     }
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
       try { loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' })); } catch (_) {}
     }
     stopSttStreaming();
+    setInterimSttText('');
     setIsAudioPlaying(false);
     setRecording(false);
     setAudioTime(0, 0);
@@ -694,10 +957,12 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       globalAudioRef.current.load();
     }
     audioSegmentsRef.current = [];
+    decodedPcm16kRef.current = null;
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
       try { loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' })); } catch (_) {}
     }
     stopSttStreaming();
+    setInterimSttText('');
     setIsAudioPlaying(false);
     setRecording(false);
     clearAudioFile();
@@ -1172,12 +1437,6 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
           <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
             상담원: <strong style={{ color: 'var(--ink)', fontWeight: 600 }}>{counselorName}</strong>
           </span>
-
-          <div style={{ height: '16px', width: '1px', backgroundColor: 'var(--hairline)', flexShrink: 0 }} />
-
-          <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-            상담원: <strong style={{ color: 'var(--ink)', fontWeight: 600 }}>{counselorName}</strong>
-          </span>
         </div>
 
         {/* Live Audio & STT Controls */}
@@ -1461,9 +1720,9 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         }}>
           {/* Panel Header & Live Activity */}
           <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', gap: '8px', flexWrap: 'nowrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
                   전사 자막 및 개체 감지
                 </span>
                 
@@ -1475,7 +1734,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                   padding: '3px',
                   borderRadius: '6px',
                   border: '1px solid #cbd5e1',
-                  gap: '3px'
+                  gap: '3px',
+                  flexShrink: 0
                 }}>
                   <button
                     onClick={() => {
@@ -1526,14 +1786,14 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
               </div>
               
               {/* Dynamic Mic Activity Indicator */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, whiteSpace: 'nowrap' }}>
                 {isRecording && (
-                  <span style={{ fontSize: '13.5px', color: '#047857', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Volume2 size={13} className="animate-pulse" /> STT 음성 수신 중 ({Math.max(15, micAudioLevel)}%)
+                  <span style={{ fontSize: '12.5px', color: '#047857', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                    <Volume2 size={13} className="animate-pulse" /> 수신 중 ({Math.max(15, micAudioLevel)}%)
                   </span>
                 )}
-                <span style={{ fontSize: '13.5px', color: isRecording ? '#047857' : '#64748b', fontWeight: 700 }}>
-                  {isRecording ? "● 실시간 가동 중" : "대기 상태"}
+                <span style={{ fontSize: '12.5px', color: isRecording ? '#047857' : '#475569', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  {isRecording ? "● 가동 중" : "대기 상태"}
                 </span>
               </div>
             </div>
@@ -2150,15 +2410,16 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
             <div style={{
               margin: '12px 12px 0 12px',
               padding: '10px 12px',
-              backgroundColor: 'rgba(37, 99, 235, 0.1)',
-              border: '1px solid rgba(37, 99, 235, 0.3)',
+              backgroundColor: '#eff6ff',
+              border: '1px solid #93c5fd',
               borderRadius: '6px',
               fontSize: '13.5px',
               lineHeight: 1.4,
-              color: '#bfdbfe',
+              color: '#0f172a',
+              fontWeight: 600,
               flexShrink: 0
             }}>
-              <div style={{ fontWeight: 700, color: '#93c5fd', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ fontWeight: 700, color: '#1d4ed8', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <HelpCircle size={13} />
                 상담사 안내 권장 스크립트:
               </div>
@@ -2179,18 +2440,18 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                     gap: '10px',
                     padding: '10px',
                     borderRadius: '6px',
-                    backgroundColor: item.checked ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface-2)',
-                    border: item.checked ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid var(--hairline)',
+                    backgroundColor: item.checked ? '#ecfdf5' : '#ffffff',
+                    border: item.checked ? '1.5px solid #10b981' : '1px solid #cbd5e1',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                     flexShrink: 0
                   }}
                 >
-                  <button style={{ background: 'none', border: 'none', color: item.checked ? 'var(--accent-success)' : 'var(--ink-subtle)', cursor: 'pointer', marginTop: '1px' }}>
+                  <button style={{ background: 'none', border: 'none', color: item.checked ? '#047857' : '#64748b', cursor: 'pointer', marginTop: '1px' }}>
                     {item.checked ? <CheckSquare size={16} /> : <Square size={16} />}
                   </button>
-                  <div style={{ flex: 1, fontSize: '14px', lineHeight: 1.4, color: item.checked ? 'var(--accent-success)' : 'var(--ink)', textDecoration: item.checked ? 'line-through' : 'none' }}>
-                    <strong style={{ marginRight: '4px', color: 'var(--ink-muted)' }}>{item.id}.</strong> {item.text}
+                  <div style={{ flex: 1, fontSize: '14px', lineHeight: 1.4, fontWeight: item.checked ? 700 : 500, color: item.checked ? '#065f46' : '#0f172a', textDecoration: item.checked ? 'line-through' : 'none' }}>
+                    <strong style={{ marginRight: '4px', color: item.checked ? '#047857' : '#475569' }}>{item.id}.</strong> {item.text}
                   </div>
                 </div>
               ))

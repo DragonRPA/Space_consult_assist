@@ -53,6 +53,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_pna_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "Space Advisor Backend", "env": settings.app_env}

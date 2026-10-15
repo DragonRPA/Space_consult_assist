@@ -46,9 +46,9 @@ class RateLimiter:
         self.requests[client_ip].append(now)
 
 # Global Rate Limiter instances
-global_rate_limiter = RateLimiter(max_requests=120, window_seconds=60)
-stt_rate_limiter = RateLimiter(max_requests=30, window_seconds=60)
-llm_rate_limiter = RateLimiter(max_requests=20, window_seconds=60)
+global_rate_limiter = RateLimiter(max_requests=240, window_seconds=60)
+stt_rate_limiter = RateLimiter(max_requests=300, window_seconds=60)
+llm_rate_limiter = RateLimiter(max_requests=60, window_seconds=60)
 
 async def check_rate_limit(request: Request):
     """일반 API 호출 빈도 제한 (실제 클라이언트 IP 기반 분당 120회)"""

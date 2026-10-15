@@ -276,6 +276,81 @@ def _sync_transcribe_with_clova(audio_path: str):
     return result_segments, full_lines, duration
 
 
+def _sync_clova_single_wav_chunk(wav_bytes: bytes) -> str:
+    """실시간 통화 중 단일 발화 WAV 청크(16kHz Mono)를 NAVER CLOVA CSR로 즉시 전사"""
+    import urllib.request, json
+    from app.core.config import get_settings
+    from app.core.secret_vault import get_server_secret
+
+    settings = get_settings()
+    client_id = (
+        getattr(settings, "naver_clova_client_id", "")
+        or get_server_secret("NAVER_CLOVA_CLIENT_ID", "")
+    )
+    client_secret = (
+        getattr(settings, "naver_clova_client_secret", "")
+        or get_server_secret("NAVER_CLOVA_CLIENT_SECRET", "")
+    )
+    if not client_id or not client_secret:
+        raise RuntimeError("서버 보안 볼트(private_vault)에서 NAVER CLOVA 인증키를 찾을 수 없습니다.")
+
+    url = "https://naveropenapi.apigw.ntruss.com/recog/v1/stt?lang=Kor"
+    req = urllib.request.Request(
+        url,
+        data=wav_bytes,
+        headers={
+            "X-NCP-APIGW-API-KEY-ID": client_id,
+            "X-NCP-APIGW-API-KEY": client_secret,
+            "Content-Type": "application/octet-stream",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+        return str(data.get("text", "")).strip()
+
+
+@router.post("/clova-chunk", dependencies=[Depends(check_stt_rate_limit)])
+async def transcribe_realtime_clova_chunk(
+    file: UploadFile = File(...),
+    start: float = 0.0,
+    end: float = 0.0,
+):
+    """
+    통화 실시간 진행 시뮬레이션용 단일 청크 전사 엔드포인트.
+    전체 파일을 한 번에 던지지 않고, 통화 재생 흐름에 따라 현재 발화 구간의
+    오디오 청크(16kHz Mono WAV)만 실시간으로 전송받아 NAVER CLOVA CSR 결과를 반환합니다.
+    """
+    import time as _time
+    t0 = _time.time()
+    wav_bytes = await file.read()
+    if not wav_bytes or len(wav_bytes) < 100:
+        return {"text": "", "timestamp": "[00:00]", "full_line": "", "start": start, "end": end, "provider": "naver_clova"}
+    if len(wav_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="단일 청크 크기가 10MB를 초과했습니다.")
+
+    try:
+        text = await asyncio.to_thread(_sync_clova_single_wav_chunk, wav_bytes)
+        elapsed_ms = int((_time.time() - t0) * 1000)
+        m = int(start // 60)
+        s = int(start % 60)
+        ts = f"[{m:02d}:{s:02d}]"
+        line = f"{ts} {text}" if text else ""
+        logger.info(f"⚡ [CLOVA-REALTIME-CHUNK] {ts} ({start:.1f}s~{end:.1f}s, {len(wav_bytes)}B, {elapsed_ms}ms) -> '{text}'")
+        return {
+            "text": text,
+            "timestamp": ts,
+            "full_line": line,
+            "start": round(start, 2),
+            "end": round(end, 2),
+            "elapsed_ms": elapsed_ms,
+            "provider": "naver_clova"
+        }
+    except Exception as e:
+        logger.error(f"Clova real-time chunk error ({start:.1f}s~{end:.1f}s): {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Clova 실시간 청크 전사 오류: {str(e)}")
+
+
 @router.post("/transcribe-file", dependencies=[Depends(check_stt_rate_limit)])
 async def transcribe_uploaded_audio_file(
     file: UploadFile = File(...),
