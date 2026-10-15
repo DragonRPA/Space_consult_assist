@@ -956,16 +956,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     }
 
     // 실시간 상태 표시줄 업데이트
-    if (vad.inSpeech) {
-      const startSec = vad.speechStartFrame * 0.1;
-      const m1 = String(Math.floor(startSec / 60)).padStart(2, '0');
-      const s1 = String(Math.floor(startSec % 60)).padStart(2, '0');
-      const m2 = String(Math.floor(currentTimeSec / 60)).padStart(2, '0');
-      const s2 = String(Math.floor(currentTimeSec % 60)).padStart(2, '0');
-      const dur = Math.max(0.1, currentTimeSec - startSec).toFixed(1);
-      setInterimSttText(`[실시간 음성 수음 중... (${m1}:${s1} ~ ${m2}:${s2} / ${dur}초)]`);
-    } else if (vad.inflightCount > 0) {
-      setInterimSttText(`[네이버 클로바 STT 변환 중... (${vad.lastChunkLabel})]`);
+    if (vad.inSpeech || vad.inflightCount > 0) {
+      setInterimSttText('듣는중');
     } else {
       setInterimSttText('');
     }
@@ -1148,7 +1140,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       const s = String(Math.floor(curSec % 60)).padStart(2, '0');
       const durSec = (samples16k.length / 16000).toFixed(1);
 
-      setInterimSttText(`[네이버 클로바 마이크 음성 변환 중... (${durSec}초)]`);
+      setInterimSttText('듣는중');
       const formData = new FormData();
       formData.append('file', wavBlob, `mic_${Date.now()}.wav`);
 
@@ -1224,8 +1216,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                 micInSpeech = true;
                 micSilenceChunks = 0;
                 for (let i = 0; i < downsampled.length; i++) micSpeechSamples.push(downsampled[i]);
-                const dur = (micSpeechSamples.length / 16000).toFixed(1);
-                setInterimSttText(`[마이크 실시간 음성 수음 중... (${dur}초)]`);
+                setInterimSttText('듣는중');
 
                 if (micSpeechSamples.length >= 16000 * 3.8) {
                   const toSend = micSpeechSamples;
@@ -1996,7 +1987,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, whiteSpace: 'nowrap' }}>
                 {isRecording && (
                   <span style={{ fontSize: '12.5px', color: '#047857', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                    <Volume2 size={13} className="animate-pulse" /> 수신 중 ({Math.max(15, micAudioLevel)}%)
+                    <Volume2 size={13} className="animate-pulse" /> 듣는중
                   </span>
                 )}
                 <button
@@ -2096,7 +2087,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
                   <span style={{ fontSize: '13.5px', color: isRecording ? '#065f46' : '#475569', fontWeight: 700, whiteSpace: 'nowrap' }}>
                     {isRecording
-                      ? '● 마이크 실시간 음성 테스트 진행 중 (말씀하시면 즉시 전사됩니다)'
+                      ? '듣는중'
                       : '음성 파일(.m4a) 열기 또는 [STT 켜기]로 실시간 음성 테스트를 시작하세요'}
                   </span>
                 </div>
@@ -2342,7 +2333,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
 
 
                   {/* Real-time Interim Streaming Words on current line */}
-                  {interimSttText && (
+                  {(interimSttText || isRecording) && (
                     <div style={{ minHeight: '1.4em', marginTop: '2px' }}>
                       <span style={{ 
                         color: '#1e40af', 
@@ -2354,7 +2345,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                         fontSize: '13.5px',
                         letterSpacing: '-0.2px'
                       }}>
-                        {interimSttText}
+                        {interimSttText || '듣는중'}
                       </span>
                       {isRecording && (
                         <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '14px', backgroundColor: 'var(--accent-primary)', marginLeft: '4px', verticalAlign: 'middle' }} />
@@ -2362,7 +2353,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                     </div>
                   )}
                 </div>
-              ) : interimSttText ? (
+              ) : (interimSttText || isRecording) ? (
                 <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '14px' }}>
                   <span style={{ 
                     color: '#1e40af', 
@@ -2374,7 +2365,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                     fontSize: '13.5px',
                     letterSpacing: '-0.2px'
                   }}>
-                    {interimSttText}
+                    {interimSttText || '듣는중'}
                   </span>
                   {isRecording && (
                     <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '14px', backgroundColor: 'var(--accent-primary)', marginLeft: '4px', verticalAlign: 'middle' }} />
