@@ -163,22 +163,131 @@ def _sync_transcribe_file(model, audio_path: str):
 
 
 
+def _sync_transcribe_with_clova(audio_path: str):
+    """PyAV로 오디오 파일을 16kHz 모노로 디코딩 후 에너지 VAD로 청킹하여 NAVER CLOVA CSR로 전사"""
+    import av, io, urllib.request, json
+    import numpy as np
+    from scipy.io import wavfile
+    from app.core.config import get_settings
+    from app.core.secret_vault import get_server_secret
+
+    settings = get_settings()
+    client_id = (
+        getattr(settings, "naver_clova_client_id", "")
+        or get_server_secret("NAVER_CLOVA_CLIENT_ID", "")
+    )
+    client_secret = (
+        getattr(settings, "naver_clova_client_secret", "")
+        or get_server_secret("NAVER_CLOVA_CLIENT_SECRET", "")
+    )
+    if not client_id or not client_secret:
+        raise RuntimeError("서버 보안 볼트(private_vault)에서 NAVER CLOVA 인증키를 찾을 수 없습니다.")
+
+    container = av.open(audio_path)
+    resampler = av.AudioResampler(format="s16", layout="mono", rate=16000)
+
+    audio_chunks = []
+    for frame in container.decode(audio=0):
+        for rf in resampler.resample(frame):
+            audio_chunks.append(rf.to_ndarray())
+
+    if not audio_chunks:
+        return [], [], 0.0
+
+    full_audio = np.concatenate(audio_chunks, axis=1).squeeze()
+    sr = 16000
+    duration = len(full_audio) / sr
+
+    # 100ms 에너지 기반 VAD 세그먼테이션
+    frame_len = int(sr * 0.1)
+    n_frames = len(full_audio) // frame_len
+    energies = [np.sqrt(np.mean(full_audio[i*frame_len:(i+1)*frame_len].astype(np.float32)**2)) for i in range(n_frames)]
+    threshold = 300  # int16 기준 음성 에너지 임계값
+    is_speech = [e > threshold for e in energies]
+
+    segments_time = []
+    in_speech = False
+    seg_start = 0
+    silence_count = 0
+
+    for i, speech in enumerate(is_speech):
+        if speech:
+            if not in_speech:
+                in_speech = True
+                seg_start = max(0, i - 1)
+            silence_count = 0
+        else:
+            if in_speech:
+                silence_count += 1
+                # 0.6초 침묵 시 또는 8초 초과 시 세그먼트 커밋
+                if silence_count >= 6 or (i - seg_start) * 0.1 >= 8.0:
+                    seg_end = i
+                    if (seg_end - seg_start) * 0.1 >= 0.8:
+                        segments_time.append((seg_start * 0.1, seg_end * 0.1))
+                    in_speech = False
+                    silence_count = 0
+
+    if in_speech and (len(is_speech) - seg_start) * 0.1 >= 0.8:
+        segments_time.append((seg_start * 0.1, len(is_speech) * 0.1))
+
+    result_segments = []
+    full_lines = []
+    last_text = None
+
+    url = "https://naveropenapi.apigw.ntruss.com/recog/v1/stt?lang=Kor"
+    for s_start, s_end in segments_time:
+        sub = full_audio[int(s_start * sr):int(s_end * sr)]
+        buf = io.BytesIO()
+        wavfile.write(buf, sr, sub)
+        req = urllib.request.Request(
+            url,
+            data=buf.getvalue(),
+            headers={
+                "X-NCP-APIGW-API-KEY-ID": client_id,
+                "X-NCP-APIGW-API-KEY": client_secret,
+                "Content-Type": "application/octet-stream",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                text = str(data.get("text", "")).strip()
+                if not text or text == last_text:
+                    continue
+                last_text = text
+
+                m = int(s_start // 60)
+                s = int(s_start % 60)
+                ts = f"[{m:02d}:{s:02d}]"
+                line = f"{ts} {text}"
+                full_lines.append(line)
+                result_segments.append({
+                    "start": round(s_start, 2),
+                    "end": round(s_end, 2),
+                    "timestamp": ts,
+                    "text": text,
+                    "full_line": line,
+                    "provider": "naver_clova"
+                })
+        except Exception as clova_err:
+            logger.warning(f"Clova segment STT failed at {s_start:.1f}s: {clova_err}")
+
+    return result_segments, full_lines, duration
+
+
 @router.post("/transcribe-file", dependencies=[Depends(check_stt_rate_limit)])
 async def transcribe_uploaded_audio_file(
     file: UploadFile = File(...),
+    engine: str = "whisper_large_v3",
     current_user: dict = Depends(get_current_user)
 ):
     """
-    업로드된 음성 파일(.m4a, .mp3, .wav 등)을 Faster-Whisper Large-v3로 직접 고속 전사.
+    업로드된 음성 파일(.m4a, .mp3, .wav 등)을 선택된 엔진(Faster-Whisper 또는 NAVER CLOVA)으로 전사.
     asyncio.to_thread로 오프로딩하여 메인 이벤트 루프 프리즈 차단.
     """
-    model = get_whisper_model()
-    if model is None:
-        raise HTTPException(status_code=500, detail="Faster-Whisper 모델을 초기화할 수 없습니다.")
-
     MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB 제한 (DoS / OOM 방어)
     
-    # Content-Type 검증 (Magic Number 수준은 백엔드 외부 검증 필요, Content-Type 1차 방어)
     ALLOWED_CONTENT_TYPES = {
         "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
         "audio/mp4", "audio/m4a", "audio/x-m4a", "audio/flac",
@@ -211,22 +320,38 @@ async def transcribe_uploaded_audio_file(
         tmp_path = tmp.name
 
     try:
-        # 비동기 이벤트 루프를 마비시키지 않도록 스레드풀로 오프로딩
-        result_segments, full_lines, info = await asyncio.to_thread(
-            _sync_transcribe_file, model, tmp_path
-        )
+        if engine == "naver_clova":
+            result_segments, full_lines, file_dur = await asyncio.to_thread(
+                _sync_transcribe_with_clova, tmp_path
+            )
+            return {
+                "filename": file.filename,
+                "duration": round(file_dur, 2),
+                "language": "ko",
+                "engine": "naver_clova",
+                "segments": result_segments,
+                "full_transcript": "\n".join(full_lines),
+                "count": len(result_segments)
+            }
+        else:
+            model = get_whisper_model()
+            if model is None:
+                raise HTTPException(status_code=500, detail="Faster-Whisper 모델을 초기화할 수 없습니다.")
 
-        return {
-            "filename": file.filename,
-            "duration": round(info.duration, 2),
-            "language": info.language,
-            "segments": result_segments,
-            "full_transcript": "\n".join(full_lines),
-            "count": len(result_segments)
-        }
+            result_segments, full_lines, info = await asyncio.to_thread(
+                _sync_transcribe_file, model, tmp_path
+            )
+            return {
+                "filename": file.filename,
+                "duration": round(info.duration, 2),
+                "language": info.language,
+                "engine": "whisper_large_v3",
+                "segments": result_segments,
+                "full_transcript": "\n".join(full_lines),
+                "count": len(result_segments)
+            }
     except Exception as e:
         logger.error(f"File transcription error: {e}", exc_info=True)
-        # 내부 에러 메시지 노출 방지 (정보 유출 차단)
         raise HTTPException(status_code=500, detail="음성 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
     finally:
         if os.path.exists(tmp_path):

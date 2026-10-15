@@ -505,11 +505,12 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       } catch (_) {}
     }
 
-    // Faster-Whisper GPU 백엔드 고속 사전 전사 호출 (동기화 자막 생성)
+    // 백엔드 고속 사전 전사 호출 (NAVER CLOVA 또는 Faster-Whisper 동기화 자막 생성)
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch('http://127.0.0.1:8000/api/v1/stt/transcribe-file', {
+      const engineParam = sttEngine === 'naver_clova' ? 'naver_clova' : 'whisper_large_v3';
+      const res = await fetch(`http://127.0.0.1:8000/api/v1/stt/transcribe-file?engine=${engineParam}`, {
         method: 'POST',
         headers: {
           'Authorization': 'Bearer space-advisor-desktop-agent'
@@ -1470,11 +1471,11 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                 <div style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  backgroundColor: 'var(--surface-3)',
-                  padding: '2px',
-                  borderRadius: '5px',
-                  border: '1px solid var(--hairline)',
-                  gap: '2px'
+                  backgroundColor: '#e2e8f0',
+                  padding: '3px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  gap: '3px'
                 }}>
                   <button
                     onClick={() => {
@@ -1483,15 +1484,16 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                       setTimeout(() => clearToast(), 2500);
                     }}
                     style={{
-                      padding: '2px 8px',
+                      padding: '4px 10px',
                       fontSize: '12.5px',
-                      fontWeight: sttEngine === 'naver_clova' ? 700 : 500,
-                      color: sttEngine === 'naver_clova' ? '#047857' : 'var(--ink-muted)',
-                      backgroundColor: sttEngine === 'naver_clova' ? '#d1fae5' : 'transparent',
-                      border: sttEngine === 'naver_clova' ? '1px solid #10b981' : '1px solid transparent',
+                      fontWeight: 700,
+                      color: sttEngine === 'naver_clova' ? '#ffffff' : '#334155',
+                      backgroundColor: sttEngine === 'naver_clova' ? '#059669' : 'transparent',
+                      border: 'none',
                       borderRadius: '4px',
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
+                      boxShadow: sttEngine === 'naver_clova' ? '0 1px 3px rgba(0,0,0,0.18)' : 'none',
                       transition: 'all 0.15s ease'
                     }}
                   >
@@ -1505,15 +1507,16 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                       setTimeout(() => clearToast(), 2500);
                     }}
                     style={{
-                      padding: '2px 8px',
+                      padding: '4px 10px',
                       fontSize: '12.5px',
-                      fontWeight: sttEngine === 'web_speech' ? 700 : 500,
-                      color: sttEngine === 'web_speech' ? '#1d4ed8' : 'var(--ink-muted)',
-                      backgroundColor: sttEngine === 'web_speech' ? '#dbeafe' : 'transparent',
-                      border: sttEngine === 'web_speech' ? '1px solid #3b82f6' : '1px solid transparent',
+                      fontWeight: 700,
+                      color: sttEngine === 'web_speech' ? '#ffffff' : '#334155',
+                      backgroundColor: sttEngine === 'web_speech' ? '#1d4ed8' : 'transparent',
+                      border: 'none',
                       borderRadius: '4px',
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
+                      boxShadow: sttEngine === 'web_speech' ? '0 1px 3px rgba(0,0,0,0.18)' : 'none',
                       transition: 'all 0.15s ease'
                     }}
                   >
@@ -1525,11 +1528,11 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
               {/* Dynamic Mic Activity Indicator */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {isRecording && (
-                  <span style={{ fontSize: '13.5px', color: 'var(--accent-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Volume2 size={12} className="animate-pulse" /> STT 음성 수신 중 ({Math.max(15, micAudioLevel)}%)
+                  <span style={{ fontSize: '13.5px', color: '#047857', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Volume2 size={13} className="animate-pulse" /> STT 음성 수신 중 ({Math.max(15, micAudioLevel)}%)
                   </span>
                 )}
-                <span style={{ fontSize: '13.5px', color: isRecording ? 'var(--accent-success)' : 'var(--ink-muted)', fontWeight: 600 }}>
+                <span style={{ fontSize: '13.5px', color: isRecording ? '#047857' : '#64748b', fontWeight: 700 }}>
                   {isRecording ? "● 실시간 가동 중" : "대기 상태"}
                 </span>
               </div>
@@ -1541,39 +1544,40 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
               alignItems: 'center', 
               flexWrap: 'wrap',
               gap: '6px', 
-              fontSize: '13.5px', 
-              backgroundColor: 'var(--surface-2)', 
-              padding: '5px 8px', 
-              borderRadius: '4px', 
-              border: '1px solid var(--hairline)',
-              marginBottom: '6px'
+              fontSize: '12.5px', 
+              backgroundColor: '#f1f5f9', 
+              padding: '6px 10px', 
+              borderRadius: '6px', 
+              border: '1px solid #cbd5e1',
+              marginBottom: '8px'
             }}>
-              <span style={{ color: 'var(--ink-muted)', fontWeight: 600 }}>식별 범례:</span>
-              <span style={{ color: '#1e40af', backgroundColor: '#dbeafe', border: '1px solid #bfdbfe', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+              <span style={{ color: '#334155', fontWeight: 700 }}>식별 범례:</span>
+              <span style={{ color: '#1e3a8a', backgroundColor: '#bfdbfe', border: '1px solid #60a5fa', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
                 고객사/담당자 (청색)
               </span>
-              <span style={{ color: '#92400e', backgroundColor: '#fef3c7', border: '1px solid #fde68a', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+              <span style={{ color: '#78350f', backgroundColor: '#fde68a', border: '1px solid #f59e0b', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
                 현장/위치 (황색)
               </span>
-              <span style={{ color: '#6b21a8', backgroundColor: '#f3e8ff', border: '1px solid #e9d5ff', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+              <span style={{ color: '#581c87', backgroundColor: '#e9d5ff', border: '1px solid #c084fc', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
                 장비모델 (보라)
               </span>
-              <span style={{ color: '#991b1b', backgroundColor: '#fee2e2', border: '1px solid #fecaca', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+              <span style={{ color: '#7f1d1d', backgroundColor: '#fecaca', border: '1px solid #f87171', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
                 고장증상 (적색)
               </span>
-              <span style={{ color: '#065f46', backgroundColor: '#d1fae5', border: '1px solid #a7f3d0', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+              <span style={{ color: '#064e3b', backgroundColor: '#a7f3d0', border: '1px solid #34d399', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
                 조치사항 (녹색)
               </span>
             </div>
 
             <div style={{ 
-              backgroundColor: 'var(--ars-bg)', 
-              border: '1px solid var(--ars-border)', 
-              borderRadius: '4px', 
-              padding: '4px 8px', 
-              fontSize: '13.5px', 
-              color: 'var(--ars-text)',
-              lineHeight: 1.3 
+              backgroundColor: '#eff6ff', 
+              border: '1px solid #93c5fd', 
+              borderRadius: '6px', 
+              padding: '6px 10px', 
+              fontSize: '13px', 
+              color: '#1e40af',
+              fontWeight: 600,
+              lineHeight: 1.4 
             }}>
               [ARS 고지 필수] "본 통화는 품질 향상 및 AI 상담 지원을 위해 녹음/분석됩니다."
             </div>
@@ -1583,7 +1587,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
           <div style={{ 
             padding: '8px 12px', 
             borderBottom: '1px solid var(--hairline)', 
-            backgroundColor: activeAudioFile ? 'rgba(37, 99, 235, 0.08)' : 'var(--surface-1)',
+            backgroundColor: activeAudioFile ? '#e0f2fe' : '#f8fafc',
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center',
@@ -1594,17 +1598,17 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
               {activeAudioFile ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                  <FileAudio size={15} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-                  <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#1e3a8a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <FileAudio size={16} style={{ color: '#0284c7', flexShrink: 0 }} />
+                  <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {activeAudioFile.name}
                   </span>
-                  <span className="font-mono" style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>
+                  <span className="font-mono" style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>
                     ({formatAudioTime(audioCurrentTime)} / {formatAudioTime(audioDuration)})
                   </span>
                 </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', fontWeight: 600 }}>
+                  <span style={{ fontSize: '13.5px', color: '#475569', fontWeight: 600 }}>
                     음성 파일(.m4a)을 선택하여 실시간 통화 데모를 시작하세요
                   </span>
                 </div>

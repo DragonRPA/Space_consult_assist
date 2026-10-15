@@ -117,9 +117,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /반포\s*자이|반포자이|박시설\s*(?:과장|시설과장)?|클린\s*에코|클린에코/i,
     customerId: 'a1111111-1111-1111-1111-111111111111',
     colorScheme: {
-      bg: '#dbeafe',
+      bg: '#bfdbfe',
       border: '#3b82f6',
-      text: '#1e40af',
+      text: '#1e3a8a',
       glow: 'none'
     }
   },
@@ -130,9 +130,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /래미안\s*퍼스티지|래미안|퍼스티지|이관리\s*(?:소장|관리소장)?|삼원\s*종합|삼원종합관리/i,
     customerId: 'a2222222-2222-2222-2222-222222222222',
     colorScheme: {
-      bg: '#dbeafe',
+      bg: '#bfdbfe',
       border: '#3b82f6',
-      text: '#1e40af',
+      text: '#1e3a8a',
       glow: 'none'
     }
   },
@@ -143,9 +143,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /도곡\s*렉슬|도곡렉슬|최기술\s*(?:팀장|기술팀장)?|한결\s*에프엠|한결에프엠/i,
     customerId: 'a1010101-1010-1010-1010-101010101010',
     colorScheme: {
-      bg: '#dbeafe',
+      bg: '#bfdbfe',
       border: '#3b82f6',
-      text: '#1e40af',
+      text: '#1e3a8a',
       glow: 'none'
     }
   },
@@ -156,9 +156,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /가산\s*디지털\s*엠타워|디지털\s*엠타워|엠타워|강센터\s*(?:실장|관리실장)?|피앤씨\s*클린|피앤씨클린/i,
     customerId: 'a3333333-3333-3333-3333-333333333333',
     colorScheme: {
-      bg: '#dbeafe',
+      bg: '#bfdbfe',
       border: '#3b82f6',
-      text: '#1e40af',
+      text: '#1e3a8a',
       glow: 'none'
     }
   },
@@ -171,9 +171,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /신반포로|반포|방재실|지하\s*1층|관리사무소/i,
     customerId: 'a1111111-1111-1111-1111-111111111111',
     colorScheme: {
-      bg: '#fef3c7',
+      bg: '#fde68a',
       border: '#f59e0b',
-      text: '#92400e',
+      text: '#78350f',
       glow: 'none'
     }
   },
@@ -184,9 +184,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /반포대로|주차장\s*관리소|지하\s*2층|관리지원센터/i,
     customerId: 'a2222222-2222-2222-2222-222222222222',
     colorScheme: {
-      bg: '#fef3c7',
+      bg: '#fde68a',
       border: '#f59e0b',
-      text: '#92400e',
+      text: '#78350f',
       glow: 'none'
     }
   },
@@ -197,9 +197,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /선릉로|도곡|지하\s*방재실/i,
     customerId: 'a1010101-1010-1010-1010-101010101010',
     colorScheme: {
-      bg: '#fef3c7',
+      bg: '#fde68a',
       border: '#f59e0b',
-      text: '#92400e',
+      text: '#78350f',
       glow: 'none'
     }
   },
@@ -210,9 +210,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /가산디지털1로|가산|지하\s*1층\s*하역장|관리단/i,
     customerId: 'a3333333-3333-3333-3333-333333333333',
     colorScheme: {
-      bg: '#fef3c7',
+      bg: '#fde68a',
       border: '#f59e0b',
-      text: '#92400e',
+      text: '#78350f',
       glow: 'none'
     }
   },
@@ -225,9 +225,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /J600T|J600|제이\s*600|제이\s*육백|보행식\s*습식/i,
     modelId: 'J600T',
     colorScheme: {
-      bg: '#f3e8ff',
-      border: '#a855f7',
-      text: '#6b21a8',
+      bg: '#e9d5ff',
+      border: '#c084fc',
+      text: '#581c87',
       glow: 'none'
     }
   },
@@ -238,9 +238,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /J800|제이\s*800|제이\s*팔백|대형\s*탑승형/i,
     modelId: 'J800',
     colorScheme: {
-      bg: '#f3e8ff',
-      border: '#a855f7',
-      text: '#6b21a8',
+      bg: '#e9d5ff',
+      border: '#c084fc',
+      text: '#581c87',
       glow: 'none'
     }
   },
@@ -251,9 +251,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /S7|S7P|에스\s*세븐|에스\s*7|에스\s*칠/i,
     modelId: 'S7',
     colorScheme: {
-      bg: '#f3e8ff',
-      border: '#a855f7',
-      text: '#6b21a8',
+      bg: '#e9d5ff',
+      border: '#c084fc',
+      text: '#581c87',
       glow: 'none'
     }
   },
@@ -264,9 +264,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /S5|에스\s*파이브|에스\s*5|에스\s*오|소형\s*탑승형/i,
     modelId: 'S5',
     colorScheme: {
-      bg: '#f3e8ff',
-      border: '#a855f7',
-      text: '#6b21a8',
+      bg: '#e9d5ff',
+      border: '#c084fc',
+      text: '#581c87',
       glow: 'none'
     }
   },
@@ -279,9 +279,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /흡입\s*모터|흡기|진공압|굉음|타는\s*냄새|모터\s*소리|흡입력|빨아들이(?:고|면(?:은)?|지)?|빨아들/i,
     keywordId: 'kw-suction',
     colorScheme: {
-      bg: '#fee2e2',
-      border: '#ef4444',
-      text: '#991b1b',
+      bg: '#fecaca',
+      border: '#f87171',
+      text: '#7f1d1d',
       glow: 'none'
     }
   },
@@ -292,9 +292,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /스퀴지|바닥\s*물기|잔수|고무\s*블레이드|물\s*자국|고무패드|고무\s*패드|패드\s*거치대|고정판|판\s*거치대/i,
     keywordId: 'kw-squeegee',
     colorScheme: {
-      bg: '#fee2e2',
-      border: '#ef4444',
-      text: '#991b1b',
+      bg: '#fecaca',
+      border: '#f87171',
+      text: '#7f1d1d',
       glow: 'none'
     }
   },
@@ -305,9 +305,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /배터리|충전|전원\s*불량|안\s*켜|방전|충전기/i,
     keywordId: 'kw-battery',
     colorScheme: {
-      bg: '#fee2e2',
-      border: '#ef4444',
-      text: '#991b1b',
+      bg: '#fecaca',
+      border: '#f87171',
+      text: '#7f1d1d',
       glow: 'none'
     }
   },
@@ -318,9 +318,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /솔레노이드|물\s*안\s*나옴|누수|급수\s*밸브|세제\s*분사/i,
     keywordId: 'kw-solenoid',
     colorScheme: {
-      bg: '#fee2e2',
-      border: '#ef4444',
-      text: '#991b1b',
+      bg: '#fecaca',
+      border: '#f87171',
+      text: '#7f1d1d',
       glow: 'none'
     }
   },
@@ -333,9 +333,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /전원\s*(?:스위치)?\s*차단|전원\s*(?:스위치)?\s*끄|모터\s*냉각|열기\s*식히|10분\s*식히/i,
     actionIndex: 1,
     colorScheme: {
-      bg: '#d1fae5',
-      border: '#10b981',
-      text: '#065f46',
+      bg: '#a7f3d0',
+      border: '#34d399',
+      text: '#064e3b',
       glow: 'none'
     }
   },
@@ -346,9 +346,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /거름망\s*청소|필터\s*(?:망)?\s*세척|이물질\s*(?:제거|청소|털어)|탱크\s*비우|오수\s*비우/i,
     actionIndex: 2,
     colorScheme: {
-      bg: '#d1fae5',
-      border: '#10b981',
-      text: '#065f46',
+      bg: '#a7f3d0',
+      border: '#34d399',
+      text: '#064e3b',
       glow: 'none'
     }
   },
@@ -359,9 +359,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /날\s*뒤집|4면\s*뒤집|반대로\s*끼우|날\s*교체|수평\s*조절|노브\s*조절/i,
     actionIndex: 2,
     colorScheme: {
-      bg: '#d1fae5',
-      border: '#10b981',
-      text: '#065f46',
+      bg: '#a7f3d0',
+      border: '#34d399',
+      text: '#064e3b',
       glow: 'none'
     }
   },
@@ -372,9 +372,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /비상\s*정지\s*(?:버튼)?\s*(?:해제|당기)|빨간\s*버튼\s*당기|220V\s*콘센트|충전기\s*확인|단자\s*체결/i,
     actionIndex: 2,
     colorScheme: {
-      bg: '#d1fae5',
-      border: '#10b981',
-      text: '#065f46',
+      bg: '#a7f3d0',
+      border: '#34d399',
+      text: '#064e3b',
       glow: 'none'
     }
   },
@@ -385,9 +385,9 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     pattern: /출장\s*배차|기사\s*(님)?\s*방문|현장\s*점검|정비\s*배차|부품\s*교체\s*출장/i,
     actionIndex: 5,
     colorScheme: {
-      bg: '#d1fae5',
-      border: '#10b981',
-      text: '#065f46',
+      bg: '#a7f3d0',
+      border: '#34d399',
+      text: '#064e3b',
       glow: 'none'
     }
   }

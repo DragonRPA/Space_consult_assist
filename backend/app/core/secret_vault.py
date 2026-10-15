@@ -20,6 +20,18 @@ _vault_loaded: bool = False
 
 def _get_migration_dsn() -> str:
     dsn = os.environ.get("DATABASE_URL_MIGRATION") or os.environ.get("DATABASE_URL") or ""
+    if not dsn:
+        try:
+            from dotenv import load_dotenv
+            env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+            if os.path.exists(env_path):
+                load_dotenv(env_path)
+            else:
+                load_dotenv()
+            dsn = os.environ.get("DATABASE_URL_MIGRATION") or os.environ.get("DATABASE_URL") or ""
+        except Exception:
+            pass
+
     dsn = dsn.replace("postgresql+psycopg_async://", "postgresql://")
     dsn = dsn.replace("postgresql+psycopg://", "postgresql://")
     dsn = dsn.replace(":6543/", ":5432/")
