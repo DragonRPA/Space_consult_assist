@@ -1,7 +1,7 @@
 import React from 'react';
 import type { CustomerInfo } from './store';
 
-export type EntityType = 'symptom' | 'customer' | 'site' | 'action';
+export type EntityType = 'symptom' | 'customer' | 'site' | 'model' | 'action';
 
 export interface KeywordEntity {
   id: string;
@@ -29,6 +29,7 @@ export interface EntityRule {
   };
   customerId?: string;
   keywordId?: string;
+  modelId?: string;
   actionIndex?: number; // Map to SOP checklist step
 }
 
@@ -110,10 +111,10 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
 export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
   // A. CUSTOMER & PERSON (고객사명 / 담당자명 - Primary Blue)
   {
-    id: 'ent-cust-gangnam',
+    id: 'ent-cust-banpo',
     type: 'customer',
     label: '고객사',
-    pattern: /(?:주)?\s*스페이스\s*클린|스페이스클린|최관리\s*(?:팀장)?/i,
+    pattern: /반포\s*자이|반포자이|박시설\s*(?:과장|시설과장)?|클린\s*에코|클린에코/i,
     customerId: 'a1111111-1111-1111-1111-111111111111',
     colorScheme: {
       bg: 'rgba(37, 99, 235, 0.18)',
@@ -123,10 +124,10 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     }
   },
   {
-    id: 'ent-cust-pyeongtaek',
+    id: 'ent-cust-raemian',
     type: 'customer',
     label: '고객사',
-    pattern: /미래\s*물류(?:\s*센터)?|정센터장|미래물류/i,
+    pattern: /래미안\s*퍼스티지|래미안|퍼스티지|이관리\s*(?:소장|관리소장)?|삼원\s*종합|삼원종합관리/i,
     customerId: 'a2222222-2222-2222-2222-222222222222',
     colorScheme: {
       bg: 'rgba(37, 99, 235, 0.18)',
@@ -136,11 +137,24 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     }
   },
   {
-    id: 'ent-cust-hwaseong',
+    id: 'ent-cust-dogok',
     type: 'customer',
     label: '고객사',
-    pattern: /케이\s*로지스|오센터장|케이로지스/i,
+    pattern: /도곡\s*렉슬|도곡렉슬|최기술\s*(?:팀장|기술팀장)?|한결\s*에프엠|한결에프엠/i,
     customerId: 'a1010101-1010-1010-1010-101010101010',
+    colorScheme: {
+      bg: 'rgba(37, 99, 235, 0.18)',
+      border: '#2563eb',
+      text: '#bfdbfe',
+      glow: 'none'
+    }
+  },
+  {
+    id: 'ent-cust-gasan',
+    type: 'customer',
+    label: '고객사',
+    pattern: /가산\s*디지털\s*엠타워|디지털\s*엠타워|엠타워|강센터\s*(?:실장|관리실장)?|피앤씨\s*클린|피앤씨클린/i,
+    customerId: 'a3333333-3333-3333-3333-333333333333',
     colorScheme: {
       bg: 'rgba(37, 99, 235, 0.18)',
       border: '#2563eb',
@@ -151,10 +165,10 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
 
   // B. SITE & LOCATION (현장명 / 지점명 / 건물구역 - Amber / Orange)
   {
-    id: 'ent-site-gangnam',
+    id: 'ent-site-banpo',
     type: 'site',
     label: '현장/위치',
-    pattern: /강남점|강남|방재실|테헤란로|지하\s*1층/i,
+    pattern: /신반포로|반포|방재실|지하\s*1층|관리사무소/i,
     customerId: 'a1111111-1111-1111-1111-111111111111',
     colorScheme: {
       bg: 'rgba(245, 158, 11, 0.18)',
@@ -164,10 +178,10 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     }
   },
   {
-    id: 'ent-site-pyeongtaek',
+    id: 'ent-site-raemian',
     type: 'site',
     label: '현장/위치',
-    pattern: /평택점|평택|물류\s*데크|산단로|1층/i,
+    pattern: /반포대로|주차장\s*관리소|지하\s*2층|관리지원센터/i,
     customerId: 'a2222222-2222-2222-2222-222222222222',
     colorScheme: {
       bg: 'rgba(245, 158, 11, 0.18)',
@@ -177,10 +191,10 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     }
   },
   {
-    id: 'ent-site-hwaseong',
+    id: 'ent-site-dogok',
     type: 'site',
     label: '현장/위치',
-    pattern: /화성\s*센터|화성|하역장|남양읍|남양로|A동/i,
+    pattern: /선릉로|도곡|지하\s*방재실/i,
     customerId: 'a1010101-1010-1010-1010-101010101010',
     colorScheme: {
       bg: 'rgba(245, 158, 11, 0.18)',
@@ -189,58 +203,125 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
       glow: '0 0 8px rgba(245, 158, 11, 0.5)'
     }
   },
+  {
+    id: 'ent-site-gasan',
+    type: 'site',
+    label: '현장/위치',
+    pattern: /가산디지털1로|가산|지하\s*1층\s*하역장|관리단/i,
+    customerId: 'a3333333-3333-3333-3333-333333333333',
+    colorScheme: {
+      bg: 'rgba(245, 158, 11, 0.18)',
+      border: '#f59e0b',
+      text: '#fde68a',
+      glow: '0 0 8px rgba(245, 158, 11, 0.5)'
+    }
+  },
 
-  // C. SYMPTOM & PART (증상 / 부품 - Cyan / Blue)
+  // C. MODEL & EQUIPMENT (장비 모델명 - Violet / Purple)
+  {
+    id: 'ent-model-j600t',
+    type: 'model',
+    label: '장비모델',
+    pattern: /J600T|J600|제이\s*600|제이\s*육백|보행식\s*습식/i,
+    modelId: 'J600T',
+    colorScheme: {
+      bg: 'rgba(168, 85, 247, 0.18)',
+      border: '#a855f7',
+      text: '#e9d5ff',
+      glow: '0 0 8px rgba(168, 85, 247, 0.5)'
+    }
+  },
+  {
+    id: 'ent-model-j800',
+    type: 'model',
+    label: '장비모델',
+    pattern: /J800|제이\s*800|제이\s*팔백|대형\s*탑승형/i,
+    modelId: 'J800',
+    colorScheme: {
+      bg: 'rgba(168, 85, 247, 0.18)',
+      border: '#a855f7',
+      text: '#e9d5ff',
+      glow: '0 0 8px rgba(168, 85, 247, 0.5)'
+    }
+  },
+  {
+    id: 'ent-model-s7',
+    type: 'model',
+    label: '장비모델',
+    pattern: /S7|S7P|에스\s*세븐|에스\s*7|에스\s*칠/i,
+    modelId: 'S7',
+    colorScheme: {
+      bg: 'rgba(168, 85, 247, 0.18)',
+      border: '#a855f7',
+      text: '#e9d5ff',
+      glow: '0 0 8px rgba(168, 85, 247, 0.5)'
+    }
+  },
+  {
+    id: 'ent-model-s5',
+    type: 'model',
+    label: '장비모델',
+    pattern: /S5|에스\s*파이브|에스\s*5|에스\s*오|소형\s*탑승형/i,
+    modelId: 'S5',
+    colorScheme: {
+      bg: 'rgba(168, 85, 247, 0.18)',
+      border: '#a855f7',
+      text: '#e9d5ff',
+      glow: '0 0 8px rgba(168, 85, 247, 0.5)'
+    }
+  },
+
+  // D. SYMPTOM & PART (증상 / 부품 - Red / 적색)
   {
     id: 'ent-sym-suction',
     type: 'symptom',
-    label: '증상/부품',
+    label: '고장증상',
     pattern: /흡입\s*모터|흡기|진공압|굉음|타는\s*냄새|모터\s*소리|흡입력|빨아들이(?:고|면(?:은)?|지)?|빨아들/i,
     keywordId: 'kw-suction',
     colorScheme: {
-      bg: 'rgba(37, 99, 235, 0.18)',
-      border: '#60a5fa',
-      text: '#93c5fd',
-      glow: '0 0 8px rgba(37, 99, 235, 0.5)'
+      bg: 'rgba(239, 68, 68, 0.18)',
+      border: '#ef4444',
+      text: '#fecaca',
+      glow: '0 0 8px rgba(239, 68, 68, 0.5)'
     }
   },
   {
     id: 'ent-sym-squeegee',
     type: 'symptom',
-    label: '증상/부품',
+    label: '고장증상',
     pattern: /스퀴지|바닥\s*물기|잔수|고무\s*블레이드|물\s*자국|고무패드|고무\s*패드|패드\s*거치대|고정판|판\s*거치대/i,
     keywordId: 'kw-squeegee',
     colorScheme: {
-      bg: 'rgba(37, 99, 235, 0.18)',
-      border: '#60a5fa',
-      text: '#93c5fd',
-      glow: '0 0 8px rgba(37, 99, 235, 0.5)'
+      bg: 'rgba(239, 68, 68, 0.18)',
+      border: '#ef4444',
+      text: '#fecaca',
+      glow: '0 0 8px rgba(239, 68, 68, 0.5)'
     }
   },
   {
     id: 'ent-sym-battery',
     type: 'symptom',
-    label: '증상/부품',
+    label: '고장증상',
     pattern: /배터리|충전|전원\s*불량|안\s*켜|방전|충전기/i,
     keywordId: 'kw-battery',
     colorScheme: {
-      bg: 'rgba(37, 99, 235, 0.18)',
-      border: '#60a5fa',
-      text: '#93c5fd',
-      glow: '0 0 8px rgba(37, 99, 235, 0.5)'
+      bg: 'rgba(239, 68, 68, 0.18)',
+      border: '#ef4444',
+      text: '#fecaca',
+      glow: '0 0 8px rgba(239, 68, 68, 0.5)'
     }
   },
   {
     id: 'ent-sym-solenoid',
     type: 'symptom',
-    label: '증상/부품',
+    label: '고장증상',
     pattern: /솔레노이드|물\s*안\s*나옴|누수|급수\s*밸브|세제\s*분사/i,
     keywordId: 'kw-solenoid',
     colorScheme: {
-      bg: 'rgba(37, 99, 235, 0.18)',
-      border: '#60a5fa',
-      text: '#93c5fd',
-      glow: '0 0 8px rgba(37, 99, 235, 0.5)'
+      bg: 'rgba(239, 68, 68, 0.18)',
+      border: '#ef4444',
+      text: '#fecaca',
+      glow: '0 0 8px rgba(239, 68, 68, 0.5)'
     }
   },
 
@@ -316,10 +397,11 @@ export interface EntityClickHandlers {
   onSymptomClick: (entity: KeywordEntity) => void;
   onCustomerClick?: (customer: CustomerInfo) => void;
   onSiteClick?: (customer: CustomerInfo) => void;
+  onModelClick?: (modelId: string) => void;
   onActionClick?: (actionRule: EntityRule) => void;
 }
 
-// Master Unified Regex capturing Customers, Sites, Symptoms, and Action SOP steps dynamically
+// Master Unified Regex capturing Customers, Sites, Models, Symptoms, and Action SOP steps dynamically
 const masterRegex = new RegExp('(' + NAMED_ENTITY_REGISTRY.map(r => r.pattern.source).join('|') + ')', 'gi');
 
 export function renderMultiColorHighlightedText(
@@ -355,6 +437,8 @@ export function renderMultiColorHighlightedText(
           if (cust && handlers.onCustomerClick) {
             handlers.onCustomerClick(cust);
           }
+        } else if (matchedRule.type === 'model' && matchedRule.modelId && handlers.onModelClick) {
+          handlers.onModelClick(matchedRule.modelId);
         } else if (matchedRule.type === 'action' && handlers.onActionClick) {
           handlers.onActionClick(matchedRule);
         }
@@ -364,6 +448,8 @@ export function renderMultiColorHighlightedText(
         ? `[고객사: ${part}]` 
         : matchedRule.type === 'site' 
         ? `[현장/위치: ${part}]` 
+        : matchedRule.type === 'model'
+        ? `[장비모델: ${part}]`
         : matchedRule.type === 'action'
         ? `[조치사항: ${part}]` 
         : `[증상: ${part}]`;

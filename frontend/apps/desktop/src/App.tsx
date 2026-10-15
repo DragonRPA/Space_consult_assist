@@ -11,22 +11,14 @@ import {
   Square, 
   Volume2, 
   Radio, 
-  BrainCircuit, 
   Zap, 
   HelpCircle, 
   Play, 
   Pause, 
   Upload, 
   FileAudio, 
-  FileText,
-  ClipboardList,
-  Calendar,
-  Edit3,
-  Eye,
   Loader2,
-  Download,
-  X,
-  BookOpen
+  X
 } from 'lucide-react';
 import { useCounselStore } from './store';
 import { MicTestModal } from './MicTestModal';
@@ -127,7 +119,7 @@ export default function App() {
   );
 }
 
-function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
+function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => void }) {
 
 
   const {
@@ -141,15 +133,12 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
     audioCurrentTime,
     audioDuration,
     sttEngine,
-    setSttEngine,
     setActiveAudioFile,
     clearAudioFile,
     setIsAudioPlaying,
     setAudioTime,
     resetSessionForNewAudio,
     isContextCorrectionEnabled,
-    correctionHistory,
-    toggleContextCorrection,
     activeKeywordEntity,
     detectedKeywordEntities,
     setActiveKeywordEntity,
@@ -173,6 +162,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
     resetCallTimer,
     setSearchQuery,
     selectCustomer,
+    setSelectedCustomerModel,
     appendFinalParagraph,
     setInterimSttText,
     setDiagnosisResult,
@@ -191,27 +181,22 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
   const [salesTransferNote, setSalesTransferNote] = useState("기존 장비 가동률 증가로 추가 1대 렌탈 단가 견적 요청");
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [isMicTestOpen, setIsMicTestOpen] = useState(false);
-  const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
-  const [isDirectEditMode, setIsDirectEditMode] = useState(false);
   const [showAllSymptoms, setShowAllSymptoms] = useState(false);
   const [isWhisperLauncherModalOpen, setIsWhisperLauncherModalOpen] = useState(false);
   const [gpuServerOnline, setGpuServerOnline] = useState<boolean | null>(null);
-  const [isLoopbackActive, setIsLoopbackActive] = useState(false);
   const [isAudioStreamingActive, setIsAudioStreamingActive] = useState(false);
-  const [loopbackDevice, setLoopbackDevice] = useState<string>('');
-  const [loopbackDevices, setLoopbackDevices] = useState<{id: string; name: string}[]>([]);
-  const [directEditableText, setDirectEditableText] = useState('');
-  const [pastedInputText, setPastedInputText] = useState('');
+  const [loopbackDevice] = useState<string>('');
   const [micAudioLevel, setMicAudioLevel] = useState(0);
   const [justTriggeredKeyword, setJustTriggeredKeyword] = useState<string | null>(null);
   const [isDragOverDropzone, setIsDragOverDropzone] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
+  const audioSegmentsRef = useRef<{ start: number; end: number; text: string; dispatched?: boolean }[]>([]);
   // ── STT 청크 시간 설정 ─────────────────────────────────────────────────────
-  const [whisperMaxChunkSec, setWhisperMaxChunkSec] = useState(1.2);   // Whisper 최대 세그먼트 (초)
-  const [whisperSilenceSec, setWhisperSilenceSec] = useState(0.2);     // Whisper 무음 감지 (초)
-  const [webSpeechSilenceSec, setWebSpeechSilenceSec] = useState(1.0); // Web Speech 커밋 지연 (초)
+  const whisperMaxChunkSec = 1.2;   // Whisper 최대 세그먼트 (초)
+  const whisperSilenceSec = 0.2;     // Whisper 무음 감지 (초)
+  const webSpeechSilenceSec = 1.0; // Web Speech 커밋 지연 (초)
   const webSpeechSilenceSecRef = useRef(1.0);
   const webSpeechCommitTimerRef = useRef<number | null>(null);
 
@@ -224,12 +209,6 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
         if (!isMounted) return;
         if (res.ok) {
           setGpuServerOnline(true);
-          try {
-            const data = await res.json();
-            if (Array.isArray(data.loopback_devices) && data.loopback_devices.length > 0) {
-              setLoopbackDevices(data.loopback_devices);
-            }
-          } catch (_) { /* JSON 파싱 실패해도 online 상태는 유지 */ }
         } else {
           setGpuServerOnline(false);
         }
@@ -260,7 +239,6 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
 
   const globalAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const txtFileInputRef = useRef<HTMLInputElement | null>(null);
   const loopbackWsRef = useRef<WebSocket | null>(null);
   const isRecordingRef = useRef(isRecording);
   isRecordingRef.current = isRecording;
@@ -297,7 +275,19 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
       }
     }
 
-    // 3. Action SOP Auto-Check
+    // 3. Model Identification
+    for (const entRule of NAMED_ENTITY_REGISTRY) {
+      if (entRule.type === 'model' && entRule.pattern.test(text)) {
+        if (entRule.modelId) {
+          setSelectedCustomerModel(entRule.modelId);
+          showToast(`[장비 모델 감지: ${entRule.modelId}] 고객 장비 매핑 완료`);
+          setTimeout(() => clearToast(), 3000);
+        }
+        break;
+      }
+    }
+
+    // 4. Action SOP Auto-Check
     for (const entRule of NAMED_ENTITY_REGISTRY) {
       if (entRule.type === 'action' && entRule.pattern.test(text)) {
         if (entRule.actionIndex && actionChecklist[entRule.actionIndex - 1] && !actionChecklist[entRule.actionIndex - 1].checked) {
@@ -348,7 +338,6 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
     if (!content || !content.trim()) return;
     resetSessionForNewAudio();
     clearAudioFile();
-    setDirectEditableText(content);
 
     const rawLines = content.split('\n');
     const validLines: string[] = [];
@@ -368,25 +357,6 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
 
     showToast(`[${sourceName}] ${validLines.length}줄 분석: 증상/고객/조치 표출 완료`);
     setTimeout(() => clearToast(), 3500);
-  };
-
-
-  // Handle direct interactive editing in the transcript box
-  const handleDirectTextChange = (text: string) => {
-    setDirectEditableText(text);
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    
-    useCounselStore.setState({
-      rawParagraphs: lines,
-      finalParagraphs: lines
-    });
-
-    lines.forEach(line => {
-      const cleanLine = line.replace(/^\[\d{1,2}:\d{2}(:\d{2})?\]\s*/, '');
-      if (cleanLine) {
-        evaluateUtteranceRules(cleanLine);
-      }
-    });
   };
 
   const recognitionRef = useRef<any>(null);
@@ -420,9 +390,6 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
   }, [sttEngine, setRecording]);
 
 
-  // ── WASAPI Loopback Real-time STT (Always-On Auto-Connect) ────────────────
-  const [lastRecordingFile, setLastRecordingFile] = useState<string | null>(null);
-
   useEffect(() => {
     // Faster-Whisper GPU 모드 또는 NAVER CLOVA 모드 및 로컬 서버가 켜져 있으면 상시 루프백 연결 (Always-On)
     const isLoopbackEngine = sttEngine === 'whisper_large_v3' || sttEngine === 'naver_clova';
@@ -434,7 +401,6 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
         } catch (_) {}
         loopbackWsRef.current = null;
       }
-      setIsLoopbackActive(false);
       return;
     }
 
@@ -454,7 +420,6 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             device: loopbackDevice || null,
             engine_provider: sttEngine
           }));
-          setIsLoopbackActive(true);
           setRecording(true);
         };
 
@@ -483,7 +448,6 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
 
             if (msg.status === 'stopped' && msg.recording) {
               setIsAudioStreamingActive(false);
-              setLastRecordingFile(msg.recording);
               showToast(`[녹음 저장] ${msg.recording}`);
               setTimeout(() => clearToast(), 4000);
             }
@@ -495,12 +459,9 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
 
 
 
-        ws.onerror = () => {
-          setIsLoopbackActive(false);
-        };
+        ws.onerror = () => {};
 
         ws.onclose = () => {
-          setIsLoopbackActive(false);
           loopbackWsRef.current = null;
           // 연결이 비정상 종료된 경우 3초 후 자동 재연결
           if (!isDisposed && (sttEngine === 'whisper_large_v3' || sttEngine === 'naver_clova') && gpuServerOnline) {
@@ -524,37 +485,60 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
         } catch (_) {}
         loopbackWsRef.current = null;
       }
-      setIsLoopbackActive(false);
     };
   }, [sttEngine, gpuServerOnline, loopbackDevice, appendFinalParagraph, showToast, clearToast, setRecording]);
 
 
   const processAudioWithActiveEngine = useCallback(async (file: File) => {
-    // 이전 스케줄된 타이머 전부 취소
-    if ((window as any).__segTimers) {
-      ((window as any).__segTimers as number[]).forEach(clearTimeout);
-    }
-    (window as any).__segTimers = [];
-
+    // 이전 세그먼트 및 세션 초기화
+    audioSegmentsRef.current = [];
     resetSessionForNewAudio();
     setActiveAudioFile(file);
     setIsAudioPlaying(true);
+    setRecording(true);
 
-    // 백엔드 루프백 버퍼 클리어 요청 (GPU 모드: WASAPI 루프백이 스피커 출력을 실시간 수신)
+    // 백엔드 루프백 버퍼 클리어 요청
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
       try {
         loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' }));
       } catch (_) {}
     }
 
-    // Web Speech API 모드인 경우에만 브라우저 마이크 스트리밍 가동
-    // GPU 모드는 파일 재생 → 스피커 출력 → WASAPI 루프백 실시간 수신으로 처리 (파일 전송 없음)
+    // Faster-Whisper GPU 백엔드 고속 사전 전사 호출 (동기화 자막 생성)
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('http://127.0.0.1:8000/api/v1/stt/transcribe-file', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer space-advisor-desktop-agent'
+        },
+        body: formData
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.segments) && data.segments.length > 0) {
+          audioSegmentsRef.current = data.segments.map((seg: any) => ({
+            start: Number(seg.start) || 0,
+            end: Number(seg.end) || 0,
+            text: seg.text || '',
+            dispatched: false
+          }));
+          showToast(`[${file.name}] 음성 전사 완료 (${data.segments.length}개 세그먼트 실시간 동기화)`);
+          setTimeout(() => clearToast(), 3000);
+        }
+      }
+    } catch (err) {
+      console.warn("파일 고속 전사 API 실패, 루프백/Web Speech 폴백 유지:", err);
+    }
+
     if (sttEngine === 'web_speech') {
       startSttStreaming();
       showToast(`[${file.name}] Web Speech STT 수신 시작`);
       setTimeout(() => clearToast(), 3500);
     }
-  }, [sttEngine, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, startSttStreaming, showToast, clearToast]);
+  }, [sttEngine, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, setRecording, startSttStreaming, showToast, clearToast]);
 
 
 
@@ -638,8 +622,16 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
     }
   }, [isAudioPlaying, activeAudioUrl]);
 
-  const handleAudioTimeUpdate = (_currentTimeSec: number) => {
-    // Real-time audio time update for playback scrub bar
+  const handleAudioTimeUpdate = (currentTimeSec: number) => {
+    // 오디오 재생 시간에 맞추어 사전 분석된 STT 세그먼트를 실시간으로 화면과 규칙 엔진에 디스패치
+    if (audioSegmentsRef.current && audioSegmentsRef.current.length > 0) {
+      for (const seg of audioSegmentsRef.current) {
+        if (!seg.dispatched && currentTimeSec >= seg.start) {
+          seg.dispatched = true;
+          processIncomingSpeechUtterance(seg.text);
+        }
+      }
+    }
   };
 
   const handleManualFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -677,6 +669,10 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
       globalAudioRef.current.pause();
       globalAudioRef.current.currentTime = 0;
     }
+    // 세그먼트 디스패치 플래그 초기화
+    if (audioSegmentsRef.current) {
+      audioSegmentsRef.current.forEach((s: { dispatched?: boolean }) => { s.dispatched = false; });
+    }
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
       try { loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' })); } catch (_) {}
     }
@@ -695,6 +691,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
       globalAudioRef.current.removeAttribute('src');
       globalAudioRef.current.load();
     }
+    audioSegmentsRef.current = [];
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
       try { loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' })); } catch (_) {}
     }
@@ -874,7 +871,19 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
           }
         }
 
-        // 3. Action Trigger: Auto-check SOP checklist step on counselor speech
+        // 3. Model Trigger
+        for (const entRule of NAMED_ENTITY_REGISTRY) {
+          if (entRule.type === 'model' && entRule.pattern.test(currentStream)) {
+            if (entRule.modelId) {
+              setSelectedCustomerModel(entRule.modelId);
+              showToast(`[장비모델] [${entRule.modelId}] 자동 매핑 완료`);
+              setTimeout(() => clearToast(), 3000);
+            }
+            break;
+          }
+        }
+
+        // 4. Action Trigger: Auto-check SOP checklist step on counselor speech
         for (const entRule of NAMED_ENTITY_REGISTRY) {
           if (entRule.type === 'action' && entRule.pattern.test(currentStream)) {
             if (entRule.actionIndex && actionChecklist[entRule.actionIndex - 1] && !actionChecklist[entRule.actionIndex - 1].checked) {
@@ -1132,24 +1141,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
         style={{ display: 'none' }}
       />
 
-      {/* Hidden File Input for Direct TXT File Choice */}
-      <input
-        ref={txtFileInputRef}
-        type="file"
-        accept=".txt,.log,text/plain"
-        onChange={(e) => {
-          if (e.target.files && e.target.files.length > 0) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-              const text = ev.target?.result as string;
-              if (text) handlePasteText(text, file.name);
-            };
-            reader.readAsText(file, 'utf-8');
-          }
-        }}
-        style={{ display: 'none' }}
-      />
+
       
       {/* ========================================================= */}
       {/* 1. TOP GLOBAL NAVIGATION (Linear High-Density Bar)        */}
@@ -1181,82 +1173,13 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
 
           <div style={{ height: '16px', width: '1px', backgroundColor: 'var(--hairline)', flexShrink: 0 }} />
 
-          <button
-            onClick={() => window.location.href = '/schedule'}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '5px 10px',
-              borderRadius: '6px',
-              backgroundColor: 'var(--accent-primary)',
-              color: '#fff',
-              border: 'none',
-              fontSize: '13.5px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              flexShrink: 0
-            }}
-          >
-            <Calendar size={14} />
-            <span>업무 일정 ↗</span>
-          </button>
-
-          <button
-            onClick={() => {
-              if (onOpenGuides) {
-                onOpenGuides();
-              } else {
-                window.location.href = '/?view=guides';
-              }
-            }}
-            data-uia="btn-legacy-goto-guides"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '5px 10px',
-              borderRadius: '6px',
-              backgroundColor: '#1d4ed8',
-              color: '#fff',
-              border: '1px solid #2563eb',
-              fontSize: '13.5px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-              boxShadow: '0 2px 4px rgba(29, 78, 216, 0.3)'
-            }}
-          >
-            <BookOpen size={14} />
-            <span>상황별 수칙 ↗</span>
-          </button>
+          <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+            상담원: <strong style={{ color: 'var(--ink)', fontWeight: 600 }}>{counselorName}</strong>
+          </span>
         </div>
 
-        {/* Semantic Contextual STT Correction Toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-          <button
-            onClick={toggleContextCorrection}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 9px',
-              borderRadius: '6px',
-              backgroundColor: isContextCorrectionEnabled ? 'rgba(37, 99, 235, 0.15)' : 'var(--surface-2)',
-              border: `1px solid ${isContextCorrectionEnabled ? 'var(--accent-primary)' : 'var(--hairline)'}`,
-              color: isContextCorrectionEnabled ? '#93c5fd' : 'var(--ink-muted)',
-              fontSize: '13.5px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            <BrainCircuit size={13} style={{ color: isContextCorrectionEnabled ? 'var(--accent-primary)' : 'var(--ink-subtle)' }} />
-            <span>맥락적 STT 자동 보정: <strong>{isContextCorrectionEnabled ? "ON" : "OFF"}</strong></span>
-          </button>
-
+        {/* Live Audio & STT Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, whiteSpace: 'nowrap' }}>
           {/* Real-time Streaming Status Badge */}
           <div style={{
             display: 'flex',
@@ -1273,238 +1196,6 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
             <Radio size={12} className={isCallActive ? "animate-pulse" : ""} />
             <span>상태: <strong>{isCallActive ? "음성 스트리밍 수신 중" : "대기"}</strong></span>
           </div>
-
-        </div>
-
-        {/* Live Audio & STT Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-          
-          {/* Triple STT Engine Selection Switcher */}
-          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--surface-2)', padding: '2px', borderRadius: '6px', border: '1px solid var(--hairline)', whiteSpace: 'nowrap' }}>
-            <button
-              onClick={() => {
-                setSttEngine('whisper_large_v3');
-                if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
-                  try { loopbackWsRef.current.send(JSON.stringify({ action: 'set_engine', engine_provider: 'whisper_large_v3' })); } catch (_) {}
-                }
-                showToast("[STT 엔진 전환] Faster-Whisper Large-v3 (RTX 5080 GPU 가속) 활성화");
-                setTimeout(() => clearToast(), 3000);
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '4px 8px',
-                fontSize: '13.5px',
-                fontWeight: 700,
-                borderRadius: '4px',
-                border: 'none',
-                backgroundColor: sttEngine === 'whisper_large_v3' ? 'var(--accent-primary)' : 'transparent',
-                color: sttEngine === 'whisper_large_v3' ? '#fff' : 'var(--ink-muted)',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <span style={{
-                display: 'inline-block',
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                backgroundColor: gpuServerOnline ? 'var(--accent-success)' : 'var(--accent-danger)'
-              }} />
-              <span>Faster-Whisper (GPU)</span>
-            </button>
-            <button
-              data-uia="btn-stt-naver-clova"
-              onClick={() => {
-                setSttEngine('naver_clova');
-                if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
-                  try { loopbackWsRef.current.send(JSON.stringify({ action: 'set_engine', engine_provider: 'naver_clova' })); } catch (_) {}
-                }
-                showToast("[STT 엔진 전환] NAVER CLOVA Speech (CSR 클라우드) 활성화");
-                setTimeout(() => clearToast(), 3000);
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '4px 8px',
-                fontSize: '13.5px',
-                fontWeight: 700,
-                borderRadius: '4px',
-                border: 'none',
-                backgroundColor: sttEngine === 'naver_clova' ? '#03c75a' : 'transparent',
-                color: sttEngine === 'naver_clova' ? '#fff' : 'var(--ink-muted)',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <span style={{
-                display: 'inline-block',
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                backgroundColor: '#fff'
-              }} />
-              <span>NAVER CLOVA</span>
-            </button>
-            <button
-              onClick={() => {
-                setSttEngine('web_speech');
-                showToast("[STT 엔진 전환] Web Speech (브라우저 기본) 활성화");
-                setTimeout(() => clearToast(), 3000);
-              }}
-              style={{
-                padding: '4px 8px',
-                fontSize: '13.5px',
-                fontWeight: 700,
-                borderRadius: '4px',
-                border: 'none',
-                backgroundColor: sttEngine === 'web_speech' ? 'var(--accent-warning)' : 'transparent',
-                color: sttEngine === 'web_speech' ? '#0f172a' : 'var(--ink-muted)',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              Web Speech (브라우저)
-            </button>
-          </div>
-
-          {/* STT 청크 시간 설정 */}
-          {(sttEngine === 'whisper_large_v3' || sttEngine === 'naver_clova') ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>무음 감지</span>
-                <select
-                  value={whisperSilenceSec}
-                  onChange={e => setWhisperSilenceSec(parseFloat(e.target.value))}
-                  style={{ fontSize: '13.5px', padding: '2px 4px', borderRadius: '4px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', color: 'var(--ink)', cursor: 'pointer' }}
-                >
-                  {[0.1, 0.2, 0.3, 0.5, 1.0, 1.5].map(v => (
-                    <option key={v} value={v}>{v}s</option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>최대 청크</span>
-                <select
-                  value={whisperMaxChunkSec}
-                  onChange={e => setWhisperMaxChunkSec(parseFloat(e.target.value))}
-                  style={{ fontSize: '13.5px', padding: '2px 4px', borderRadius: '4px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', color: 'var(--ink)', cursor: 'pointer' }}
-                >
-                  {[0.5, 1.0, 1.2, 2.0, 3.0, 5.0].map(v => (
-                    <option key={v} value={v}>{v}s</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>커밋 지연</span>
-              <select
-                value={webSpeechSilenceSec}
-                onChange={e => setWebSpeechSilenceSec(parseFloat(e.target.value))}
-                style={{ fontSize: '13.5px', padding: '2px 4px', borderRadius: '4px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', color: 'var(--ink)', cursor: 'pointer' }}
-              >
-                {[0.5, 1.0, 1.5, 2.0, 3.0].map(v => (
-                  <option key={v} value={v}>{v}s</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Local Whisper / NAVER CLOVA Live State Indicator + Loopback STT Controls */}
-          {(sttEngine === 'whisper_large_v3' || sttEngine === 'naver_clova') && (
-            gpuServerOnline ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-
-                {/* 상태 배지 (Always-On) */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '5px',
-                  padding: '4px 9px', borderRadius: '6px', fontSize: '13.5px', fontWeight: 700,
-                  backgroundColor: isLoopbackActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                  border: `1px solid ${isLoopbackActive ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`,
-                  color: isLoopbackActive ? 'var(--accent-success)' : 'var(--accent-warning)',
-                  whiteSpace: 'nowrap'
-                }}>
-                  <span
-                    style={{
-                      display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%',
-                      backgroundColor: isLoopbackActive ? 'var(--accent-success)' : 'var(--accent-warning)'
-                    }}
-                    className="animate-pulse"
-                  />
-                  <span>{isLoopbackActive ? '루프백 실시간 수신 상시 가동' : '루프백 연결 중'}</span>
-                </div>
-
-                {/* 녹음 다운로드 버튼 (녹음 파일 생성 시) */}
-                {lastRecordingFile && (
-                  <a
-                    href={`http://127.0.0.1:8000/api/v1/stt/recordings/${lastRecordingFile}`}
-                    download={lastRecordingFile}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '4px',
-                      padding: '4px 10px', borderRadius: '6px',
-                      backgroundColor: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)',
-                      color: 'var(--accent-success)', fontSize: '13.5px', fontWeight: 700,
-                      textDecoration: 'none', whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <Download size={11} />
-                    <span>녹음 다운로드</span>
-                  </a>
-                )}
-
-                {loopbackDevices.length > 0 && (
-                  <select
-                    value={loopbackDevice}
-                    onChange={(e) => setLoopbackDevice(e.target.value)}
-                    style={{
-                      padding: '3px 6px', borderRadius: '4px', fontSize: '13.5px',
-                      backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)',
-                      color: 'var(--ink-muted)', maxWidth: '160px', cursor: 'pointer'
-                    }}
-                  >
-                    <option value="">자동 감지 (VB-CABLE 우선)</option>
-                    {loopbackDevices.map(d => (
-                      <option key={d.id} value={d.name}>{d.name.length > 28 ? d.name.slice(0, 28) + '…' : d.name}</option>
-                    ))}
-                  </select>
-                )}
-
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '5px',
-                  padding: '4px 8px', borderRadius: '6px',
-                  backgroundColor: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)',
-                  fontSize: '13.5px', fontWeight: 600, color: 'var(--accent-danger)',
-                  whiteSpace: 'nowrap'
-                }}>
-                  <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--accent-danger)' }} />
-                  <span>로컬 휘스퍼 미실행</span>
-                </div>
-                <button
-                  onClick={() => setIsWhisperLauncherModalOpen(true)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '4px',
-                    padding: '4px 10px', borderRadius: '6px',
-                    backgroundColor: 'var(--accent-primary)', color: '#fff',
-                    border: 'none', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  <Play size={11} fill="#fff" />
-                  <span>실행하기</span>
-                </button>
-              </div>
-            )
-          )}
-
 
           {/* Dedicated Mic Test Button */}
           <button
@@ -1773,17 +1464,6 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
                   전사 자막 및 개체 감지
                 </span>
-                <span style={{ 
-                  fontSize: '13.5px', 
-                  fontWeight: 700, 
-                  padding: '1px 6px', 
-                  borderRadius: '3px', 
-                  backgroundColor: sttEngine === 'whisper_large_v3' ? 'rgba(37, 99, 235, 0.2)' : sttEngine === 'naver_clova' ? 'rgba(3, 199, 90, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                  color: sttEngine === 'whisper_large_v3' ? '#93c5fd' : sttEngine === 'naver_clova' ? '#4ade80' : '#fde68a',
-                  border: `1px solid ${sttEngine === 'whisper_large_v3' ? 'rgba(37, 99, 235, 0.4)' : sttEngine === 'naver_clova' ? 'rgba(3, 199, 90, 0.45)' : 'rgba(245, 158, 11, 0.4)'}`
-                }}>
-                  {sttEngine === 'whisper_large_v3' ? 'Faster-Whisper (GPU)' : sttEngine === 'naver_clova' ? 'NAVER CLOVA Speech' : 'Web Speech (브라우저)'}
-                </span>
               </div>
               
               {/* Dynamic Mic Activity Indicator */}
@@ -1799,7 +1479,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               </div>
             </div>
 
-            {/* 4-Entity Color Scheme Legend Bar */}
+            {/* 5-Entity Color Scheme Legend Bar */}
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -1818,6 +1498,9 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
               </span>
               <span style={{ color: '#fde68a', backgroundColor: 'rgba(245, 158, 11, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
                 현장/위치 (황색)
+              </span>
+              <span style={{ color: '#e9d5ff', backgroundColor: 'rgba(168, 85, 247, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+                장비모델 (보라)
               </span>
               <span style={{ color: '#fecaca', backgroundColor: 'rgba(220, 38, 38, 0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
                 고장증상 (적색)
@@ -1865,40 +1548,9 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    onClick={() => {
-                      if (!isDirectEditMode) {
-                        setDirectEditableText(activeParagraphs.join('\n'));
-                      }
-                      setIsDirectEditMode(!isDirectEditMode);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: '3px 8px',
-                      backgroundColor: isDirectEditMode ? 'var(--accent-warning)' : 'var(--surface-3)',
-                      color: isDirectEditMode ? '#0f172a' : 'var(--ink)',
-                      border: '1px solid var(--hairline)',
-                      borderRadius: '4px',
-                      fontSize: '13.5px',
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                    title={isDirectEditMode ? "하이라이트 뷰로 전환" : "텍스트 직접 편집 모드로 전환"}
-                  >
-                    {isDirectEditMode ? <Eye size={12} /> : <Edit3 size={12} />}
-                    <span>{isDirectEditMode ? '하이라이트 보기' : '텍스트 직접 편집'}</span>
-                  </button>
-
-                  <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>
-                    {isDirectEditMode ? '대화록을 직접 수정/작성 중' : '전사 자막 (더블클릭 시 직접 편집 가능)'}
-                  </label>
-                  {correctionHistory.length > 0 && isContextCorrectionEnabled && !isDirectEditMode && (
-                    <span style={{ fontSize: '13.5px', color: 'var(--accent-primary)', fontWeight: 600 }}>
-                      맥락 보정 {correctionHistory.length}건
-                    </span>
-                  )}
+                  <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', fontWeight: 600 }}>
+                    음성 파일(.m4a)을 선택하여 실시간 통화 데모를 시작하세요
+                  </span>
                 </div>
               )}
             </div>
@@ -1957,57 +1609,10 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   >
                     <X size={14} />
                   </button>
-                </>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <button 
-                    onClick={() => txtFileInputRef.current?.click()}
-                    title="대화록 텍스트(.txt) 파일 열기"
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '4px', 
-                      padding: '4px 8px', 
-                      backgroundColor: 'var(--surface-2)', 
-                      border: '1px solid var(--hairline)', 
-                      borderRadius: '4px', 
-                      color: '#93c5fd', 
-                      fontSize: '13.5px', 
-                      cursor: 'pointer', 
-                      fontWeight: 600 
-                    }}
-                  >
-                    <FileText size={12} />
-                    <span>.txt 열기</span>
-                  </button>
-
-                  <button 
-                    onClick={() => {
-                      setPastedInputText('');
-                      setIsPasteModalOpen(true);
-                    }}
-                    title="대화록 텍스트 직접 붙여넣기 (Ctrl+V)"
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '4px', 
-                      padding: '4px 8px', 
-                      backgroundColor: 'rgba(37, 99, 235, 0.15)', 
-                      border: '1px solid var(--accent-primary)', 
-                      borderRadius: '4px', 
-                      color: '#93c5fd', 
-                      fontSize: '13.5px', 
-                      cursor: 'pointer', 
-                      fontWeight: 600 
-                    }}
-                  >
-                    <ClipboardList size={12} />
-                    <span>텍스트 붙여넣기</span>
-                  </button>
 
                   <button 
                     onClick={() => fileInputRef.current?.click()}
-                    title="음성(.m4a) 파일 열기"
+                    title="다른 음성(.m4a) 파일 열기"
                     style={{ 
                       display: 'flex', 
                       alignItems: 'center', 
@@ -2023,6 +1628,30 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                     }}
                   >
                     <Upload size={12} />
+                    <span>.m4a 변경</span>
+                  </button>
+                </>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    title="음성(.m4a) 파일 열기"
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '4px', 
+                      padding: '5px 12px', 
+                      backgroundColor: 'var(--accent-primary)', 
+                      border: 'none', 
+                      borderRadius: '4px', 
+                      color: '#fff', 
+                      fontSize: '13.5px', 
+                      cursor: 'pointer', 
+                      fontWeight: 700,
+                      boxShadow: '0 0 10px rgba(37, 99, 235, 0.4)'
+                    }}
+                  >
+                    <Upload size={13} />
                     <span>.m4a 열기</span>
                   </button>
                 </div>
@@ -2053,22 +1682,14 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                 const isUp = target.scrollHeight - target.scrollTop - target.clientHeight > 80;
                 setIsUserScrolledUp(isUp);
               }}
-              onDoubleClick={() => {
-                // 텍스트 선택 중(드래그)에는 직접 수정 모드로 강제 전환 방지
-                const sel = window.getSelection()?.toString().trim();
-                if (!sel && !isDirectEditMode) {
-                  setDirectEditableText(activeParagraphs.join('\n'));
-                  setIsDirectEditMode(true);
-                }
-              }}
               style={{ 
                 flex: 1, 
                 minHeight: 0,
                 backgroundColor: isDragOverDropzone ? 'rgba(37, 99, 235, 0.18)' : 'var(--surface-2)', 
                 border: isDragOverDropzone ? '2px dashed var(--accent-primary)' : '1px solid var(--hairline)', 
                 borderRadius: '6px', 
-                padding: isDirectEditMode ? '4px' : '12px', 
-                overflowY: isDirectEditMode ? 'hidden' : 'auto',
+                padding: '12px', 
+                overflowY: 'auto',
                 overflowX: 'hidden',
                 wordBreak: 'break-word',
                 fontSize: '14px',
@@ -2096,35 +1717,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                   borderRadius: '6px'
                 }}>
                   <Upload size={32} style={{ marginBottom: '8px', color: '#93c5fd' }} />
-                  <span>대화록(.txt) 또는 음성(.m4a) 파일을 놓으면 분석됩니다.</span>
+                  <span>음성(.m4a) 파일을 놓으면 실시간 재생 분석됩니다.</span>
                 </div>
               )}
 
-              {/* DIRECT EDITABLE TEXTAREA MODE */}
-              {isDirectEditMode ? (
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
-                  <textarea
-                    autoFocus
-                    value={directEditableText}
-                    onChange={(e) => handleDirectTextChange(e.target.value)}
-                    placeholder="대화 내용을 직접 타이핑하거나 붙여넣으세요. 입력 즉시 고장 증상과 조치 SOP가 반응합니다."
-                    style={{
-                      flex: 1,
-                      width: '100%',
-                      height: '100%',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      padding: '8px',
-                      color: 'var(--ink)',
-                      fontSize: '14px',
-                      fontFamily: 'monospace',
-                      lineHeight: 1.6,
-                      resize: 'none',
-                      outline: 'none'
-                    }}
-                  />
-                </div>
-              ) : activeParagraphs.length > 0 ? (
+              {activeParagraphs.length > 0 ? (
                 <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '14px' }}>
                   {activeParagraphs.map((line, pIdx) => {
                     const match = line.match(/^(\[\d{1,2}:\d{2}(?::\d{2})?\])\s*(.*)$/);
@@ -2157,6 +1754,11 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
                               onSymptomClick: handleKeywordSelect,
                               onCustomerClick: handleCustomerSelect,
                               onSiteClick: handleCustomerSelect,
+                              onModelClick: (modelId) => {
+                                setSelectedCustomerModel(modelId);
+                                showToast(`[장비모델 클릭: ${modelId}] 선택 고객 장비 매핑 완료`);
+                                setTimeout(() => clearToast(), 2500);
+                              },
                               onActionClick: handleActionSelect
                             },
                             activeKeywordEntity?.id,
@@ -2817,111 +2419,7 @@ function LegacySttApp({ onOpenGuides }: { onOpenGuides?: () => void }) {
       {/* ========================================================= */}
       <MicTestModal isOpen={isMicTestOpen} onClose={() => setIsMicTestOpen(false)} />
 
-      {/* ========================================================= */}
-      {/* 7. DIRECT TEXT CONVERSATION PASTE MODAL                   */}
-      {/* ========================================================= */}
-      {isPasteModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.75)',
-          backdropFilter: 'blur(3px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 150
-        }}>
-          <div style={{
-            width: '600px',
-            maxHeight: '85vh',
-            backgroundColor: 'var(--surface-1)',
-            border: '1px solid var(--hairline)',
-            borderRadius: '8px',
-            padding: '24px',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.8)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ClipboardList size={18} color="var(--accent-primary)" />
-                <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)' }}>대화록 텍스트 붙여넣기 및 즉시 분석</span>
-              </div>
-              <button 
-                onClick={() => setIsPasteModalOpen(false)} 
-                style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
 
-            <div style={{ fontSize: '14px', color: 'var(--ink-muted)', marginBottom: '12px', lineHeight: 1.5 }}>
-              실제 통화 녹취록 텍스트(타임스탬프 <code>[00:00:19]</code> 포함 가능)를 아래에 붙여넣으세요. 
-              입력 즉시 고객사 식별, 구어체 고장 증상 4색 하이라이트, 조치 SOP 체크리스트가 <strong>0.01초 만에 일괄 표출</strong>됩니다.
-            </div>
-
-            <textarea
-              autoFocus
-              value={pastedInputText}
-              onChange={(e) => setPastedInputText(e.target.value)}
-              placeholder={`[00:00:00] 네 안녕하세요 스페이스라고 합니다\n[00:00:19] 뒤에 고무패드 고정시키는게 깨졌어요\n[00:00:25] 예예 고무패드 고정시키는거 밑에 판 이야기하시는거죠?`}
-              style={{
-                width: '100%',
-                height: '220px',
-                backgroundColor: 'var(--surface-2)',
-                border: '1px solid var(--hairline)',
-                borderRadius: '6px',
-                padding: '12px',
-                color: 'var(--ink)',
-                fontSize: '14px',
-                fontFamily: 'monospace',
-                lineHeight: 1.6,
-                resize: 'vertical',
-                marginBottom: '16px'
-              }}
-            />
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                onClick={() => setIsPasteModalOpen(false)}
-                style={{
-                  padding: '9px 16px',
-                  backgroundColor: 'var(--surface-3)',
-                  border: '1px solid var(--hairline)',
-                  borderRadius: '6px',
-                  color: 'var(--ink)',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  fontWeight: 600
-                }}
-              >
-                취소
-              </button>
-
-              <button
-                disabled={!pastedInputText.trim()}
-                onClick={() => {
-                  handlePasteText(pastedInputText, '직접 입력 텍스트');
-                  setIsPasteModalOpen(false);
-                }}
-                style={{
-                  padding: '9px 20px',
-                  backgroundColor: pastedInputText.trim() ? 'var(--accent-primary)' : 'var(--surface-3)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  cursor: pastedInputText.trim() ? 'pointer' : 'not-allowed',
-                  boxShadow: pastedInputText.trim() ? '0 1px 3px rgba(0, 0, 0, 0.2)' : 'none'
-                }}
-              >
-                분석 실행
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ========================================================= */}
       {/* 8. LOCAL FASTER-WHISPER GPU LAUNCHER MODAL               */}

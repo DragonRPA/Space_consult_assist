@@ -95,6 +95,7 @@ interface CounselWorkstationState {
   resetCallTimer: () => void;
   setSearchQuery: (query: string) => void;
   selectCustomer: (customer: CustomerInfo) => void;
+  setSelectedCustomerModel: (modelName: string) => void;
   appendFinalParagraph: (rawText: string, correctedText: string, corrections: CorrectionEvent[]) => void;
   setInterimSttText: (text: string) => void;
   clearTranscript: () => void;
@@ -113,13 +114,13 @@ interface CounselWorkstationState {
 const DEFAULT_CUSTOMERS: CustomerInfo[] = [
   {
     id: 'a1111111-1111-1111-1111-111111111111',
-    name: '(주)스페이스클린 강남점',
-    manager: '최관리 팀장',
-    phone: '010-9123-4567',
-    address: '서울 강남구 테헤란로 123',
-    addressDetail: '지하 1층 방재실',
-    assetModel: 'SC-500 프리미엄 습식청소기',
-    serialNumber: 'SN-2025-SC500-089',
+    name: '반포자이 아파트 관리사무소',
+    manager: '박시설 시설과장',
+    phone: '010-9876-5432',
+    address: '서울 서초구 신반포로 270',
+    addressDetail: '지하 1층 방재실 / (주)클린에코 청소용역',
+    assetModel: 'J600T (보행식 습식청소기)',
+    serialNumber: 'SN-2025-J600T-089',
     salesType: '임대(렌탈)',
     warrantyRemaining: '무상 7개월 잔여',
     historyTimeline: [
@@ -130,32 +131,47 @@ const DEFAULT_CUSTOMERS: CustomerInfo[] = [
   },
   {
     id: 'a2222222-2222-2222-2222-222222222222',
-    name: '(주)미래물류센터 평택점',
-    manager: '정센터장',
-    phone: '010-8234-5678',
-    address: '경기 평택시 산단로 45',
-    addressDetail: '1층 물류데크',
-    assetModel: 'SC-800 대형 탑승형청소기',
-    serialNumber: 'SN-2024-SC800-012',
+    name: '래미안퍼스티지 관리지원센터',
+    manager: '이관리 관리소장',
+    phone: '010-8765-4321',
+    address: '서울 서초구 반포대로 275',
+    addressDetail: '지하 2층 주차장 관리소 / (주)삼원종합관리 미화팀',
+    assetModel: 'J800 (대형 탑승형 습식청소기)',
+    serialNumber: 'SN-2024-J800-012',
     salesType: '임대(렌탈)',
     warrantyRemaining: '무상 11개월 잔여',
     historyTimeline: [
-      { date: '2026-06-20', title: '구동 브러시 모터 점검 완료' }
+      { date: '2026-08-10', title: '메인 브러시 모터 점검 정상' }
     ]
   },
   {
     id: 'a1010101-1010-1010-1010-101010101010',
-    name: '(주)케이로지스 화성센터',
-    manager: '오센터장',
-    phone: '010-8888-4444',
-    address: '경기 화성시 남양읍 남양로 300',
-    addressDetail: 'A동 입출고 하역장',
-    assetModel: 'SC-800 대형 탑승형청소기',
-    serialNumber: 'SN-2024-SC800-088',
+    name: '도곡렉슬아파트 관리사무소',
+    manager: '최기술 기술팀장',
+    phone: '010-7654-3210',
+    address: '서울 강남구 선릉로 221',
+    addressDetail: '지하 방재실 / (주)한결에프엠',
+    assetModel: 'S7 (탑승형 습식청소기)',
+    serialNumber: 'SN-2024-S7-088',
     salesType: '임대(렌탈)',
     warrantyRemaining: '보증 만료 (유상)',
     historyTimeline: [
       { date: '14일 전 (08-09)', title: '[반복 AS 2회차] 흡입 모터 1차 교체 완료', isWarning: true }
+    ]
+  },
+  {
+    id: 'a3333333-3333-3333-3333-333333333333',
+    name: '가산디지털엠타워 관리단',
+    manager: '강센터 관리실장',
+    phone: '010-5432-1098',
+    address: '서울 금천구 가산디지털1로 186',
+    addressDetail: '지하 1층 하역장 / (주)피앤씨클린',
+    assetModel: 'S5 (소형 탑승형 습식청소기)',
+    serialNumber: 'SN-2025-S5-103',
+    salesType: '임대(렌탈)',
+    warrantyRemaining: '무상 10개월 잔여',
+    historyTimeline: [
+      { date: '2026-08-25', title: '충전기 플러그 접촉 점검 및 배터리 수우 체크' }
     ]
   }
 ];
@@ -260,6 +276,13 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
   resetCallTimer: () => set({ callSeconds: 0 }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   selectCustomer: (customer) => set({ selectedCustomer: customer }),
+  setSelectedCustomerModel: (modelName) => set((state) => ({
+    selectedCustomer: {
+      ...state.selectedCustomer,
+      assetModel: `${modelName} (실시간 발화 자동 식별)`,
+      serialNumber: `SN-2025-${modelName.replace(/[^A-Za-z0-9]/g, '')}-AUTO`
+    }
+  })),
   appendFinalParagraph: (rawText, correctedText, newCorrections) => set((state) => {
     const trimmed = (correctedText || rawText || '').trim();
     if (!trimmed) return state;
