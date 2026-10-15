@@ -26,6 +26,8 @@ import { PartsOrderQuotationModal } from './PartsOrderQuotationModal';
 import { SelfActionGuideModal, type SitePhotoSketchEvidence } from './SelfActionGuideModal';
 import { SymptomPhotoManagerModal } from './SymptomPhotoManagerModal';
 import { EquipmentManualModal } from './EquipmentManualModal';
+import { applyContextualCorrection, computeJamoSimilarity } from './contextCorrector';
+import { DOMAIN_KEYWORD_REGISTRY } from './keywordAssist';
 
 // ─── 타입 정의 ─────────────────────────────────────────────────────────────────
 export interface Customer {
@@ -259,34 +261,67 @@ export function cleanForSearch(str: string): string {
 
 export function matchesChosungOrText(target: string | undefined | null, query: string): boolean {
   if (!target || !query) return false;
+  const correctedQuery = applyContextualCorrection(query).correctedText || query;
+  const candidates = correctedQuery !== query ? [query, correctedQuery] : [query];
   const tNorm = target.toLowerCase();
-  const qNorm = query.toLowerCase();
-
-  // 1. 단순 텍스트 포함
-  if (tNorm.includes(qNorm)) return true;
-
-  // 2. 공백/특수문자 제거 후 텍스트 포함
   const tClean = cleanForSearch(target);
-  const qClean = cleanForSearch(query);
-  if (tClean.includes(qClean)) return true;
-
-  // 3. 초성 분해 포함
   const tChosung = extractChosung(tNorm);
-  const qChosung = extractChosung(qNorm);
-  if (tChosung.includes(qChosung)) return true;
-
-  // 4. 공백/특수문자 제거 후 초성 포함
   const tCleanChosung = extractChosung(tClean);
-  const qCleanChosung = extractChosung(qClean);
-  if (tCleanChosung.includes(qCleanChosung)) return true;
+
+  for (const cand of candidates) {
+    const qNorm = cand.toLowerCase();
+    // 1. 단순 텍스트 포함
+    if (tNorm.includes(qNorm)) return true;
+
+    // 2. 공백/특수문자 제거 후 텍스트 포함
+    const qClean = cleanForSearch(cand);
+    if (qClean && tClean.includes(qClean)) return true;
+
+    // 3. 초성 분해 포함
+    const qChosung = extractChosung(qNorm);
+    if (qChosung && tChosung.includes(qChosung)) return true;
+
+    // 4. 공백/특수문자 제거 후 초성 포함
+    const qCleanChosung = extractChosung(qClean);
+    if (qCleanChosung && tCleanChosung.includes(qCleanChosung)) return true;
+
+    // 5. 한국어 자모 음운 유사도 슬라이딩 비교 (예: 솔노이드 vs 솔레노이드, 스끼즈 vs 스퀴지)
+    if (qClean.length >= 3 && tClean.length >= 3 && /[가-힣]/.test(qClean)) {
+      const qLen = qClean.length;
+      const minW = Math.max(3, qLen - 1);
+      const maxW = Math.min(tClean.length, qLen + 1);
+      for (let w = minW; w <= maxW; w++) {
+        for (let i = 0; i + w <= tClean.length; i++) {
+          const sub = tClean.slice(i, i + w);
+          if (computeJamoSimilarity(qClean, sub) >= 0.78) {
+            return true;
+          }
+        }
+      }
+    }
+  }
 
   return false;
 }
 
 export function calculateSymptomMatchScore(preset: SymptomPreset, query: string): number {
   if (!query || !query.trim()) return 1;
-  const q = query.trim().toLowerCase();
+  const rawQ = query.trim();
+  const correctedQ = applyContextualCorrection(rawQ).correctedText.trim();
+  const q = correctedQ.toLowerCase();
   let score = 0;
+
+  // 0. 16대 표준 고장 구어체 조합 정규식(DOMAIN_KEYWORD_REGISTRY) 직접 매칭
+  for (const entity of DOMAIN_KEYWORD_REGISTRY) {
+    const isSamePreset =
+      (preset.id && entity.canonicalId === preset.id) ||
+      (preset.part_code && entity.partCode === preset.part_code) ||
+      preset.title.includes(entity.keyword.split('/')[0].trim());
+    if (isSamePreset && (entity.synonyms.test(rawQ) || entity.synonyms.test(correctedQ))) {
+      score = Math.max(score, 85);
+      break;
+    }
+  }
 
   // 1. Title 매칭
   if (matchesChosungOrText(preset.title, q)) {
@@ -303,7 +338,7 @@ export function calculateSymptomMatchScore(preset: SymptomPreset, query: string)
   if (preset.aliases && preset.aliases.length > 0) {
     for (const alias of preset.aliases) {
       if (matchesChosungOrText(alias, q)) {
-        score = Math.max(score, 60);
+        score = Math.max(score, 65);
         break;
       }
     }
@@ -317,7 +352,7 @@ export function calculateSymptomMatchScore(preset: SymptomPreset, query: string)
         matchesChosungOrText(ec.name, q) ||
         matchesChosungOrText(ec.meaning, q)
       ) {
-        score = Math.max(score, 50);
+        score = Math.max(score, 55);
         break;
       }
     }
@@ -325,12 +360,12 @@ export function calculateSymptomMatchScore(preset: SymptomPreset, query: string)
 
   // 4. Symptom 설명 매칭
   if (matchesChosungOrText(preset.symptom, q)) {
-    score = Math.max(score, 40);
+    score = Math.max(score, 45);
   }
 
   // 5. Part Code 또는 Category 매칭
   if (matchesChosungOrText(preset.part_code, q) || matchesChosungOrText(preset.category, q)) {
-    score = Math.max(score, 30);
+    score = Math.max(score, 35);
   }
 
   return score;

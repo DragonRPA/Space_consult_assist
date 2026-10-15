@@ -27,6 +27,7 @@ import { applyContextualCorrection } from './contextCorrector';
 import { 
   DOMAIN_KEYWORD_REGISTRY, 
   NAMED_ENTITY_REGISTRY, 
+  findMatchingSymptomEntities,
   renderMultiColorHighlightedText 
 } from './keywordAssist';
 import type { KeywordEntity, EntityRule } from './keywordAssist';
@@ -270,22 +271,35 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   const isRecordingRef = useRef(isRecording);
   isRecordingRef.current = isRecording;
 
-  // Standalone rule evaluator (Uses live store state to prevent stale async closures)
+  // Standalone rule evaluator (Uses live store state + 3-sentence sliding window + Jamo fuzzy matching)
   const evaluateUtteranceRules = useCallback((text: string) => {
     const liveStore = useCounselStore.getState();
 
-    // 1. Symptom Keyword & Part Matching
-    for (const entity of DOMAIN_KEYWORD_REGISTRY) {
-      if (entity.synonyms.test(text)) {
-        liveStore.addDetectedKeywordEntity(entity);
-        if (liveStore.activeKeywordEntity?.id !== entity.id) {
-          liveStore.setActiveKeywordEntity(entity);
-          setJustTriggeredKeyword(entity.keyword);
-          setTimeout(() => setJustTriggeredKeyword(null), 3000);
-          liveStore.showToast(`[구어체 감지: ${entity.keyword}] 진단 및 조치 가이드 자동 표출`);
-          setTimeout(() => liveStore.clearToast(), 3000);
-        }
-        break;
+    // 직전 2문장 + 현재 문장을 결합한 슬라이딩 윈도우 문맥 생성 (주어/서술어 분리 발화 포착)
+    const recentHistory = liveStore.finalParagraphs
+      .slice(-2)
+      .map(line => line.replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, ''));
+    const slidingContextText = [...recentHistory, text].join(' ');
+
+    // 1. Symptom Keyword & Part Matching (단문 + 슬라이딩 문맥 + 자모 음운 유사도 통합 평가, 복수 증상 무누락 수집)
+    const directMatches = findMatchingSymptomEntities(text);
+    const contextMatches = findMatchingSymptomEntities(slidingContextText);
+    const combinedMatches = [...directMatches];
+    for (const cm of contextMatches) {
+      if (!combinedMatches.some(dm => dm.id === cm.id)) {
+        combinedMatches.push(cm);
+      }
+    }
+
+    for (const entity of combinedMatches) {
+      const alreadyDetected = liveStore.detectedKeywordEntities.some(e => e.id === entity.id);
+      liveStore.addDetectedKeywordEntity(entity);
+      if (!alreadyDetected || !liveStore.activeKeywordEntity) {
+        liveStore.setActiveKeywordEntity(entity);
+        setJustTriggeredKeyword(entity.keyword);
+        setTimeout(() => setJustTriggeredKeyword(null), 3000);
+        liveStore.showToast(`[구어체/유사어 감지: ${entity.keyword}] 진단 및 조치 가이드 자동 표출`);
+        setTimeout(() => liveStore.clearToast(), 3000);
       }
     }
 
@@ -380,13 +394,62 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
 
     const fullRawLine = hasTimestamp ? trimmed : `${timestampStr}${trimmed}`.trim();
 
-    // 순수 텍스트(타임스탬프 분리된 본문)로 문맥 보정 및 규칙 평가
+    // 순수 텍스트(타임스탬프 분리된 본문)로 문맥 보정(모델명/에러코드/오발음/자모유사도) 및 규칙 평가
     const cleanContent = fullRawLine.replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '');
     const { correctedText, corrections } = applyContextualCorrection(cleanContent);
     const fullCorrectedLine = `${timestampStr}${correctedText}`.trim();
 
     liveStore.appendFinalParagraph(fullRawLine, fullCorrectedLine, corrections);
     evaluateUtteranceRules(correctedText);
+
+    // 5,200건 DB 지식베이스(consult_knowledge + symptom_rules) 실시간 백업 검색 연동
+    // 로컬 정규식/자모매칭이 미처 잡지 못한 비정형 표현도 DB 유사 사례에서 역추적하여 증상 포착
+    const afterEvalStore = useCounselStore.getState();
+    if (correctedText.length >= 6 && afterEvalStore.detectedKeywordEntities.length === 0) {
+      const capturedSessionId = audioSessionIdRef.current;
+      const modelHint = afterEvalStore.selectedCustomer?.assetModel?.split(/\s+/)[0] || undefined;
+      fetch('http://127.0.0.1:8000/api/v1/counsel/kb-search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer space-advisor-desktop-agent'
+        },
+        body: JSON.stringify({
+          text: correctedText,
+          limit: 3,
+          equipment_model: modelHint && modelHint !== '통화' ? modelHint : undefined
+        })
+      })
+        .then(res => (res.ok ? res.json() : null))
+        .then(data => {
+          if (!data || audioSessionIdRef.current !== capturedSessionId) return;
+          const curStore = useCounselStore.getState();
+          if (curStore.detectedKeywordEntities.length > 0) return;
+
+          const topKb = data.kb_results?.[0];
+          const ruleRes = data.rule_result;
+          const candidateCorpus = [
+            ruleRes?.keyword || '',
+            ...(topKb?.symptoms || []),
+            ...(topKb?.parts_mentioned || []),
+            topKb?.summary || ''
+          ].join(' ');
+
+          if (candidateCorpus.trim()) {
+            const dbMatchedEntities = findMatchingSymptomEntities(candidateCorpus);
+            if (dbMatchedEntities.length > 0) {
+              const targetEnt = dbMatchedEntities[0];
+              curStore.addDetectedKeywordEntity(targetEnt);
+              curStore.setActiveKeywordEntity(targetEnt);
+              setJustTriggeredKeyword(targetEnt.keyword);
+              setTimeout(() => setJustTriggeredKeyword(null), 3000);
+              curStore.showToast(`[DB 지식베이스 유사사례 매칭: ${targetEnt.keyword}] 자동 진단 연결`);
+              setTimeout(() => curStore.clearToast(), 3000);
+            }
+          }
+        })
+        .catch(() => {});
+    }
   }, [evaluateUtteranceRules]);
 
   // Direct Text Conversation Parser (Instant Diagnosis & SOP Checklist trigger)
@@ -1318,7 +1381,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         processIncomingSpeechUtterance(rawSentence);
         setInterimSttText('');
       } else if (interim) {
-        setInterimSttText(interim);
+        const correctedInterim = applyContextualCorrection(interim).correctedText;
+        setInterimSttText(correctedInterim);
         if (webSpeechCommitTimerRef.current) {
           clearTimeout(webSpeechCommitTimerRef.current);
         }
@@ -1335,7 +1399,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
 
       const currentStream = interim.trim() || final.trim();
       if (currentStream) {
-        evaluateUtteranceRules(currentStream);
+        const correctedStream = applyContextualCorrection(currentStream).correctedText;
+        evaluateUtteranceRules(correctedStream);
       }
     };
 

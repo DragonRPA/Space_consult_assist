@@ -34,6 +34,7 @@ import { PartsOrderQuotationModal } from './PartsOrderQuotationModal';
 import { SelfActionGuideModal } from './SelfActionGuideModal';
 import { SymptomPhotoManagerModal } from './SymptomPhotoManagerModal';
 import { EquipmentManualModal } from './EquipmentManualModal';
+import { applyContextualCorrection } from './contextCorrector';
 
 const API = 'http://127.0.0.1:8000/api/v1';
 const PENDING_STORAGE_KEY = 'space_advisor_pending_sessions_v2';
@@ -258,7 +259,8 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
       };
     }
 
-    const tokens = raw.split(/\s+/).filter(Boolean);
+    const correctedRaw = applyContextualCorrection(raw).correctedText || raw;
+    const tokens = Array.from(new Set([...correctedRaw.split(/\s+/), ...raw.split(/\s+/)])).filter(Boolean);
     const matchedCustomersMap = new Map<string, Customer>();
     const matchedModelsSet = new Set<string>();
     const matchedErrorCodesList: { codeObj: OfficialErrorCode; model: string }[] = [];

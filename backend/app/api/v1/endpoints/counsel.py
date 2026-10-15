@@ -1,4 +1,5 @@
 import json
+import re
 import asyncio
 import logging
 import hashlib
@@ -675,6 +676,35 @@ class KbSearchRequest(BaseModel):
     equipment_model: Optional[str] = None
 
 
+_BACKEND_DOMAIN_NORMALIZATIONS = [
+    (re.compile(r"(?:에스|애스|엑스|S|X)\s*(?:12|십\s*이|일\s*이|트웰브)\s*(?:엘|L)?|f10이", re.I), "S12"),
+    (re.compile(r"(?:더블유|떠블유|W)\s*(?:15|십\s*오|일\s*오)", re.I), "W15"),
+    (re.compile(r"(?:더블유|떠블유|W)\s*(?:12|십\s*이|일\s*이)", re.I), "W12"),
+    (re.compile(r"(?:제이|재이|J)\s*(?:600|육\s*백|육백)\s*(?:티|T)?", re.I), "J600T"),
+    (re.compile(r"(?:제이|재이|J)\s*(?:800|팔\s*백|팔백)\s*(?:에이\s*디|AD)?", re.I), "J800"),
+    (re.compile(r"(?:제이|재이|J)\s*(?:900|구\s*백|구백)", re.I), "J900"),
+    (re.compile(r"(?:더\s*뉴\s*)?(?:에스|애스|S)\s*(?:7|칠|세븐|쎄븐)\s*(?:피|P)?(?![0-9])", re.I), "S7"),
+    (re.compile(r"(?:에스|애스|S)\s*(?:5(?![0-9])|파이브|오(?=\s|$|[이가은는을를의로도만]))", re.I), "S5"),
+    (re.compile(r"(?:에스|애스|S)\s*(?:3(?![0-9])|쓰리|삼(?=\s|$|[이가은는을를의로도만]))", re.I), "S3"),
+    (re.compile(r"(?:알|R)\s*(?:3(?![0-9])|쓰리|삼(?=\s|$|[이가은는을를의로도만]))", re.I), "R3"),
+    (re.compile(r"솔리노이드|솔노이드|소레노이드|솔래노이드|솔로노이드|슬레노이드|셀레노이드|솔레노이트|솔레노드|솔리노드|솔노드|솔\s*밸브|솔\s*벨브", re.I), "솔레노이드"),
+    (re.compile(r"스퀴즈|스키지|스키즈|스끼지|스끼즈|스크지|스쿠지|스퀴시|스위지|수키지|수퀴지|물받이\s*고무|뒤에\s*고무날", re.I), "스퀴지"),
+    (re.compile(r"흡입\s*모타|흐빕\s*모터|흡입\s*못터|흡잉\s*모터|석션\s*모터|석션\s*모타|바큠\s*모터|진공\s*모타", re.I), "흡입 모터"),
+    (re.compile(r"프로토\s*밸브|플롯\s*밸브|플로터\s*밸브|플로트\s*벨브|프로트\s*밸브|만수\s*차단볼|만수\s*부표", re.I), "플로트 밸브"),
+    (re.compile(r"액츄에이터|엑추에이터|엑츄에이터|액추레이터|엑추레이터|액추에이타", re.I), "액추에이터"),
+    (re.compile(r"앤더슨\s*잭|엔더슨\s*잭|언더슨\s*잭|안데르센\s*잭|엔더슨\s*커넥터", re.I), "앤더슨 커넥터"),
+    (re.compile(r"패트\s*드라이버|팻\s*드라이버|페드\s*드라이버|패드\s*드라이바|페드판", re.I), "패드 드라이버"),
+    (re.compile(r"밧데리|빠떼리|바떼리|배떠리|밧때리", re.I), "배터리"),
+]
+
+
+def _normalize_domain_query(raw: str) -> str:
+    res = raw.strip()
+    for pat, repl in _BACKEND_DOMAIN_NORMALIZATIONS:
+        res = pat.sub(repl, res)
+    return res
+
+
 @router.post("/kb-search", dependencies=[Depends(check_rate_limit)])
 async def kb_search(
     req: KbSearchRequest,
@@ -683,11 +713,10 @@ async def kb_search(
 ):
     """
     증상 텍스트 KB 복합 검색:
-    1) OpenAI 1536차원 벡터 검색 (우선) → bge-m3 1024차원 (폴백) → ILIKE (최종폴백)
-    2) symptom_rules: pg_trgm 룰 기반 매칭
+    1) OpenAI 1536차원 벡터 검색 (우선) → bge-m3 1024차원 (폴백) → ILIKE/pg_trgm (최종폴백)
     2) symptom_rules: pg_trgm 룰 기반 매칭
     """
-    query_text = req.text.strip()
+    query_text = _normalize_domain_query(req.text)
     if not query_text:
         raise HTTPException(status_code=400, detail="검색 텍스트가 비어 있습니다.")
 
@@ -740,13 +769,15 @@ async def kb_search(
             for r in vec_rows
         ]
     else:
-        # ── 1-B) ILIKE 텍스트 폴백 ──────────────────────────────
+        # ── 1-B) pg_trgm + ILIKE 텍스트 폴백 ────────────────────
         eq_cond = "AND equipment_model ILIKE :eq" if req.equipment_model else ""
         fb_sql = text(f"""
             SELECT id, summary, equipment_model, symptoms, parts_mentioned, action_items, urgency,
                    GREATEST(
                      COALESCE(similarity(summary, :q), 0),
-                     COALESCE(similarity(array_to_string(symptoms, ' '), :q), 0)
+                     COALESCE(word_similarity(:q, summary), 0),
+                     COALESCE(similarity(array_to_string(symptoms, ' '), :q), 0),
+                     COALESCE(word_similarity(:q, array_to_string(symptoms, ' ')), 0)
                    ) AS sim
             FROM consult_knowledge
             WHERE call_type   = '증상수리'
@@ -754,6 +785,8 @@ async def kb_search(
               AND (
                 summary ILIKE '%' || :q_raw || '%'
                 OR array_to_string(symptoms, ' ') ILIKE '%' || :q_raw || '%'
+                OR word_similarity(:q, array_to_string(symptoms, ' ')) > 0.28
+                OR word_similarity(:q, summary) > 0.28
               )
               {eq_cond}
             ORDER BY sim DESC
