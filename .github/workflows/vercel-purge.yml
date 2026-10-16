@@ -1,0 +1,32 @@
+name: Vercel Auto-Purge Old Deployments
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  purge-old-deployments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Wait 90s for Vercel Production deployment to finish
+        run: sleep 90
+
+      - name: Safe-Purge Old Vercel Deployments
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN secret not set; skipping remote CI purge (local pre-push hook handles purge)."
+            exit 0
+          fi
+          npx vercel rm space-consult-assist --safe --yes --token "$VERCEL_TOKEN" || true
