@@ -28,6 +28,7 @@ function runSafePurge() {
   } catch (err) {
     const stderr = (err.stderr || err.message || '').toString();
     if (
+      stderr.includes('Could not find unaliased deployments') ||
       stderr.includes('No deployments') ||
       stderr.includes('not found') ||
       stderr.includes('0 deployments') ||
