@@ -31,7 +31,7 @@ const KOREAN_DIGIT_MAP: Record<string, string> = {
 const DIGIT_TOKEN_PATTERN = '(?:공|영|제로|고|일|원|이|투|삼|쓰리|사|포|오|파이브|육|륙|식스|칠|세븐|쎄븐|팔|에잇|구|나인|[0-9])';
 
 // ── 2. 장비 모델명 & 에러코드 & 전문용어 구어체/오발음 정규화 룰 ─────────────────
-const DOMAIN_CORRECTION_RULES: DomainRule[] = [
+export const DOMAIN_CORRECTION_RULES: DomainRule[] = [
   // [0] 전화번호 음성 발화 최우선 치환 ("공일공 구팔칠육에 오사삼이", "공일공 일이고삼 사오육칠" -> "010-9876-5432", "010-1203-4567")
   {
     pattern: new RegExp(
@@ -390,7 +390,7 @@ export function computeJamoSimilarity(a: string, b: string): number {
 }
 
 // 퍼지 자동 교정 대상 표준 도메인 어휘 사전
-const CANONICAL_DOMAIN_TERMS: { term: string; category: string; minSyllables: number; threshold: number }[] = [
+export const CANONICAL_DOMAIN_TERMS: { term: string; category: string; minSyllables: number; threshold: number }[] = [
   { term: '솔레노이드', category: '급수/솔레노이드', minSyllables: 3, threshold: 0.74 },
   { term: '스퀴지', category: '소모품/스퀴지', minSyllables: 3, threshold: 0.76 },
   { term: '액추에이터', category: '승강/리프트', minSyllables: 4, threshold: 0.75 },
@@ -404,87 +404,17 @@ const CANONICAL_DOMAIN_TERMS: { term: string; category: string; minSyllables: nu
 ];
 
 // 어절 끝 조사 분리 정규식
-const KOREAN_PARTICLE_REGEX = /^([가-힣]{3,7}?)(이|가|은|는|을|를|에|에서|으로|로|도|만|과|와|이나|나|부터|까지|요|네요|군요|인가요|인데|인데요|이라서|라서)?$/;
+export const KOREAN_PARTICLE_REGEX = /^([가-힣]{3,7}?)(이|가|은|는|을|를|에|에서|으로|로|도|만|과|와|이나|나|부터|까지|요|네요|군요|인가요|인데|인데요|이라서|라서)?$/;
 
 // 자모 퍼지 교정에서 제외할 정상 표준 어간 목록 (예: '스위치'가 '스퀴지'로 오교정되는 현상 원천 차단)
-const PROTECTED_EXACT_STEMS = new Set([
+export const PROTECTED_EXACT_STEMS = new Set([
   '스위치', '키스위치', '전원스위치', '급수스위치', '메인스위치',
   '스페이스', '서비스', '사이즈', '시리즈', '스펀지', '스탠드', '스피커', '스튜디오'
 ]);
 
 export function applyContextualCorrection(rawText: string): { correctedText: string; corrections: CorrectionEvent[] } {
   if (!rawText) return { correctedText: '', corrections: [] };
-  let text = rawText;
-  const corrections: CorrectionEvent[] = [];
-  const nowStr = () => new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-  // Pass 1 & 2: 정규식 기반 장비 모델명 / 에러코드 / 오발음 사전 치환
-  for (const rule of DOMAIN_CORRECTION_RULES) {
-    const flags = rule.pattern.flags.includes('g') ? rule.pattern.flags : rule.pattern.flags + 'g';
-    const rx = new RegExp(rule.pattern.source, flags);
-
-    text = text.replace(rx, (...args) => {
-      const matched = args[0] as string;
-      const replaced =
-        typeof rule.replacement === 'function'
-          ? rule.replacement(matched, ...args.slice(1))
-          : rule.replacement;
-
-      if (matched !== replaced && !corrections.some(c => c.original === matched && c.corrected === replaced)) {
-        corrections.push({
-          original: matched,
-          corrected: replaced,
-          category: rule.category,
-          timestamp: nowStr()
-        });
-      }
-      return replaced;
-    });
-  }
-
-  // Pass 3: 어절 단위 자모 음운 퍼지 유사도 보정 (정규식에 미등록된 유사 오발음 포착)
-  const tokens = text.split(/(\s+)/);
-  for (let i = 0; i < tokens.length; i++) {
-    const tok = tokens[i];
-    if (!tok || /^\s+$/.test(tok)) continue;
-
-    const m = tok.match(KOREAN_PARTICLE_REGEX);
-    if (!m) continue;
-    const stem = m[1];
-    const particle = m[2] || '';
-    if (stem.length < 3) continue;
-
-    // 이미 표준 용어이거나 보호 대상 정상 단어('스위치' 등)이면 스킵
-    if (PROTECTED_EXACT_STEMS.has(stem) || CANONICAL_DOMAIN_TERMS.some(d => d.term === stem)) continue;
-
-    const stemJamo = decomposeHangulToJamo(stem);
-    if (stemJamo.length === 0) continue;
-
-    let bestMatch: { term: string; category: string; sim: number } | null = null;
-    for (const cand of CANONICAL_DOMAIN_TERMS) {
-      if (stem.length < cand.minSyllables) continue;
-      const candJamo = decomposeHangulToJamo(cand.term);
-      // 첫 초성이 발음상 유사해야 오탐(일반 단어 치환)을 방지
-      if (!areJamoPhoneticSimilar(stemJamo[0], candJamo[0])) continue;
-
-      const sim = computeJamoSimilarity(stem, cand.term);
-      if (sim >= cand.threshold && (!bestMatch || sim > bestMatch.sim)) {
-        bestMatch = { term: cand.term, category: cand.category, sim };
-      }
-    }
-
-    if (bestMatch && bestMatch.term !== stem) {
-      tokens[i] = `${bestMatch.term}${particle}`;
-      if (!corrections.some(c => c.original === stem && c.corrected === bestMatch!.term)) {
-        corrections.push({
-          original: stem,
-          corrected: bestMatch.term,
-          category: `${bestMatch.category} (음운유사도 ${Math.round(bestMatch.sim * 100)}%)`,
-          timestamp: nowStr()
-        });
-      }
-    }
-  }
-
-  return { correctedText: tokens.join(''), corrections };
+  // 강제 문맥 치환 및 자모 유사도 단어 변형 비활성화: STT 엔진 원문 그대로 반환
+  return { correctedText: rawText, corrections: [] };
 }
+

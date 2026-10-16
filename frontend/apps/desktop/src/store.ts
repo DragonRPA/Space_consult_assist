@@ -307,7 +307,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
   sttEngine: 'naver_clova',
   setSttEngine: (engine) => set({ sttEngine: engine }),
 
-  isContextCorrectionEnabled: true,
+  isContextCorrectionEnabled: false,
   correctionHistory: [],
   toggleContextCorrection: () => set((state) => ({ isContextCorrectionEnabled: !state.isContextCorrectionEnabled })),
 
@@ -391,38 +391,12 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
     };
   }),
   appendFinalParagraph: (rawText, correctedText, newCorrections) => set((state) => {
-    const trimmed = (correctedText || rawText || '').trim();
+    const trimmed = (rawText || correctedText || '').trim();
     if (!trimmed) return state;
 
-    // ── 자막 중복 및 점진적 확장 방어 (Deduplication & Prefix-Expansion Guard) ──
-    const lastParagraph = state.finalParagraphs[state.finalParagraphs.length - 1];
-    if (lastParagraph) {
-      // 타임스탬프 [mm:ss] 제거 후 본문 비교
-      const cleanLast = lastParagraph.replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '').replace(/[.,?!~]/g, '').trim();
-      const cleanCurrent = trimmed.replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '').replace(/[.,?!~]/g, '').trim();
-
-      // 1) 직전 문장과 100% 동일한 경우 무시
-      if (cleanLast === cleanCurrent) {
-        return state;
-      }
-
-      // 2) 직전 문장이 현재 문장의 앞부분과 겹치는 경우 (미완성 문장이 길게 완성된 경우) -> 직전 줄을 현재 완성문장으로 교체(Update)
-      if (cleanLast.length >= 4 && cleanCurrent.startsWith(cleanLast)) {
-        const updatedRaw = [...state.rawParagraphs];
-        const updatedFinal = [...state.finalParagraphs];
-        updatedRaw[updatedRaw.length - 1] = rawText;
-        updatedFinal[updatedFinal.length - 1] = trimmed;
-        return {
-          rawParagraphs: updatedRaw,
-          finalParagraphs: updatedFinal,
-          correctionHistory: [...state.correctionHistory, ...newCorrections]
-        };
-      }
-
-      // 3) 직전 문장이 현재 문장의 뒷부분과 겹치거나 완전히 포함하고 있는 경우 무시
-      if (cleanLast.length > 5 && (cleanLast.endsWith(cleanCurrent) || cleanLast.includes(cleanCurrent))) {
-        return state;
-      }
+    // 완전히 동일한 타임스탬프+문장 중복만 방어하고, 부분 문자열 포함 여부에 따른 임의 삭제/병합은 수행하지 않음
+    if (state.finalParagraphs.includes(trimmed)) {
+      return state;
     }
 
     const parseTsSec = (line: string): number => {

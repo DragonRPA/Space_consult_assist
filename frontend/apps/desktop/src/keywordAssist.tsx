@@ -85,7 +85,7 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-squeegee',
     canonicalId: 'SUC_RESIDUAL_WATER',
     keyword: '스퀴지 마모 / 바닥 잔수·줄무늬',
-    synonyms: /스퀴지|스퀴즈|스키지|스끼지|와이퍼|바닥\s*물기|잔수|줄무늬|고무\s*블레이드|고무\s*날|고무날|뒷\s*고무|뒤에\s*고무|물\s*자국|고무\s*패드|패드\s*거치대|고정판|판\s*거치대|(?:스퀴지|와이퍼|고무날?|블레이드|물받이)[이가은는]?\s*(?:안\s*됨|안\s*돼|불가|파손|깨짐|깨졌|부서짐|부서졌|부러짐|빠짐|빠졌|뽑힘|뽑혔|찢어짐|찢어졌|마모)|(?:물|물기|바닥|오수)[이가은는을를]?\s*(?:잘\s*|제대로\s*|전혀\s*|하나도\s*)?(?:안|못)\s*(?:빨아|먹어|끌어|건조|마르|올라오|올라와)|(?:물|물기|자국)[이가]?\s*(?:남아|남네|흥건|그대로|질질|줄줄)|빨아들이지\s*못|중간\s*부분|양쪽\s*끝.*달라붙|편마모|고무.{0,8}(?:닳|찢어|갈라|들떠|빠져|뽑혀)/i,
+    synonyms: /스퀴지|스퀴즈|스키지|스끼지|와이퍼|바닥\s*물기|잔수|줄무늬|고무\s*블레이드|고무\s*날|고무날|뒷\s*고무|뒤에\s*고무|물\s*자국|고무\s*패드|패드\s*거치대|고정판|판\s*거치대|(?:스퀴지|와이퍼|고무날?|블레이드|물받이)[이가은는]?\s*(?:안\s*됨|안\s*돼|불가|파손|깨짐|깨졌|부서짐|부서졌|부러짐|빠짐|빠졌|뽑힘|뽑혔|찢어짐|찢어졌|마모)|(?:물|물기|바닥|오수)[이가은는을를]?\s*(?:잘\s*|제대로\s*|전혀\s*|하나도\s*)?(?:안|못)\s*(?:빨아|먹어|끌어|건조|마르|올라오|올라와)|(?:물|물기|자국)[이가]?\s*(?:남아|남네|흥건|그대로|질질|줄줄)|빨아들이지\s*못|편마모|고무.{0,8}(?:닳|찢어|갈라|들떠|빠져|뽑혀)/i,
     fuzzyPhrases: ['바닥잔수과다', '스퀴지마모', '스퀴지파손', '스퀴지빠짐', '고무날뽑힘', '물이안빨려요', '바닥에물기가남아요', '고무날찢어짐', '줄무늬잔수'],
     category: 'WEARABLE / 스퀴지·소모품',
     partCode: 'SQUEEGEE-RUBBER',
@@ -170,7 +170,7 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-battery',
     canonicalId: 'PWR_CHG_FAIL',
     keyword: '배터리 충전 불량 / 충전기 이상',
-    synonyms: /배터리\s*충전|충전\s*불량|충전\s*불가|충전\s*문제|충전이?\s*안|충전기\s*고장|(?:충전기?|어댑터|콘센트)[이가은는]?\s*(?:작동\s*)?(?:안\s*됨|안\s*돼|안\s*되|불가|불량|고장|파손|깨짐|부서짐)|충전기.{0,10}(?:안\s*들어|깜빡|점멸|빨간\s*불|적색|소리|에러)|충전.{0,8}(?:안\s*돼|안\s*되|안\s*됨|불가|중단|멈춰)|배터리\s*문제|220\s*볼트|220V|콘센트/i,
+    synonyms: /배터리\s*충전|충전\s*불량|충전\s*불가|충전\s*문제|충전이?\s*안|충전기\s*고장|(?:충전기?|어댑터)[이가은는]?\s*(?:작동\s*)?(?:안\s*됨|안\s*돼|안\s*되|불가|불량|고장|파손|깨짐|부서짐)|충전기.{0,10}(?:안\s*들어|깜빡|점멸|빨간\s*불|적색|소리|에러)|충전.{0,8}(?:안\s*돼|안\s*되|안\s*됨|불가|중단|멈춰)|배터리\s*문제/i,
     fuzzyPhrases: ['배터리충전불량', '충전안됨', '충전불가', '충전기고장', '충전기파손', '충전문제', '배터리문제'],
     category: 'ELECTRICAL / 충전기·전원계통',
     partCode: 'CHARGER-UNIT-24V',
@@ -191,7 +191,7 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-power-dead',
     canonicalId: 'PWR_TOTAL_DEAD',
     keyword: '전원 완전 인입 불가 / 계기판 먹통',
-    synonyms: /전원\s*불량|전원이?\s*안\s*켜|전원\s*먹통|계기판\s*먹통|시동이?\s*안\s*걸|아예\s*안\s*켜|묵묵부답|(?:전원|시동|계기판|키\s*스위치|키\s*박스|비상\s*정지|장비\s*작동|작동|가동)[이가은는]?\s*(?:인입\s*|작동\s*)?(?:안\s*됨|안\s*돼|안\s*되|불가|불능|먹통|고장)|(?:키|스위치|전원|계기판|불)[이가은는을를]?\s*(?:돌려도|켜도|눌러도)?\s*(?:전혀\s*|아예\s*|하나도\s*)?(?:안\s*들어|안\s*켜|안\s*와|반응\s*없|먹통|꺼져)|비상\s*정지\s*버튼|작동\s*멈춤/i,
+    synonyms: /전원\s*불량|전원이?\s*안\s*켜|전원\s*먹통|계기판\s*먹통|시동이?\s*안\s*걸|아예\s*안\s*켜|묵묵부답|(?:전원|시동|계기판|키\s*스위치|키\s*박스|비상\s*정지)[이가은는]?\s*(?:인입\s*|작동\s*)?(?:안\s*됨|안\s*돼|안\s*되|불가|불능|먹통|고장)|(?:키|스위치|전원|계기판)[이가은는을를]?\s*(?:돌려도|켜도|눌러도)?\s*(?:전혀\s*|아예\s*|하나도\s*)?(?:안\s*들어|안\s*켜|안\s*와|반응\s*없|먹통|꺼져)|비상\s*정지\s*버튼/i,
     fuzzyPhrases: ['전원안켜짐', '전원안됨', '전원불가', '시동안됨', '작동불가', '전원완전인입불가', '계기판먹통', '시동안걸림', '아예작동안함'],
     category: 'ELECTRICAL / 메인전원·비상정지',
     partCode: 'MAIN-POWER-RELAY',
@@ -212,7 +212,7 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-terminal-loose',
     canonicalId: 'PWR_TERMINAL_LOOSE',
     keyword: '충전 단자 접촉 불량 / 잔량 표시 오류',
-    synonyms: /앤더슨\s*커넥터|단자\s*접촉|충전\s*단자|충전\s*잭|커넥터\s*헐거|단자\s*유격|(?:앤더슨\s*커넥터|커넥터|충전\s*단자|단자|충전\s*잭|잭|배선|전선|케이블|코드|플러그)[이가은는]?\s*(?:접촉\s*)?(?:안\s*됨|안\s*돼|불가|불량|파손|깨짐|깨졌|부서짐|부서졌|빠짐|빠졌|뽑힘|뽑혔|끊어짐|끊어졌)|(?:잔량|게이지|배터리\s*칸)[이가]?\s*(?:튀어|튐|왔다\s*갔다|깜빡|오류|안\s*맞|안\s*됨|불량)/i,
+    synonyms: /앤더슨\s*커넥터|단자\s*접촉|충전\s*단자|충전\s*잭|커넥터\s*헐거|단자\s*유격|(?:앤더슨\s*커넥터|커넥터|충전\s*단자|단자|충전\s*잭)[이가은는]?\s*(?:접촉\s*)?(?:안\s*됨|안\s*돼|불가|불량|파손|깨짐|깨졌|부서짐|부서졌|빠짐|빠졌|뽑힘|뽑혔|끊어짐|끊어졌)|(?:잔량|게이지|배터리\s*칸)[이가]?\s*(?:튀어|튐|왔다\s*갔다|깜빡|오류|안\s*맞|안\s*됨|불량)/i,
     fuzzyPhrases: ['충전단자접촉불량', '앤더슨커넥터파손', '단자빠짐', '전선뽑힘', '배선뽑힘', '커넥터깨짐', '배터리게이지오류', '단자헐거움'],
     category: 'ELECTRICAL / 단자·커넥터',
     partCode: 'ANDERSON-CONNECTOR',
@@ -253,7 +253,7 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     id: 'kw-brush-deck',
     canonicalId: 'DRV_BRUSH_STALL',
     keyword: '브러시·패드판 체결 / 노브·볼트 이상',
-    synonyms: /패드\s*드라이버|패드판|페드판|브러시\s*장착|브러시\s*탈착|데크|노브|볼트\s*(?:조정|풀림|부재)|녹이?\s*슬|녹\s*발생|(?:패드\s*드라이버|패드판?|데크|노브|볼트|너트|삼발이|클러치|거치대)[이가은는]?\s*(?:체결\s*|장착\s*|탈착\s*|고정\s*)?(?:안\s*됨|안\s*돼|불가|불량|파손|깨짐|깨졌|부서짐|부서졌|부러짐|부러졌|빠짐|빠졌|뽑힘|뽑혔|풀림|풀렸)|(?:브러시|패드판?)[이가은는을를]?\s*(?:빠짐|빠져|빠졌|뽑힘|뽑혔|깨짐|부서짐|파손|떨어져|안\s*끼워|안\s*맞|흔들|덜덜)/i,
+    synonyms: /패드\s*드라이버|패드판|페드판|브러시\s*장착|브러시\s*탈착|볼트\s*(?:조정|풀림|부재)|녹이?\s*슬|녹\s*발생|(?:패드\s*드라이버|패드판?|데크\s*노브|고정\s*노브|삼발이|클러치|패드\s*거치대)[이가은는]?\s*(?:체결\s*|장착\s*|탈착\s*|고정\s*)?(?:안\s*됨|안\s*돼|불가|불량|파손|깨짐|깨졌|부서짐|부서졌|부러짐|부러졌|빠짐|빠졌|뽑힘|뽑혔|풀림|풀렸)|(?:브러시|패드판?)[이가은는을를]?\s*(?:빠짐|빠져|빠졌|뽑힘|뽑혔|깨짐|부서짐|파손|떨어져|안\s*끼워|안\s*맞|흔들|덜덜)/i,
     fuzzyPhrases: ['패드드라이버파손', '패드판체결불량', '패드판빠짐', '브러시빠짐', '노브깨짐', '노브부서짐', '데크볼트풀림'],
     category: 'DECK / 브러시·데크계통',
     partCode: 'PAD-DRIVER-19',
@@ -653,54 +653,11 @@ export function findMatchingSymptomEntities(text: string): KeywordEntity[] {
   const matched: KeywordEntity[] = [];
   const seenIds = new Set<string>();
 
-  // 1차: 정규식 매칭 (복수 증상 모두 수집)
+  // 명시적 증상/부품 구어체 정규식(synonyms) 매칭만 수행 (모호한 부정상태 추론 및 자모 유사도 추측 비활성화)
   for (const entity of DOMAIN_KEYWORD_REGISTRY) {
-    if (entity.synonyms.test(text)) {
+    if (entity.synonyms.test(text) && !seenIds.has(entity.id)) {
       matched.push(entity);
       seenIds.add(entity.id);
-    }
-  }
-
-  // 2차: 부정적 상태표현 구문 추출기 ([OOO + 안됨/불가/파손/깨짐/부서짐/빠짐/뽑힘]) 병행 실행
-  const extractedStates = extractNegativeStateExpressions(text);
-  for (const st of extractedStates) {
-    if (st.mappedKeywordId && !seenIds.has(st.mappedKeywordId)) {
-      const entity = DOMAIN_KEYWORD_REGISTRY.find(e => e.id === st.mappedKeywordId);
-      if (entity) {
-        matched.push(entity);
-        seenIds.add(entity.id);
-      }
-    }
-  }
-
-  // 3차: 1·2차로 아무것도 안 잡혔을 때, 어절 슬라이딩 윈도우 자모 음운 유사도 검사
-  if (matched.length === 0) {
-    const clean = text.replace(/[\[\]0-9:.,!?~()]/g, ' ').trim();
-    const words = clean.split(/\s+/).filter(w => w.length >= 2);
-    const ngrams: string[] = [];
-    for (let i = 0; i < words.length; i++) {
-      if (words[i].length >= 3) ngrams.push(words[i]);
-      if (i + 1 < words.length) ngrams.push(words[i] + words[i + 1]);
-      if (i + 2 < words.length) ngrams.push(words[i] + words[i + 1] + words[i + 2]);
-    }
-
-    let bestEntity: KeywordEntity | null = null;
-    let bestSim = 0;
-    for (const entity of DOMAIN_KEYWORD_REGISTRY) {
-      if (!entity.fuzzyPhrases) continue;
-      for (const phrase of entity.fuzzyPhrases) {
-        for (const ng of ngrams) {
-          if (Math.abs(ng.length - phrase.length) > 4) continue;
-          const sim = computeJamoSimilarity(ng, phrase);
-          if (sim >= 0.78 && sim > bestSim) {
-            bestSim = sim;
-            bestEntity = entity;
-          }
-        }
-      }
-    }
-    if (bestEntity && !seenIds.has(bestEntity.id)) {
-      matched.push(bestEntity);
     }
   }
 
@@ -804,16 +761,14 @@ export function extractCustomerAndAddressEntities(text: string): ExtractedCustom
     }
   }
 
-  // 5. 고객사 / 건물 / 단지 / 용역사명 추출
+  // 5. 고객사 / 건물 / 단지 / 용역사명 추출 (명시적인 법인격·단지·시설관리 상호만 추출)
   const corpRegex = /(?:\(주\)|주식회사|\(유\)|유한회사)\s*[가-힣A-Za-z0-9_]{2,14}(?:\s+[가-힣A-Za-z0-9]{2,10})?|[가-힣A-Za-z0-9_]{2,14}\s*(?:\(주\)|주식회사)/;
-  const facilityRegex = /([가-힣A-Za-z0-9]{2,12}(?:\s+[가-힣A-Za-z0-9]{2,10})?\s*(?:아파트(?:\s*관리사무소)?|관리사무소|관리단|관리지원센터|빌딩|엠타워|타워|물류센터|유통센터|메디컬센터|화성센터|센터|선장공장|서창공장|공장|대학교|고등학교|중학교|초등학교|학사|병원|프라자|라이온스밸리|테크노밸리|리버파크|에듀파크|더샵(?:\s*퍼스트월드)?|반포자이|자이|래미안(?:\s*퍼스티지)?|푸르지오|아이파크|롯데캐슬(?:\s*프레미어)?|이편한세상|e편한세상|우미린|트라팰리스|힐스테이트|종합관리|환경산업|마스터크린|클린에코|피앤씨클린|삼원종합관리|한결에프엠|대경종합개발|건물코디뱅크|반짝반짝시스템|에스에프코리아|듀델코리아|위너스텍|성원테크|케이엠산업|시설관리|테크놀로지|테크|로지스|물류|실업|물산|엔지니어링|이엔지|마트|백화점|호텔|리조트))/;
-  const cueCompanyRegex = /(?:여기는?|저희는?|현장(?:명)?은|업체(?:명)?은|회사(?:명)?는|건물(?:명)?은|상호(?:명)?는)\s+([가-힣A-Za-z0-9()]{2,14}(?:\s+[가-힣A-Za-z0-9]{2,10}){0,2}?)\s*(?:인데|입니다|입니|이고|에서|거든)/;
-  const beforeMgrCompanyRegex = /(?:^(?:안녕하세요\s*)?(?:여기는?|저희는?)\s*|^)([가-힣A-Za-z0-9()]{3,14})\s+[가-힣]{2,4}\s*(?:시설과장|관리과장|관리소장|관리실장|기술팀장|미화팀장|미화반장|미화원|운영총괄|공장장|센터장|본부장|과장|소장|팀장|실장|차장|부장|대리|주임|반장|조장|대표|이사)/;
+  const facilityRegex = /([가-힣A-Za-z0-9]{2,12}(?:\s+[가-힣A-Za-z0-9]{2,10})?\s*(?:아파트(?:\s*관리사무소)?|관리사무소|관리단|관리지원센터|물류센터|유통센터|메디컬센터|화성센터|선장공장|서창공장|대학교|고등학교|중학교|초등학교|라이온스밸리|테크노밸리|리버파크|에듀파크|더샵(?:\s*퍼스트월드)?|반포자이|래미안(?:\s*퍼스티지)?|푸르지오|아이파크|롯데캐슬(?:\s*프레미어)?|이편한세상|e편한세상|우미린|트라팰리스|힐스테이트|종합관리|환경산업|마스터크린|클린에코|피앤씨클린|삼원종합관리|한결에프엠|대경종합개발|건물코디뱅크|반짝반짝시스템|에스에프코리아|듀델코리아|위너스텍|성원테크|케이엠산업|시설관리))/;
+  const cueCompanyRegex = /(?:현장(?:명)?은|업체(?:명)?은|회사(?:명)?는|건물(?:명)?은|상호(?:명)?는)\s+([가-힣A-Za-z0-9()]{2,14}(?:\s+[가-힣A-Za-z0-9]{2,10}){0,2}?)\s*(?:인데|입니다|입니|이고|에서|거든)/;
 
   const corpMatch = text.match(corpRegex);
   const facMatch = text.match(facilityRegex);
   const cueMatch = text.match(cueCompanyRegex);
-  const beforeMgrMatch = text.match(beforeMgrCompanyRegex);
 
   const stripMgrAndCue = (rawName: string): string => {
     let cleaned = rawName.replace(/^(?:안녕하세요|여기는?|저희는?|지금|현장명은|업체명은|회사명은)\s+/, '').trim();
@@ -833,7 +788,7 @@ export function extractCustomerAndAddressEntities(text: string): ExtractedCustom
     if (/클린|크린|용역|종합관리|에프엠|환경산업|코디뱅크/.test(facName) && corpMatch && corpMatch[0] !== facName) {
       info.useCompany = facName;
       info.customerName = stripMgrAndCue(corpMatch[0]);
-    } else if (facName.length >= 2) {
+    } else if (facName.length >= 2 && !NON_COMPANY_CUES.has(facName)) {
       info.customerName = facName;
       if (corpMatch && !facName.includes(corpMatch[0].trim())) {
         info.useCompany = corpMatch[0].trim();
@@ -843,11 +798,6 @@ export function extractCustomerAndAddressEntities(text: string): ExtractedCustom
     info.customerName = stripMgrAndCue(corpMatch[0]);
   } else if (cueMatch) {
     const candidate = stripMgrAndCue(cueMatch[1]);
-    if (candidate.length >= 2 && !NON_COMPANY_CUES.has(candidate)) {
-      info.customerName = candidate;
-    }
-  } else if (beforeMgrMatch) {
-    const candidate = stripMgrAndCue(beforeMgrMatch[1]);
     if (candidate.length >= 2 && !NON_COMPANY_CUES.has(candidate)) {
       info.customerName = candidate;
     }
@@ -895,7 +845,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-cust-general',
     type: 'customer',
     label: '고객사/담당자/연락처',
-    pattern: /\b(?:01[016789]|02|0[3-6][1-5]|070)[-\s.]?\d{3,4}[-\s.]?\d{4}\b|(?:\(주\)|주식회사)\s*[가-힣A-Za-z0-9_]{2,12}|[가-힣A-Za-z0-9_]{2,12}\s*(?:\(주\)|주식회사)|수림\s*종합\s*관리|머쉬앤\s*파머스|파머스|팜\s*스마트|비와이씨|BYC\s*빌딩|세원\s*종합\s*관리|베스트\s*환경\s*산업|반짝반짝\s*시스템|우주\s*엔비텍|티에스\s*식스티즈|롯데\s*캐슬(?:\s*프레미어)?|이편한\s*세상|우미린|트라팰리스|힐스테이트|더샵(?:\s*퍼스트월드|\s*반포리버파크)?|우림\s*라이온스\s*밸리|성우\s*하이텍(?:\s*서창공장|\s*선장공장)?|인천\s*공항\s*시설\s*관리|시민\s*마스터\s*크린|위너스텍|에스에프\s*코리아|듀델\s*코리아|건물\s*코디\s*뱅크|성원\s*테크|케이엠\s*산업|앰앰아이|글로벌\s*팩토리|인천\s*남동\s*정밀|메가\s*물류\s*센터|현대\s*메디컬\s*센터|[가-힣]{2,10}(?:종합관리|환경산업|관리사무소|관리지원센터|관리소|관리단|물류센터|유통센터|메디컬센터|빌딩|타워|아파트|선장공장|서창공장|공장|대학교|병원)|[가-힣]{2,4}\s*(?:시설과장|관리과장|관리소장|관리실장|기술팀장|미화팀장|미화반장|공장장|센터장|본부장|과장님?|소장님?|팀장님?|대리님?|실장님?|차장님?|부장님?|반장님?|대표님?|이사님?)|팀장님|과장님|소장님|대표님|대리님|실장님|반장님/i,
+    pattern: /\b(?:01[016789]|02|0[3-6][1-5]|070)[-\s.]?\d{3,4}[-\s.]?\d{4}\b|(?:\(주\)|주식회사)\s*[가-힣A-Za-z0-9_]{2,12}|[가-힣A-Za-z0-9_]{2,12}\s*(?:\(주\)|주식회사)|수림\s*종합\s*관리|머쉬앤\s*파머스|파머스|팜\s*스마트|비와이씨|BYC\s*빌딩|세원\s*종합\s*관리|베스트\s*환경\s*산업|반짝반짝\s*시스템|우주\s*엔비텍|티에스\s*식스티즈|롯데\s*캐슬(?:\s*프레미어)?|이편한\s*세상|우미린|트라팰리스|힐스테이트|더샵(?:\s*퍼스트월드|\s*반포리버파크)?|우림\s*라이온스\s*밸리|성우\s*하이텍(?:\s*서창공장|\s*선장공장)?|인천\s*공항\s*시설\s*관리|시민\s*마스터\s*크린|위너스텍|에스에프\s*코리아|듀델\s*코리아|건물\s*코디\s*뱅크|성원\s*테크|케이엠\s*산업|앰앰아이|글로벌\s*팩토리|인천\s*남동\s*정밀|메가\s*물류\s*센터|현대\s*메디컬\s*센터|[가-힣]{2,10}(?:종합관리|환경산업|관리사무소|관리지원센터|관리단|물류센터|유통센터|메디컬센터|아파트|선장공장|서창공장)/i,
     colorScheme: { bg: '#bfdbfe', border: '#3b82f6', text: '#1e3a8a', glow: 'none' }
   },
 
@@ -961,7 +911,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-model-s12',
     type: 'model',
     label: '장비모델',
-    pattern: /S12L|S12|(?:에스|엑스|S)\s*(?:12|십이|일이)|f10이/i,
+    pattern: /S12L|S12|(?:에스|엑스|S)\s*(?:12|십이|일이)/i,
     modelId: 'S12',
     colorScheme: { bg: '#e9d5ff', border: '#c084fc', text: '#581c87', glow: 'none' }
   },
