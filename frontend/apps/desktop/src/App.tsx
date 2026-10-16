@@ -1103,9 +1103,9 @@ function LegacySttApp() {
       return;
     }
 
-    // 현재 재생 위치(currentTimeSec) 및 다음 4.5초 이내 구간에 해당하는 스트리밍 윈도우를 CLOVA gRPC로 연속 전송
+    // 현재 재생 위치(currentTimeSec) 및 다음 7.5초 이내 구간에 해당하는 스트리밍 윈도우를 CLOVA gRPC로 연속 전송
     for (const win of clovaWindowsRef.current) {
-      if (win.status === 'idle' && currentTimeSec >= win.startSec - 4.5 && currentTimeSec <= win.endSec) {
+      if (win.status === 'idle' && currentTimeSec >= win.startSec - 7.5 && currentTimeSec <= win.endSec) {
         streamClovaWindowGrpc(win);
       }
     }

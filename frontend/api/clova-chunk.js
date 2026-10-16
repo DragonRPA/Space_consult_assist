@@ -318,8 +318,8 @@ function streamClovaGrpcPcm({ pcmBuffer, startSec, secretKey, grpcHost, onSegmen
         grpcReq.write(buildDataRequest(slice, extraJson));
       } catch (_) {}
       idx += 1;
-      // 초반 400ms(4프레임)는 즉시 버스트 전송하고 이후 55ms 간격으로 스트리밍하여 서버 지연 최소화
-      sendTimer = setTimeout(sendNextChunk, idx <= 4 ? 5 : 55);
+      // 초반 1.5초(15프레임)는 즉시 버스트 전송하고 이후 15ms 간격으로 고속 스트리밍하여 서버 지연 최소화
+      sendTimer = setTimeout(sendNextChunk, idx <= 15 ? 2 : 15);
     };
 
     sendNextChunk();
