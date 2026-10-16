@@ -195,6 +195,19 @@ function LegacySttApp() {
   }[]>([]);
   const decodedPcm16kRef = useRef<Float32Array | null>(null);
   const audioSessionIdRef = useRef<number>(0);
+  const clovaWindowsRef = useRef<Array<{
+    startSec: number;
+    endSec: number;
+    status: 'idle' | 'streaming' | 'done';
+  }>>([]);
+  const clovaAbortControllersRef = useRef<AbortController[]>([]);
+  const pendingClovaSegmentsRef = useRef<Array<{
+    start: number;
+    end: number;
+    text: string;
+    timestamp: string;
+    emitted: boolean;
+  }>>([]);
   const realtimeVadRef = useRef<{
     cursorFrame: number;
     inSpeech: boolean;
@@ -653,9 +666,231 @@ function LegacySttApp() {
     return await cloudRes.json();
   }, []);
 
+  const abortAllClovaStreams = useCallback(() => {
+    for (const ctrl of clovaAbortControllersRef.current) {
+      try {
+        ctrl.abort();
+      } catch (_) {}
+    }
+    clovaAbortControllersRef.current = [];
+  }, []);
+
+  // 16kHz PCM 전체 구간을 단어 잘림이 없는 100ms 최소 에너지(침묵 골짜기) 기준으로 13~15초 연속 스트리밍 윈도우로 분할
+  const buildSilenceAlignedWindows = useCallback((pcmData: Float32Array) => {
+    const sr = 16000;
+    const frameLen = 1600; // 100ms
+    const totalSec = pcmData.length / sr;
+    const windows: Array<{ startSec: number; endSec: number; status: 'idle' | 'streaming' | 'done' }> = [];
+    let curSec = 0;
+
+    while (curSec < totalSec - 0.15) {
+      if (totalSec - curSec <= 16.0) {
+        windows.push({ startSec: Number(curSec.toFixed(2)), endSec: Number(totalSec.toFixed(2)), status: 'idle' });
+        break;
+      }
+      const minCutFrame = Math.floor((curSec + 11.5) * 10);
+      const maxCutFrame = Math.min(Math.floor(pcmData.length / frameLen) - 1, Math.floor((curSec + 15.5) * 10));
+      let bestFrame = maxCutFrame;
+      let minRms = Number.POSITIVE_INFINITY;
+
+      for (let f = minCutFrame; f <= maxCutFrame; f++) {
+        let sumSq = 0;
+        const base = f * frameLen;
+        for (let j = 0; j < frameLen; j++) {
+          const v = pcmData[base + j] * 32767;
+          sumSq += v * v;
+        }
+        const rms = Math.sqrt(sumSq / frameLen);
+        if (rms < minRms) {
+          minRms = rms;
+          bestFrame = f;
+        }
+      }
+
+      const cutSec = Number(((bestFrame + 1) * 0.1).toFixed(2));
+      windows.push({ startSec: Number(curSec.toFixed(2)), endSec: cutSec, status: 'idle' });
+      curSec = cutSec;
+    }
+    return windows;
+  }, []);
+
+  // NAVER CLOVA Speech gRPC 실시간 스트리밍(clovaspeech-gw.ncloud.com:50051) NDJSON 수신기
+  const streamClovaWindowGrpc = useCallback(async (win: { startSec: number; endSec: number; status: 'idle' | 'streaming' | 'done' }) => {
+    const pcm16k = decodedPcm16kRef.current;
+    if (!pcm16k || win.status !== 'idle') return;
+    const capturedSessionId = audioSessionIdRef.current;
+
+    const startSample = Math.max(0, Math.floor(win.startSec * 16000));
+    const endSample = Math.min(pcm16k.length, Math.floor(win.endSec * 16000));
+    if (endSample - startSample < 3200) {
+      win.status = 'done';
+      return;
+    }
+
+    win.status = 'streaming';
+    realtimeVadRef.current.inflightCount += 1;
+
+    const slice = pcm16k.subarray(startSample, endSample);
+    const wavBlob = encodeWav16kMono(slice, 16000);
+    const abortCtrl = new AbortController();
+    clovaAbortControllersRef.current.push(abortCtrl);
+
+    const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const qs = `stream=1&start=${win.startSec.toFixed(2)}&end=${win.endSec.toFixed(2)}`;
+
+    const handleIncomingSegObj = (segObj: any) => {
+      if (audioSessionIdRef.current !== capturedSessionId) return;
+      const cleanText = String(segObj?.text || '').trim();
+      if (!cleanText) return;
+      const segStart = typeof segObj.start === 'number' ? segObj.start : win.startSec;
+      const segEnd = typeof segObj.end === 'number' ? segObj.end : segStart;
+
+      // 통화 연결음 직전 통신사 안내멘트 끝음절("겠습니다.") 파편 제거
+      if (segEnd <= 0.45 && /^겠습니/.test(cleanText)) return;
+
+      const m = String(Math.floor(segStart / 60)).padStart(2, '0');
+      const s = String(Math.floor(segStart % 60)).padStart(2, '0');
+      const ts = segObj.timestamp || `[${m}:${s}]`;
+
+      // 중복 방지
+      const exists = pendingClovaSegmentsRef.current.some(
+        (p) => Math.abs(p.start - segStart) < 0.25 && p.text === cleanText
+      );
+      if (exists) return;
+
+      const item = {
+        start: segStart,
+        end: segEnd,
+        text: cleanText,
+        timestamp: ts,
+        emitted: false,
+      };
+      pendingClovaSegmentsRef.current.push(item);
+      pendingClovaSegmentsRef.current.sort((a, b) => a.start - b.start);
+
+      // 현재 스피커 재생 시점(currentTime)이 이미 해당 발화 종료 시점에 도달해 있으면 즉시 화면 표출
+      const audioEl = globalAudioRef.current;
+      if (audioEl && !audioEl.paused && isRecordingRef.current) {
+        const curSec = audioEl.currentTime;
+        if (curSec >= item.end - 0.25) {
+          item.emitted = true;
+          processIncomingSpeechUtterance(`${item.timestamp} ${item.text}`);
+        }
+      }
+    };
+
+    try {
+      let response: Response | null = null;
+      if (isLocalHost) {
+        try {
+          const formData = new FormData();
+          formData.append('file', wavBlob, `stream_${win.startSec.toFixed(1)}_${win.endSec.toFixed(1)}.wav`);
+          const localRes = await fetch(`http://127.0.0.1:8000/api/v1/stt/clova-chunk?${qs}`, {
+            method: 'POST',
+            body: formData,
+            signal: abortCtrl.signal,
+          });
+          if (localRes.ok) {
+            response = localRes;
+          }
+        } catch (e: any) {
+          if (e?.name === 'AbortError') throw e;
+        }
+      }
+
+      if (!response) {
+        const audioBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const res = String(reader.result || '');
+            const commaIdx = res.indexOf(',');
+            resolve(commaIdx >= 0 ? res.slice(commaIdx + 1) : res);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(wavBlob);
+        });
+
+        const cloudUrl = isLocalHost
+          ? `https://space-consult-assist.vercel.app/api/clova-chunk?${qs}`
+          : `/api/clova-chunk?${qs}`;
+
+        response = await fetch(cloudUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            audio_base64: audioBase64,
+            start: Number(win.startSec.toFixed(2)),
+            end: Number(win.endSec.toFixed(2)),
+            stream: true,
+          }),
+          signal: abortCtrl.signal,
+        });
+      }
+
+      if (!response.ok) {
+        throw new Error(`Clova gRPC stream HTTP ${response.status}`);
+      }
+
+      if (response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let lineBuf = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (audioSessionIdRef.current !== capturedSessionId) break;
+          lineBuf += decoder.decode(value, { stream: true });
+          const lines = lineBuf.split('\n');
+          lineBuf = lines.pop() || '';
+          for (const rawLine of lines) {
+            const trimmed = rawLine.trim();
+            if (!trimmed) continue;
+            try {
+              const segObj = JSON.parse(trimmed);
+              if (segObj && segObj.text) {
+                handleIncomingSegObj(segObj);
+              }
+            } catch (_) {}
+          }
+        }
+        if (lineBuf.trim() && audioSessionIdRef.current === capturedSessionId) {
+          try {
+            const segObj = JSON.parse(lineBuf.trim());
+            if (segObj && segObj.text) {
+              handleIncomingSegObj(segObj);
+            }
+          } catch (_) {}
+        }
+      } else {
+        const fallbackJson = await response.json();
+        if (Array.isArray(fallbackJson?.segments)) {
+          for (const segObj of fallbackJson.segments) {
+            handleIncomingSegObj(segObj);
+          }
+        } else if (fallbackJson?.text) {
+          handleIncomingSegObj(fallbackJson);
+        }
+      }
+      win.status = 'done';
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.warn('CLOVA Speech gRPC 스트리밍 오류:', err);
+      }
+      if (win.status === 'streaming') {
+        win.status = 'idle';
+      }
+    } finally {
+      clovaAbortControllersRef.current = clovaAbortControllersRef.current.filter((c) => c !== abortCtrl);
+      if (audioSessionIdRef.current === capturedSessionId) {
+        realtimeVadRef.current.inflightCount = Math.max(0, realtimeVadRef.current.inflightCount - 1);
+      }
+    }
+  }, [processIncomingSpeechUtterance]);
+
   const processAudioWithActiveEngine = useCallback(async (file: File) => {
-    // 1. 신규 오디오 세션 ID 발급 (이전 파일의 진행 중인 비동기 Clova 응답 및 디코딩 무효화)
+    // 1. 신규 오디오 세션 ID 발급 및 진행 중인 모든 gRPC 스트림 즉시 중단
     const mySessionId = ++audioSessionIdRef.current;
+    abortAllClovaStreams();
 
     // 2. 기존 재생 중인 오디오 및 타이머/STT 스트림 즉시 강제 정지 (정지 버튼을 누른 것과 동일한 선행 초기화)
     if (webSpeechCommitTimerRef.current) {
@@ -672,9 +907,11 @@ function LegacySttApp() {
     setAudioTime(0, 0);
     setInterimSttText('');
 
-    // 3. 이전 세그먼트 및 실시간 VAD 커서 완전 초기화
+    // 3. 이전 세그먼트 및 실시간 스트리밍 큐 완전 초기화
     audioSegmentsRef.current = [];
     decodedPcm16kRef.current = null;
+    clovaWindowsRef.current = [];
+    pendingClovaSegmentsRef.current = [];
     realtimeVadRef.current = {
       cursorFrame: 0,
       inSpeech: false,
@@ -699,7 +936,7 @@ function LegacySttApp() {
       } catch (_) {}
     }
 
-    // 6. 16kHz PCM 버퍼를 먼저 디코딩 준비한 뒤 오디오 재생 시작 (재생 시작 시점에 버퍼 누락 방지)
+    // 6. 16kHz PCM 버퍼를 먼저 디코딩 준비한 뒤 오디오 재생 시작
     try {
       const arrayBuffer = await file.arrayBuffer();
       if (audioSessionIdRef.current !== mySessionId) return;
@@ -720,45 +957,22 @@ function LegacySttApp() {
 
       const pcmData = rendered.getChannelData(0);
       decodedPcm16kRef.current = pcmData;
-
-      // 파일별 음량 분포(30분위 RMS)를 계산하여 저음량 통화 녹음에서도 발화 구간이 누락되지 않도록 초기 임계값 설정
-      const frameLen = 1600;
-      const totalFrames = Math.floor(pcmData.length / frameLen);
-      const frameEnergies: number[] = [];
-      for (let i = 0; i < totalFrames; i += 2) {
-        let sumSq = 0;
-        const base = i * frameLen;
-        for (let j = 0; j < frameLen; j++) {
-          const v = pcmData[base + j] * 32767;
-          sumSq += v * v;
-        }
-        frameEnergies.push(Math.sqrt(sumSq / frameLen));
-      }
-      frameEnergies.sort((a, b) => a - b);
-      const p30 = frameEnergies.length > 0 ? frameEnergies[Math.floor(frameEnergies.length * 0.3)] : 70;
-      const initialNoiseFloor = Math.max(95, Math.min(200, p30 * 1.65));
-
-      realtimeVadRef.current = {
-        cursorFrame: 0,
-        inSpeech: false,
-        speechStartFrame: 0,
-        silenceFrames: 0,
-        voicedFrames: 0,
-        lastFlushedFrame: 0,
-        noiseFloor: initialNoiseFloor,
-        inflightCount: 0,
-        lastChunkLabel: '',
-      };
+      clovaWindowsRef.current = buildSilenceAlignedWindows(pcmData);
     } catch (err) {
       console.warn("실시간 오디오 버퍼 디코딩 실패:", err);
     }
 
     if (audioSessionIdRef.current !== mySessionId) return;
 
-    // 7. 새 오디오 파일 URL 마운트 및 00:00부터 즉시 재생 시작
+    // 7. 새 오디오 파일 URL 마운트 및 00:00부터 즉시 재생 및 CLOVA gRPC 실시간 스트리밍 시작
     setActiveAudioFile(file);
     setIsAudioPlaying(true);
     setRecording(true);
+
+    if (useCounselStore.getState().sttEngine === 'naver_clova' && clovaWindowsRef.current.length > 0) {
+      setInterimSttText('듣는중');
+      streamClovaWindowGrpc(clovaWindowsRef.current[0]);
+    }
 
     setTimeout(() => {
       if (audioSessionIdRef.current !== mySessionId) return;
@@ -785,7 +999,7 @@ function LegacySttApp() {
 
     showToast(`[${file.name}] 실시간 음성 STT 시작`);
     setTimeout(() => clearToast(), 3000);
-  }, [resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, setAudioTime, setInterimSttText, setRecording, startSttStreaming, showToast, clearToast]);
+  }, [abortAllClovaStreams, buildSilenceAlignedWindows, streamClovaWindowGrpc, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, setAudioTime, setInterimSttText, setRecording, startSttStreaming, showToast, clearToast]);
 
 
 
@@ -869,169 +1083,49 @@ function LegacySttApp() {
     }
   }, [isAudioPlaying, activeAudioUrl]);
 
-  const flushCompletedSpeechChunkToClova = useCallback((startSec: number, endSec: number, currentPlayheadSec: number) => {
-    const pcm16k = decodedPcm16kRef.current;
-    if (!pcm16k) return;
-    const capturedSessionId = audioSessionIdRef.current;
-    const vad = realtimeVadRef.current;
-
-    // 인과율 강제(Zero Future Lookahead): 절대로 현재 재생 시점(currentPlayheadSec) 이후의 미래 샘플은 잘라내지 못하도록 하드 클램핑
-    const safeEndSec = Math.min(endSec, currentPlayheadSec);
-    if (safeEndSec - startSec < 0.65) return;
-
-    // 직전 전송 종료 지점(lastFlushedFrame) 이전으로 침범하지 않는 범위 내에서 최대 0.25초 프리롤(앞여백) 확보
-    const minAllowedStartSec = vad.lastFlushedFrame * 0.1;
-    const paddedStartSec = Math.max(0, minAllowedStartSec, startSec - 0.25);
-    const startSample = Math.max(0, Math.floor(paddedStartSec * 16000));
-    const endSample = Math.min(pcm16k.length, Math.floor(safeEndSec * 16000));
-    if (endSample - startSample < 16000 * 0.55) return;
-
-    vad.lastFlushedFrame = Math.floor(safeEndSec * 10);
-
-    const slice = pcm16k.subarray(startSample, endSample);
-    const wavBlob = encodeWav16kMono(slice, 16000);
-
-    const m1 = String(Math.floor(startSec / 60)).padStart(2, '0');
-    const s1 = String(Math.floor(startSec % 60)).padStart(2, '0');
-    const m2 = String(Math.floor(safeEndSec / 60)).padStart(2, '0');
-    const s2 = String(Math.floor(safeEndSec % 60)).padStart(2, '0');
-    const chunkLabel = `${m1}:${s1} ~ ${m2}:${s2}`;
-
-    vad.inflightCount += 1;
-    vad.lastChunkLabel = chunkLabel;
-
-    requestClovaChunkStt(wavBlob, startSec, safeEndSec)
-      .then((data) => {
-        if (audioSessionIdRef.current !== capturedSessionId) return;
-        const cleanText = (data.text || '').trim();
-        if (cleanText) {
-          processIncomingSpeechUtterance(`[${m1}:${s1}] ${cleanText}`);
-        }
-      })
-      .catch((err) => {
-        console.warn('Clova 실시간 청크 전사 실패:', err);
-      })
-      .finally(() => {
-        if (audioSessionIdRef.current !== capturedSessionId) return;
-        const curVad = realtimeVadRef.current;
-        curVad.inflightCount = Math.max(0, curVad.inflightCount - 1);
-        if (!curVad.inSpeech && curVad.inflightCount === 0) {
-          setInterimSttText('');
-        }
-      });
-  }, [requestClovaChunkStt, processIncomingSpeechUtterance, setInterimSttText]);
-
   const handleAudioTimeUpdate = useCallback((currentTimeSec: number, isEnded = false) => {
     const pcm16k = decodedPcm16kRef.current;
     if (!pcm16k || sttEngine !== 'naver_clova') return;
 
-    // 재생 중이 아닐 때(일시정지/정지 직후 currentTime=0 리셋 이벤트 등)는 수음/전송 금지
+    // 재생 중이 아닐 때(일시정지/정지 상태)는 수음 및 세그먼트 방출 즉시 중단
     if (!isEnded && (!globalAudioRef.current || globalAudioRef.current.paused)) {
       return;
     }
 
-    const vad = realtimeVadRef.current;
-    const frameLen = 1600; // 100ms @ 16kHz
-    const totalFrames = Math.floor(pcm16k.length / frameLen);
-    // 오직 현재 스피커로 재생 완료된 시점(currentTimeSec)까지만 프레임 스캔 (미래 프레임 스캔 절대 금지)
-    const targetFrame = Math.min(totalFrames, Math.floor(currentTimeSec * 10));
-
-    // 사용자가 수동으로 'STT 끄기'를 누른 상태면 커서만 현재 재생 시점으로 동기화하고 청음 건너뜀
+    // 사용자가 수동으로 'STT 끄기'를 누른 상태면 해당 재생 구간의 세그먼트는 건너뜀
     if (!isRecordingRef.current && !isEnded) {
-      vad.cursorFrame = targetFrame;
-      vad.lastFlushedFrame = targetFrame;
-      vad.inSpeech = false;
-      vad.silenceFrames = 0;
-      vad.voicedFrames = 0;
+      for (const seg of pendingClovaSegmentsRef.current) {
+        if (!seg.emitted && seg.end <= currentTimeSec) {
+          seg.emitted = true;
+        }
+      }
       setInterimSttText('');
       return;
     }
 
-    // 사용자가 재생바를 뒤로 되감기한 경우 커서 리셋
-    if (targetFrame < vad.cursorFrame - 3) {
-      vad.cursorFrame = targetFrame;
-      vad.lastFlushedFrame = targetFrame;
-      vad.inSpeech = false;
-      vad.silenceFrames = 0;
-      vad.voicedFrames = 0;
-    }
-
-    for (let f = vad.cursorFrame; f < targetFrame; f++) {
-      let sumSq = 0;
-      const base = f * frameLen;
-      for (let j = 0; j < frameLen; j++) {
-        const v = pcm16k[base + j] * 32767;
-        sumSq += v * v;
-      }
-      const rms = Math.sqrt(sumSq / frameLen);
-
-      if (!vad.inSpeech && rms < 220) {
-        vad.noiseFloor = vad.noiseFloor * 0.95 + Math.max(95, rms * 1.55) * 0.05;
-      }
-      const threshold = Math.max(100, Math.min(210, vad.noiseFloor));
-
-      if (rms > threshold) {
-        if (!vad.inSpeech) {
-          vad.inSpeech = true;
-          vad.speechStartFrame = Math.max(vad.lastFlushedFrame, f - 1);
-          vad.voicedFrames = 0;
-        }
-        vad.voicedFrames += 1;
-        vad.silenceFrames = 0;
-
-        const speechDurSec = (f + 1 - vad.speechStartFrame) * 0.1;
-        // 발화 도중(3~4초) 강제 절단 금지: 문장이 9.5초 이상 쉼 없이 이어질 때만 최대 길이 제한으로 전송
-        if (speechDurSec >= 9.5) {
-          flushCompletedSpeechChunkToClova(vad.speechStartFrame * 0.1, (f + 1) * 0.1, currentTimeSec);
-          vad.inSpeech = false;
-          vad.silenceFrames = 0;
-          vad.voicedFrames = 0;
-        }
-      } else if (vad.inSpeech) {
-        vad.silenceFrames += 1;
-        const speechDurSec = (f + 1 - vad.speechStartFrame) * 0.1;
-        // 자연스러운 문장 호흡:
-        // 1) 일반 문장은 발화 후 0.6초(6프레임) 이상의 확실한 침묵이 이어질 때 완결된 1문장으로 전송
-        // 2) 6.0초 이상 길어진 문장은 0.3초(3프레임) 호흡 휴지 구간에서 자연스럽게 분할 전송
-        const isNaturalSentenceEnd = vad.silenceFrames >= 6;
-        const isLongClauseBreak = speechDurSec >= 6.0 && vad.silenceFrames >= 3;
-
-        if (isNaturalSentenceEnd || isLongClauseBreak) {
-          if (vad.voicedFrames >= 4 && speechDurSec >= 0.65) {
-            // 끝자음(받침) 잘림 방지를 위해 침묵 초반 0.2초까지 포함하여 전송
-            const endFrameWithTail = Math.min(f + 1, f - vad.silenceFrames + 3);
-            flushCompletedSpeechChunkToClova(vad.speechStartFrame * 0.1, endFrameWithTail * 0.1, currentTimeSec);
-          }
-          vad.inSpeech = false;
-          vad.silenceFrames = 0;
-          vad.voicedFrames = 0;
-        }
+    // 현재 재생 위치(currentTimeSec) 및 다음 4.5초 이내 구간에 해당하는 스트리밍 윈도우를 CLOVA gRPC로 연속 전송
+    for (const win of clovaWindowsRef.current) {
+      if (win.status === 'idle' && currentTimeSec >= win.startSec - 4.5 && currentTimeSec <= win.endSec) {
+        streamClovaWindowGrpc(win);
       }
     }
 
-    vad.cursorFrame = targetFrame;
-
-    // 통화 파일이 끝까지 재생 완료된 경우 남아 있는 발화 버퍼 마무리 전송
-    if (isEnded && vad.inSpeech) {
-      const startSec = vad.speechStartFrame * 0.1;
-      const voiced = vad.voicedFrames;
-      vad.inSpeech = false;
-      vad.silenceFrames = 0;
-      vad.voicedFrames = 0;
-      if (voiced >= 4 && currentTimeSec - startSec >= 0.65) {
-        flushCompletedSpeechChunkToClova(startSec, currentTimeSec, currentTimeSec);
+    // 스피커 실제 재생 시점(currentTimeSec)에 도달한 발화 세그먼트만 즉시 대화창으로 방출 (인과율 100% 보장)
+    for (const seg of pendingClovaSegmentsRef.current) {
+      if (!seg.emitted && (isEnded || currentTimeSec >= seg.end - 0.25)) {
+        seg.emitted = true;
+        processIncomingSpeechUtterance(`${seg.timestamp} ${seg.text}`);
       }
     }
 
-    // 실시간 상태 표시줄 업데이트
-    if (vad.inSpeech || vad.inflightCount > 0) {
-      setInterimSttText('듣는중');
-    } else {
+    if (isEnded) {
       setInterimSttText('');
+    } else {
+      setInterimSttText('듣는중');
     }
-  }, [sttEngine, flushCompletedSpeechChunkToClova, setInterimSttText]);
+  }, [sttEngine, streamClovaWindowGrpc, processIncomingSpeechUtterance, setInterimSttText]);
 
-  // 실시간 통화 재생 중 150ms 주기로 스피커 재생 위치(currentTime)까지만 실시간 VAD 스캔
+  // 실시간 통화 재생 중 120ms 주기로 스피커 재생 위치(currentTime)와 CLOVA gRPC 스트림 세그먼트 동기화
   useEffect(() => {
     if (!isAudioPlaying || !activeAudioFile) return;
     const timer = window.setInterval(() => {
@@ -1041,7 +1135,7 @@ function LegacySttApp() {
         setAudioTime(cur, dur);
         handleAudioTimeUpdate(cur, false);
       }
-    }, 150);
+    }, 120);
     return () => clearInterval(timer);
   }, [isAudioPlaying, activeAudioFile, setAudioTime, handleAudioTimeUpdate]);
 
@@ -1063,11 +1157,14 @@ function LegacySttApp() {
       setRecording(true);
       if (sttEngine === 'web_speech') {
         startSttStreaming();
+      } else if (sttEngine === 'naver_clova') {
+        setInterimSttText('듣는중');
       }
       globalAudioRef.current.play().catch(() => {});
     } else {
       setIsAudioPlaying(false);
       setRecording(false);
+      setInterimSttText('');
       if (sttEngine === 'web_speech') {
         stopSttStreaming();
       }
@@ -1077,6 +1174,7 @@ function LegacySttApp() {
 
   const handleClearAudioFile = () => {
     audioSessionIdRef.current += 1;
+    abortAllClovaStreams();
     if (globalAudioRef.current) {
       globalAudioRef.current.pause();
       globalAudioRef.current.currentTime = 0;
@@ -1085,6 +1183,8 @@ function LegacySttApp() {
     }
     audioSegmentsRef.current = [];
     decodedPcm16kRef.current = null;
+    clovaWindowsRef.current = [];
+    pendingClovaSegmentsRef.current = [];
     realtimeVadRef.current = {
       cursorFrame: 0,
       inSpeech: false,
@@ -1127,12 +1227,12 @@ function LegacySttApp() {
         startSttStreaming();
       } else if (sttEngine === 'naver_clova' && activeAudioFile && globalAudioRef.current) {
         const curSec = globalAudioRef.current.currentTime;
-        const curFrame = Math.floor(curSec * 10);
-        realtimeVadRef.current.cursorFrame = curFrame;
-        realtimeVadRef.current.lastFlushedFrame = curFrame;
-        realtimeVadRef.current.inSpeech = false;
-        realtimeVadRef.current.silenceFrames = 0;
-        realtimeVadRef.current.voicedFrames = 0;
+        for (const seg of pendingClovaSegmentsRef.current) {
+          if (!seg.emitted && seg.end <= curSec) {
+            seg.emitted = true;
+          }
+        }
+        setInterimSttText('듣는중');
       }
       showToast(`STT 청음 시작 (${sttEngine === 'naver_clova' ? '네이버 클로바 STT' : '브라우저 내장 STT'})`);
       setTimeout(() => clearToast(), 2500);

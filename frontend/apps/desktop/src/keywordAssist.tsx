@@ -769,6 +769,7 @@ export function extractCustomerAndAddressEntities(text: string): ExtractedCustom
   const corpMatch = text.match(corpRegex);
   const facMatch = text.match(facilityRegex);
   const cueMatch = text.match(cueCompanyRegex);
+  const shortConfirmCompanyMatch = text.match(/(?:^|\s)(수림\s*종합\s*관리|수림)(?=\s*맞아요|\s*맞습니다|\s*입니다|\s*이에요)/);
 
   const stripMgrAndCue = (rawName: string): string => {
     let cleaned = rawName.replace(/^(?:안녕하세요|여기는?|저희는?|지금|현장명은|업체명은|회사명은)\s+/, '').trim();
@@ -801,6 +802,8 @@ export function extractCustomerAndAddressEntities(text: string): ExtractedCustom
     if (candidate.length >= 2 && !NON_COMPANY_CUES.has(candidate)) {
       info.customerName = candidate;
     }
+  } else if (shortConfirmCompanyMatch) {
+    info.customerName = shortConfirmCompanyMatch[1].trim();
   }
 
   return info;
@@ -845,7 +848,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-cust-general',
     type: 'customer',
     label: '고객사/담당자/연락처',
-    pattern: /\b(?:01[016789]|02|0[3-6][1-5]|070)[-\s.]?\d{3,4}[-\s.]?\d{4}\b|(?:\(주\)|주식회사)\s*[가-힣A-Za-z0-9_]{2,12}|[가-힣A-Za-z0-9_]{2,12}\s*(?:\(주\)|주식회사)|수림\s*종합\s*관리|머쉬앤\s*파머스|파머스|팜\s*스마트|비와이씨|BYC\s*빌딩|세원\s*종합\s*관리|베스트\s*환경\s*산업|반짝반짝\s*시스템|우주\s*엔비텍|티에스\s*식스티즈|롯데\s*캐슬(?:\s*프레미어)?|이편한\s*세상|우미린|트라팰리스|힐스테이트|더샵(?:\s*퍼스트월드|\s*반포리버파크)?|우림\s*라이온스\s*밸리|성우\s*하이텍(?:\s*서창공장|\s*선장공장)?|인천\s*공항\s*시설\s*관리|시민\s*마스터\s*크린|위너스텍|에스에프\s*코리아|듀델\s*코리아|건물\s*코디\s*뱅크|성원\s*테크|케이엠\s*산업|앰앰아이|글로벌\s*팩토리|인천\s*남동\s*정밀|메가\s*물류\s*센터|현대\s*메디컬\s*센터|[가-힣]{2,10}(?:종합관리|환경산업|관리사무소|관리지원센터|관리단|물류센터|유통센터|메디컬센터|아파트|선장공장|서창공장)/i,
+    pattern: /\b(?:01[016789]|02|0[3-6][1-5]|070)[-\s.]?\d{3,4}[-\s.]?\d{4}\b|(?:\(주\)|주식회사)\s*[가-힣A-Za-z0-9_]{2,12}|[가-힣A-Za-z0-9_]{2,12}\s*(?:\(주\)|주식회사)|수림\s*종합\s*관리|수림(?=\s*맞아요|\s*맞습니다|\s*입니다)|머쉬앤\s*파머스|파머스|팜\s*스마트|비와이씨|BYC\s*빌딩|세원\s*종합\s*관리|베스트\s*환경\s*산업|반짝반짝\s*시스템|우주\s*엔비텍|티에스\s*식스티즈|롯데\s*캐슬(?:\s*프레미어)?|이편한\s*세상|우미린|트라팰리스|힐스테이트|더샵(?:\s*퍼스트월드|\s*반포리버파크)?|우림\s*라이온스\s*밸리|성우\s*하이텍(?:\s*서창공장|\s*선장공장)?|인천\s*공항\s*시설\s*관리|시민\s*마스터\s*크린|위너스텍|에스에프\s*코리아|듀델\s*코리아|건물\s*코디\s*뱅크|성원\s*테크|케이엠\s*산업|앰앰아이|글로벌\s*팩토리|인천\s*남동\s*정밀|메가\s*물류\s*센터|현대\s*메디컬\s*센터|[가-힣]{2,10}(?:종합관리|환경산업|관리사무소|관리지원센터|관리단|물류센터|유통센터|메디컬센터|아파트|선장공장|서창공장)/i,
     colorScheme: { bg: '#bfdbfe', border: '#3b82f6', text: '#1e3a8a', glow: 'none' }
   },
 
@@ -911,7 +914,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-model-s12',
     type: 'model',
     label: '장비모델',
-    pattern: /S12L|S12|(?:에스|엑스|S)\s*(?:12|십이|일이)/i,
+    pattern: /S12L|S12|(?:에스|엑스|스|S)\s*(?:12|십이|일이)/i,
     modelId: 'S12',
     colorScheme: { bg: '#e9d5ff', border: '#c084fc', text: '#581c87', glow: 'none' }
   },
@@ -961,7 +964,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-solenoid',
     type: 'symptom',
     label: '고장증상',
-    pattern: /솔레노이드\s*밸브|솔레노이드|솔리노이드|솔노이드|솔래노이드|물이?\s*(?:아예\s*|잘\s*)?안\s*나와(?:요|서)?|물\s*안\s*나옴|안\s*나오더라고요|브러시\s*물|세척수\s*미분사|노즐\s*막힘|급수\s*밸브|필터가?\s*막혀|세수\s*필터/i,
+    pattern: /솔레노이드\s*밸브|솔레노이드|솔리노이드|솔노이드|솔래노이드|물이?\s*(?:아예\s*|잘\s*)?안\s*나와(?:요|서)?|물\s*안\s*나옴|안\s*나오더라고요|브러시\s*물|세척수\s*미분사|노즐\s*막힘|관로가?\s*막혔|관로\s*막힘|필터\s*열어서|급수\s*밸브|필터가?\s*막혀|세수\s*필터/i,
     keywordId: 'kw-solenoid',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },

@@ -26,7 +26,10 @@ async def get_stt_engine_status():
     cuda_count = ctranslate2.get_cuda_device_count()
     loopback_svc = get_loopback_service()
     devices = list_loopback_devices()
-    clova_ready = bool(get_server_secret("NAVER_CLOVA_CLIENT_ID") and get_server_secret("NAVER_CLOVA_CLIENT_SECRET"))
+    clova_ready = bool(
+        get_server_secret("NAVER_CLOVA_SPEECH_SECRET_KEY")
+        or (get_server_secret("NAVER_CLOVA_CLIENT_ID") and get_server_secret("NAVER_CLOVA_CLIENT_SECRET"))
+    )
     
     device_desc = f"CUDA / float16 (GPU x{cuda_count})" if cuda_count > 0 else "CPU / int8 (Fallback)"
     return {
@@ -34,6 +37,7 @@ async def get_stt_engine_status():
         "device": device_desc if is_gpu_ready else "CPU/Standby",
         "is_ready": is_gpu_ready,
         "clova_vault_ready": clova_ready,
+        "clova_mode": "gRPC Live Streaming (clovaspeech-gw.ncloud.com:50051)",
         "cuda_devices": cuda_count,
         "loopback_running": loopback_svc.is_running,
         "loopback_devices": devices,
@@ -164,24 +168,10 @@ def _sync_transcribe_file(model, audio_path: str):
 
 
 def _sync_transcribe_with_clova(audio_path: str):
-    """PyAV로 오디오 파일을 16kHz 모노로 디코딩 후 에너지 VAD로 청킹하여 NAVER CLOVA CSR로 전사"""
-    import av, io, urllib.request, json
+    """PyAV로 오디오 파일을 16kHz 1ch 16-bit PCM으로 디코딩 후 CLOVA Speech 실시간 스트리밍(gRPC)으로 전사"""
+    import av
     import numpy as np
-    from scipy.io import wavfile
-    from app.core.config import get_settings
-    from app.core.secret_vault import get_server_secret
-
-    settings = get_settings()
-    client_id = (
-        getattr(settings, "naver_clova_client_id", "")
-        or get_server_secret("NAVER_CLOVA_CLIENT_ID", "")
-    )
-    client_secret = (
-        getattr(settings, "naver_clova_client_secret", "")
-        or get_server_secret("NAVER_CLOVA_CLIENT_SECRET", "")
-    )
-    if not client_id or not client_secret:
-        raise RuntimeError("서버 보안 볼트(private_vault)에서 NAVER CLOVA 인증키를 찾을 수 없습니다.")
+    from app.services.clova_grpc_service import transcribe_pcm_with_clova_grpc
 
     container = av.open(audio_path)
     resampler = av.AudioResampler(format="s16", layout="mono", rate=16000)
@@ -194,120 +184,20 @@ def _sync_transcribe_with_clova(audio_path: str):
     if not audio_chunks:
         return [], [], 0.0
 
-    full_audio = np.concatenate(audio_chunks, axis=1).squeeze()
+    full_audio = np.concatenate(audio_chunks, axis=1).squeeze().astype(np.int16)
     sr = 16000
     duration = len(full_audio) / sr
+    pcm_bytes = full_audio.tobytes()
 
-    # 100ms 에너지 기반 VAD 세그먼테이션
-    frame_len = int(sr * 0.1)
-    n_frames = len(full_audio) // frame_len
-    energies = [np.sqrt(np.mean(full_audio[i*frame_len:(i+1)*frame_len].astype(np.float32)**2)) for i in range(n_frames)]
-    threshold = 300  # int16 기준 음성 에너지 임계값
-    is_speech = [e > threshold for e in energies]
-
-    segments_time = []
-    in_speech = False
-    seg_start = 0
-    silence_count = 0
-
-    for i, speech in enumerate(is_speech):
-        if speech:
-            if not in_speech:
-                in_speech = True
-                seg_start = max(0, i - 1)
-            silence_count = 0
-        else:
-            if in_speech:
-                silence_count += 1
-                # 0.6초 침묵 시 또는 8초 초과 시 세그먼트 커밋
-                if silence_count >= 6 or (i - seg_start) * 0.1 >= 8.0:
-                    seg_end = i
-                    if (seg_end - seg_start) * 0.1 >= 0.8:
-                        segments_time.append((seg_start * 0.1, seg_end * 0.1))
-                    in_speech = False
-                    silence_count = 0
-
-    if in_speech and (len(is_speech) - seg_start) * 0.1 >= 0.8:
-        segments_time.append((seg_start * 0.1, len(is_speech) * 0.1))
-
-    result_segments = []
-    full_lines = []
-    last_text = None
-
-    url = "https://naveropenapi.apigw.ntruss.com/recog/v1/stt?lang=Kor"
-    for s_start, s_end in segments_time:
-        sub = full_audio[int(s_start * sr):int(s_end * sr)]
-        buf = io.BytesIO()
-        wavfile.write(buf, sr, sub)
-        req = urllib.request.Request(
-            url,
-            data=buf.getvalue(),
-            headers={
-                "X-NCP-APIGW-API-KEY-ID": client_id,
-                "X-NCP-APIGW-API-KEY": client_secret,
-                "Content-Type": "application/octet-stream",
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                text = str(data.get("text", "")).strip()
-                if not text or text == last_text:
-                    continue
-                last_text = text
-
-                m = int(s_start // 60)
-                s = int(s_start % 60)
-                ts = f"[{m:02d}:{s:02d}]"
-                line = f"{ts} {text}"
-                full_lines.append(line)
-                result_segments.append({
-                    "start": round(s_start, 2),
-                    "end": round(s_end, 2),
-                    "timestamp": ts,
-                    "text": text,
-                    "full_line": line,
-                    "provider": "naver_clova"
-                })
-        except Exception as clova_err:
-            logger.warning(f"Clova segment STT failed at {s_start:.1f}s: {clova_err}")
-
+    result_segments, full_lines, _ = transcribe_pcm_with_clova_grpc(pcm_bytes, start_offset_sec=0.0)
     return result_segments, full_lines, duration
 
 
-def _sync_clova_single_wav_chunk(wav_bytes: bytes) -> str:
-    """실시간 통화 중 단일 발화 WAV 청크(16kHz Mono)를 NAVER CLOVA CSR로 즉시 전사"""
-    import urllib.request, json
-    from app.core.config import get_settings
-    from app.core.secret_vault import get_server_secret
-
-    settings = get_settings()
-    client_id = (
-        getattr(settings, "naver_clova_client_id", "")
-        or get_server_secret("NAVER_CLOVA_CLIENT_ID", "")
-    )
-    client_secret = (
-        getattr(settings, "naver_clova_client_secret", "")
-        or get_server_secret("NAVER_CLOVA_CLIENT_SECRET", "")
-    )
-    if not client_id or not client_secret:
-        raise RuntimeError("서버 보안 볼트(private_vault)에서 NAVER CLOVA 인증키를 찾을 수 없습니다.")
-
-    url = "https://naveropenapi.apigw.ntruss.com/recog/v1/stt?lang=Kor"
-    req = urllib.request.Request(
-        url,
-        data=wav_bytes,
-        headers={
-            "X-NCP-APIGW-API-KEY-ID": client_id,
-            "X-NCP-APIGW-API-KEY": client_secret,
-            "Content-Type": "application/octet-stream",
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-        return str(data.get("text", "")).strip()
+def _sync_clova_single_wav_chunk(wav_bytes: bytes, start_offset_sec: float = 0.0):
+    """실시간 통화 중 오디오 청크(16kHz Mono PCM/WAV)를 CLOVA Speech gRPC 스트리밍으로 전사"""
+    from app.services.clova_grpc_service import transcribe_pcm_with_clova_grpc
+    segments, _, combined_text = transcribe_pcm_with_clova_grpc(wav_bytes, start_offset_sec=start_offset_sec)
+    return combined_text, segments
 
 
 @router.post("/clova-chunk", dependencies=[Depends(check_stt_rate_limit)])
@@ -315,30 +205,54 @@ async def transcribe_realtime_clova_chunk(
     file: UploadFile = File(...),
     start: float = 0.0,
     end: float = 0.0,
+    stream: int = 0,
 ):
     """
-    통화 실시간 진행 시뮬레이션용 단일 청크 전사 엔드포인트.
-    전체 파일을 한 번에 던지지 않고, 통화 재생 흐름에 따라 현재 발화 구간의
-    오디오 청크(16kHz Mono WAV)만 실시간으로 전송받아 NAVER CLOVA CSR 결과를 반환합니다.
+    통화 실시간 스트리밍 전사 엔드포인트 (CLOVA Speech gRPC: clovaspeech-gw.ncloud.com:50051).
+    - stream=1: NDJSON 스트리밍으로 문장 조각이 인식되는 즉시 실시간 flush
+    - stream=0: 완료 후 JSON 반환
     """
+    import json as _json
     import time as _time
+    from fastapi.responses import StreamingResponse
+    from app.services.clova_grpc_service import stream_pcm_with_clova_grpc
+
     t0 = _time.time()
     wav_bytes = await file.read()
     if not wav_bytes or len(wav_bytes) < 100:
-        return {"text": "", "timestamp": "[00:00]", "full_line": "", "start": start, "end": end, "provider": "naver_clova"}
-    if len(wav_bytes) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="단일 청크 크기가 10MB를 초과했습니다.")
+        return {"text": "", "segments": [], "timestamp": "[00:00]", "full_line": "", "start": start, "end": end, "provider": "naver_clova"}
+    if len(wav_bytes) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="단일 청크 크기가 15MB를 초과했습니다.")
+
+    if stream == 1:
+        def ndjson_generator():
+            try:
+                for seg in stream_pcm_with_clova_grpc(wav_bytes, start_offset_sec=start):
+                    yield _json.dumps(seg, ensure_ascii=False) + "\n"
+            except Exception as stream_err:
+                logger.error(f"Clova gRPC NDJSON stream error: {stream_err}", exc_info=True)
+                yield _json.dumps({"error": str(stream_err)}, ensure_ascii=False) + "\n"
+
+        return StreamingResponse(
+            ndjson_generator(),
+            media_type="application/x-ndjson",
+            headers={
+                "Cache-Control": "no-cache, no-transform",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     try:
-        text = await asyncio.to_thread(_sync_clova_single_wav_chunk, wav_bytes)
+        text, segments = await asyncio.to_thread(_sync_clova_single_wav_chunk, wav_bytes, start)
         elapsed_ms = int((_time.time() - t0) * 1000)
         m = int(start // 60)
         s = int(start % 60)
         ts = f"[{m:02d}:{s:02d}]"
         line = f"{ts} {text}" if text else ""
-        logger.info(f"⚡ [CLOVA-REALTIME-CHUNK] {ts} ({start:.1f}s~{end:.1f}s, {len(wav_bytes)}B, {elapsed_ms}ms) -> '{text}'")
+        logger.info(f"⚡ [CLOVA-gRPC-CHUNK] {ts} ({start:.1f}s~{end:.1f}s, {len(wav_bytes)}B, {elapsed_ms}ms) -> '{text}'")
         return {
             "text": text,
+            "segments": segments,
             "timestamp": ts,
             "full_line": line,
             "start": round(start, 2),
@@ -347,8 +261,8 @@ async def transcribe_realtime_clova_chunk(
             "provider": "naver_clova"
         }
     except Exception as e:
-        logger.error(f"Clova real-time chunk error ({start:.1f}s~{end:.1f}s): {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Clova 실시간 청크 전사 오류: {str(e)}")
+        logger.error(f"Clova gRPC chunk error ({start:.1f}s~{end:.1f}s): {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Clova 실시간 스트리밍 전사 오류: {str(e)}")
 
 
 @router.post("/transcribe-file", dependencies=[Depends(check_stt_rate_limit)])

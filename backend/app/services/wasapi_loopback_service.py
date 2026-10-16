@@ -337,48 +337,16 @@ class LoopbackSTTService:
 
     def _transcribe_with_naver_clova(self, audio_16k: np.ndarray) -> str:
         """
-        16kHz float32 오디오 배열을 인메모리 WAV 바이트로 변환하여
-        NAVER CLOVA Speech Recognition (CSR) API로 실시간 단문 전사합니다.
+        16kHz float32 오디오 배열을 16-bit PCM 바이트로 변환하여
+        NAVER CLOVA Speech gRPC 실시간 스트리밍(clovaspeech-gw.ncloud.com:50051)으로 전사합니다.
         """
-        import io
-        import json
-        import urllib.request
-        from scipy.io import wavfile
-        from app.core.config import get_settings
-        from app.core.secret_vault import get_server_secret
+        from app.services.clova_grpc_service import transcribe_pcm_with_clova_grpc
 
-        settings = get_settings()
-        client_id = (
-            getattr(settings, "naver_clova_client_id", "")
-            or get_server_secret("NAVER_CLOVA_CLIENT_ID", "")
-        )
-        client_secret = (
-            getattr(settings, "naver_clova_client_secret", "")
-            or get_server_secret("NAVER_CLOVA_CLIENT_SECRET", "")
-        )
-        if not client_id or not client_secret:
-            raise RuntimeError("서버 보안 볼트(private_vault)에서 NAVER CLOVA 인증키를 찾을 수 없습니다.")
+        audio_int16 = np.clip(audio_16k * 32767, -32768, 32767).astype("<i2")
+        pcm_bytes = audio_int16.tobytes()
+        result = transcribe_pcm_with_clova_grpc(pcm_bytes)
+        return str(result.get("text", "")).strip()
 
-        buf = io.BytesIO()
-        audio_int16 = np.clip(audio_16k * 32767, -32768, 32767).astype(np.int16)
-        wavfile.write(buf, WHISPER_SAMPLE_RATE, audio_int16)
-        wav_bytes = buf.getvalue()
-
-        url = "https://naveropenapi.apigw.ntruss.com/recog/v1/stt?lang=Kor"
-        req = urllib.request.Request(
-            url,
-            data=wav_bytes,
-            headers={
-                "X-NCP-APIGW-API-KEY-ID": client_id,
-                "X-NCP-APIGW-API-KEY": client_secret,
-                "Content-Type": "application/octet-stream",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            raw = resp.read().decode("utf-8")
-            data = json.loads(raw)
-            return str(data.get("text", "")).strip()
 
     def _inference_worker(self, segment_callback: Callable[[dict], None]):
         """

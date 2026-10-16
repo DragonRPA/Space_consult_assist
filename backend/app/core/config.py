@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     openai_llm_model: str = "gpt-4o-mini"
     naver_clova_client_id: str = ""
     naver_clova_client_secret: str = ""
+    naver_clova_speech_secret_key: str = ""
+    naver_clova_speech_grpc_url: str = "clovaspeech-gw.ncloud.com:50051"
     
     class Config:
         env_file = ".env"
@@ -59,8 +61,13 @@ def get_settings():
             s.naver_clova_client_id = get_server_secret("NAVER_CLOVA_CLIENT_ID", "")
         if not s.naver_clova_client_secret:
             s.naver_clova_client_secret = get_server_secret("NAVER_CLOVA_CLIENT_SECRET", "")
+        if not s.naver_clova_speech_secret_key:
+            s.naver_clova_speech_secret_key = get_server_secret("NAVER_CLOVA_SPEECH_SECRET_KEY", "")
+        if not s.naver_clova_speech_grpc_url or s.naver_clova_speech_grpc_url == "clovaspeech-gw.ncloud.com:50051":
+            s.naver_clova_speech_grpc_url = get_server_secret("NAVER_CLOVA_SPEECH_GRPC_URL", "clovaspeech-gw.ncloud.com:50051")
         if not s.openai_api_key:
             s.openai_api_key = get_server_secret("OPENAI_API_KEY", "")
     except Exception:
         pass
     return s
+
