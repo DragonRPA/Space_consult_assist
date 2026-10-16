@@ -304,7 +304,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
     manualOverrideKeyword: ''
   }),
 
-  sttEngine: 'web_speech',
+  sttEngine: 'naver_clova',
   setSttEngine: (engine) => set({ sttEngine: engine }),
 
   isContextCorrectionEnabled: true,
@@ -370,7 +370,6 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
   },
   selectCustomer: (customer) => set({ selectedCustomer: customer }),
   setSelectedCustomerModel: (modelName) => set((state) => {
-    const cleanCode = modelName.replace(/[^A-Za-z0-9]/g, '');
     const baseCustomer: CustomerInfo = state.selectedCustomer || {
       id: 'live-dynamic-customer',
       name: '',
@@ -381,14 +380,13 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
       assetModel: '',
       serialNumber: '',
       salesType: '미확인',
-      warrantyRemaining: '확인 대기',
+      warrantyRemaining: '',
       historyTimeline: []
     };
     return {
       selectedCustomer: {
         ...baseCustomer,
-        assetModel: modelName ? `${modelName} (실시간 발화 자동 식별)` : '',
-        serialNumber: cleanCode ? `SN-2025-${cleanCode}-AUTO` : ''
+        assetModel: modelName ? modelName.trim() : ''
       }
     };
   }),

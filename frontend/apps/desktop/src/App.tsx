@@ -22,7 +22,7 @@ import {
   ChevronRight,
   Check
 } from 'lucide-react';
-import { useCounselStore, DEFAULT_CUSTOMERS } from './store';
+import { useCounselStore } from './store';
 import { MicTestModal } from './MicTestModal';
 import { EquipmentManualModal } from './EquipmentManualModal';
 import { PartsOrderQuotationModal } from './PartsOrderQuotationModal';
@@ -308,7 +308,7 @@ function LegacySttApp() {
       }
     }
 
-    // 2. Customer & Address Multi-Dimensional Identification (Preset + Dynamic Spoken Customer/Manager/Phone/RoadAddress/DetailZone)
+    // 2. Customer & Address Multi-Dimensional Identification (음성 STT에서 실제 발화된 정보만 추출·표시)
     const afterSymptomStore = useCounselStore.getState();
     const curCust = afterSymptomStore.selectedCustomer;
     const extractedInfo = extractCustomerAndAddressEntities(text);
@@ -324,43 +324,28 @@ function LegacySttApp() {
           assetModel: '',
           serialNumber: '',
           salesType: '미확인',
-          warrantyRemaining: '확인 대기',
+          warrantyRemaining: '',
           historyTimeline: [],
         };
-    let presetSwitched = false;
     const changedFields: string[] = [];
 
-    // 2-A. Preset Customer Matching (by NAMED_ENTITY_REGISTRY rule, phone, customer core name, or manager name)
-    let matchedPreset: CustomerInfo | undefined;
-    for (const entRule of NAMED_ENTITY_REGISTRY) {
-      if (entRule.type === 'customer' && entRule.customerId && entRule.pattern.test(text)) {
-        matchedPreset = DEFAULT_CUSTOMERS.find(c => c.id === entRule.customerId);
-        if (matchedPreset) break;
+    // 2-A. 발화 내 고객사명 추출 (추출기 결과 또는 등록된 고객사 고유명 발화 매칭 시 이름만 반영)
+    let spokenCustomerName = extractedInfo.customerName || '';
+    if (!spokenCustomerName) {
+      for (const entRule of NAMED_ENTITY_REGISTRY) {
+        if (entRule.type === 'customer' && entRule.pattern.test(text)) {
+          const matchedText = text.match(entRule.pattern)?.[0]?.trim();
+          if (matchedText) {
+            spokenCustomerName = matchedText;
+            break;
+          }
+        }
       }
     }
-    if (!matchedPreset) {
-      const textCompact = text.replace(/\s+/g, '');
-      matchedPreset = DEFAULT_CUSTOMERS.find(c => {
-        if (extractedInfo.phone && c.phone === extractedInfo.phone) return true;
-        const coreName = c.name
-          .replace(/(?:\(주\)|주식회사|아파트|관리사무소|관리지원센터|관리단|\s+)/g, '')
-          .trim();
-        if (coreName.length >= 3 && textCompact.includes(coreName)) return true;
-        const mgrCore = c.manager.split(' ')[0]?.trim();
-        if (mgrCore && mgrCore.length >= 2 && text.includes(mgrCore)) return true;
-        return false;
-      });
-    }
 
-    if (matchedPreset && curCust?.id !== matchedPreset.id) {
-      activeCust = { ...matchedPreset };
-      presetSwitched = true;
-    }
-
-    // 2-B. Dynamic Multi-Field Extraction & Override (Customer Name, Manager, Phone, Road/Lot Address, Detail Zone)
-    if (!matchedPreset && extractedInfo.customerName && !activeCust.name.includes(extractedInfo.customerName)) {
-      activeCust.name = extractedInfo.customerName;
-      changedFields.push(`고객사: ${extractedInfo.customerName}`);
+    if (spokenCustomerName && !activeCust.name.includes(spokenCustomerName)) {
+      activeCust.name = spokenCustomerName;
+      changedFields.push(`고객사: ${spokenCustomerName}`);
     }
     if (extractedInfo.managerName && !activeCust.manager.includes(extractedInfo.managerName)) {
       activeCust.manager = extractedInfo.managerName;
@@ -385,13 +370,13 @@ function LegacySttApp() {
       }
     }
 
-    if (presetSwitched || changedFields.length > 0) {
+    if (changedFields.length > 0) {
       afterSymptomStore.selectCustomer(activeCust);
       setConfirmedSlotFlags(prev => ({
-        customer: prev.customer || presetSwitched || Boolean(extractedInfo.customerName || extractedInfo.managerName),
-        phone: prev.phone || presetSwitched || Boolean(extractedInfo.phone),
-        address: prev.address || presetSwitched || Boolean(extractedInfo.roadOrLotAddress || extractedInfo.addressDetail),
-        model: prev.model || presetSwitched,
+        customer: prev.customer || Boolean(spokenCustomerName || extractedInfo.managerName),
+        phone: prev.phone || Boolean(extractedInfo.phone),
+        address: prev.address || Boolean(extractedInfo.roadOrLotAddress || extractedInfo.addressDetail),
+        model: prev.model,
       }));
 
       // 지역 기반 관할 정비기사 자동 배정
@@ -404,12 +389,7 @@ function LegacySttApp() {
         afterSymptomStore.setAssignedEngineer('이지훈 정비기사 (평택/충청북부)');
       }
 
-      const toastMsg = presetSwitched && changedFields.length > 0
-        ? `[고객사 자동 선택: ${activeCust.name} · ${changedFields.join(' · ')}]`
-        : presetSwitched
-          ? `[고객사 감지: ${activeCust.name}] 자동 선택 완료`
-          : `[고객/주소 추출: ${changedFields.join(' · ')}] 고객 패널 실시간 반영`;
-      afterSymptomStore.showToast(toastMsg);
+      afterSymptomStore.showToast(`[음성 확인: ${changedFields.join(' · ')}]`);
       setTimeout(() => afterSymptomStore.clearToast(), 3000);
     }
 
@@ -729,54 +709,57 @@ function LegacySttApp() {
     return new Blob([buffer], { type: 'audio/wav' });
   };
 
-  // 통화 파일명에서 발신자/고객사/모델 힌트 초기 추출
-  const applyCallerHintFromFilename = useCallback((filename: string) => {
-    const stem = filename.replace(/\.[^.]+$/, '').replace(/^통화\s*녹음\s*/, '');
-    // 예: 20240423_100933_수림종합관리_담당자 또는 20180504_173816_유동준님(베스트환경산업)
-    const parts = stem.split('_').filter(p => !/^\d{6,8}$/.test(p) && p !== '파싱실패');
-    if (parts.length === 0) return;
+  // WAV Blob -> Base64 변환 및 클로바 실시간 청크 전사 요청 (Vercel Serverless + 로컬 백엔드 하이브리드)
+  const requestClovaChunkStt = useCallback(async (wavBlob: Blob, startSec: number, endSec: number): Promise<{ text?: string }> => {
+    const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const qs = `start=${startSec.toFixed(2)}&end=${endSec.toFixed(2)}`;
 
-    const rawInfo = parts.join(' ');
-    const phoneMatch = rawInfo.match(/0\d{1,2}-?\d{3,4}-?\d{4}/);
-    const parenMatch = rawInfo.match(/([가-힣A-Za-z0-9]+)\(([^)]+)\)/);
-    let custName = '통화 발신 고객사 (음성 식별 대기)';
-    let mgrName = '발신 담당자';
-    let phoneStr = phoneMatch ? phoneMatch[0] : '발신번호 확인중';
-    let modelStr = '통화 중 장비모델 자동 식별 대기';
-
-    const modelMatch = rawInfo.match(/\b(J600T?|J800|S12L?|S7P?|S5|S3|S2|S1|R3)\b/i);
-    if (modelMatch) {
-      modelStr = modelMatch[1].toUpperCase();
-    }
-
-    if (parenMatch) {
-      mgrName = parenMatch[1].trim();
-      custName = parenMatch[2].trim();
-    } else {
-      const nonPhone = rawInfo.replace(/0\d{1,2}-?\d{3,4}-?\d{4}/g, '').replace(/\b(J600T?|J800|S12L?|S7P?|S5|S3|S2|S1|R3)\b/gi, '').trim();
-      if (nonPhone) {
-        const tokens = nonPhone.split(/\s+/);
-        custName = tokens[0] || custName;
-        if (tokens[1]) mgrName = tokens[1];
+    if (isLocalHost) {
+      try {
+        const formData = new FormData();
+        formData.append('file', wavBlob, `chunk_${startSec.toFixed(1)}_${endSec.toFixed(1)}.wav`);
+        const localRes = await fetch(`http://127.0.0.1:8000/api/v1/stt/clova-chunk?${qs}`, {
+          method: 'POST',
+          body: formData,
+        });
+        if (localRes.ok) {
+          return await localRes.json();
+        }
+      } catch (_) {
+        // 로컬 백엔드 미기동 시 클라우드 엔드포인트로 자동 폴백
       }
     }
 
-    selectCustomer({
-      id: `live-call-${Date.now()}`,
-      name: custName,
-      manager: mgrName,
-      phone: phoneStr,
-      address: '통화 중 현장 위치 자동 식별',
-      addressDetail: `원본 통화: ${filename}`,
-      assetModel: modelStr,
-      serialNumber: 'SN-LIVE-DETECT',
-      salesType: '실시간 통화 분석',
-      warrantyRemaining: '보증 상태 확인중',
-      historyTimeline: [
-        { date: '실시간 통화', title: `[${filename}] 통화 음성 실시간 분석 진행 중` }
-      ]
+    const audioBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const res = String(reader.result || '');
+        const commaIdx = res.indexOf(',');
+        resolve(commaIdx >= 0 ? res.slice(commaIdx + 1) : res);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(wavBlob);
     });
-  }, [selectCustomer]);
+
+    const cloudUrl = isLocalHost
+      ? `https://space-consult-assist.vercel.app/api/clova-chunk?${qs}`
+      : `/api/clova-chunk?${qs}`;
+
+    const cloudRes = await fetch(cloudUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        audio_base64: audioBase64,
+        start: Number(startSec.toFixed(2)),
+        end: Number(endSec.toFixed(2)),
+      }),
+    });
+
+    if (!cloudRes.ok) {
+      throw new Error(`Clova STT HTTP ${cloudRes.status}`);
+    }
+    return await cloudRes.json();
+  }, []);
 
   const processAudioWithActiveEngine = useCallback(async (file: File) => {
     // 1. 신규 오디오 세션 ID 발급 (이전 파일의 진행 중인 비동기 Clova 응답 및 디코딩 무효화)
@@ -805,14 +788,15 @@ function LegacySttApp() {
       inSpeech: false,
       speechStartFrame: 0,
       silenceFrames: 0,
-      noiseFloor: 220,
+      noiseFloor: 180,
       inflightCount: 0,
       lastChunkLabel: '',
     };
 
-    // 4. 화면 상담 세션 초기화 및 파일명 기반 발신자 힌트 세팅
+    // 4. 화면 상담 세션 완전 초기화 (파일명 기반 사전 정보 표출 금지 - 오직 음성 STT 발화로만 정보 확인)
     resetSessionForNewAudio();
-    applyCallerHintFromFilename(file.name);
+    setConfirmedSlotFlags({ customer: false, phone: false, address: false, model: false });
+    setRecommendedClosingAction('NONE');
 
     // 5. 백엔드 루프백 버퍼 클리어 요청
     if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
@@ -840,13 +824,32 @@ function LegacySttApp() {
       const rendered = await offlineCtx.startRendering();
       if (audioSessionIdRef.current !== mySessionId) return;
 
-      decodedPcm16kRef.current = rendered.getChannelData(0);
+      const pcmData = rendered.getChannelData(0);
+      decodedPcm16kRef.current = pcmData;
+
+      // 파일별 음량 분포(30분위 RMS)를 계산하여 저음량 통화 녹음에서도 발화 구간이 누락되지 않도록 초기 임계값 설정
+      const frameLen = 1600;
+      const totalFrames = Math.floor(pcmData.length / frameLen);
+      const frameEnergies: number[] = [];
+      for (let i = 0; i < totalFrames; i += 2) {
+        let sumSq = 0;
+        const base = i * frameLen;
+        for (let j = 0; j < frameLen; j++) {
+          const v = pcmData[base + j] * 32767;
+          sumSq += v * v;
+        }
+        frameEnergies.push(Math.sqrt(sumSq / frameLen));
+      }
+      frameEnergies.sort((a, b) => a - b);
+      const p30 = frameEnergies.length > 0 ? frameEnergies[Math.floor(frameEnergies.length * 0.3)] : 80;
+      const initialNoiseFloor = Math.max(115, Math.min(250, p30 * 2.1));
+
       realtimeVadRef.current = {
         cursorFrame: 0,
         inSpeech: false,
         speechStartFrame: 0,
         silenceFrames: 0,
-        noiseFloor: 220,
+        noiseFloor: initialNoiseFloor,
         inflightCount: 0,
         lastChunkLabel: '',
       };
@@ -884,9 +887,9 @@ function LegacySttApp() {
       }
     }, 30);
 
-    showToast(`[${file.name}] 통화 초기화 및 실시간 음성 수음 시작`);
+    showToast(`[${file.name}] 실시간 음성 STT 시작`);
     setTimeout(() => clearToast(), 3000);
-  }, [resetSessionForNewAudio, applyCallerHintFromFilename, setActiveAudioFile, setIsAudioPlaying, setAudioTime, setInterimSttText, setRecording, startSttStreaming, showToast, clearToast]);
+  }, [resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, setAudioTime, setInterimSttText, setRecording, startSttStreaming, showToast, clearToast]);
 
 
 
@@ -977,9 +980,10 @@ function LegacySttApp() {
 
     // 인과율 강제(Zero Future Lookahead): 절대로 현재 재생 시점(currentPlayheadSec) 이후의 미래 샘플은 잘라내지 못하도록 하드 클램핑
     const safeEndSec = Math.min(endSec, currentPlayheadSec);
-    if (safeEndSec - startSec < 0.65) return;
+    if (safeEndSec - startSec < 0.45) return;
 
-    const startSample = Math.max(0, Math.floor(startSec * 16000));
+    const paddedStartSec = Math.max(0, startSec - 0.1);
+    const startSample = Math.max(0, Math.floor(paddedStartSec * 16000));
     const endSample = Math.min(pcm16k.length, Math.floor(safeEndSec * 16000));
     if (endSample <= startSample) return;
 
@@ -996,17 +1000,7 @@ function LegacySttApp() {
     vad.inflightCount += 1;
     vad.lastChunkLabel = chunkLabel;
 
-    const formData = new FormData();
-    formData.append('file', wavBlob, `chunk_${startSec.toFixed(1)}_${safeEndSec.toFixed(1)}.wav`);
-
-    fetch(`http://127.0.0.1:8000/api/v1/stt/clova-chunk?start=${startSec.toFixed(2)}&end=${safeEndSec.toFixed(2)}`, {
-      method: 'POST',
-      body: formData
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
+    requestClovaChunkStt(wavBlob, startSec, safeEndSec)
       .then((data) => {
         // 다른 파일로 전환되었거나 정지된 경우 이전 파일의 지연 응답은 즉시 폐기
         if (audioSessionIdRef.current !== capturedSessionId) return;
@@ -1026,7 +1020,7 @@ function LegacySttApp() {
           setInterimSttText('');
         }
       });
-  }, [processIncomingSpeechUtterance, setInterimSttText]);
+  }, [requestClovaChunkStt, processIncomingSpeechUtterance, setInterimSttText]);
 
   const handleAudioTimeUpdate = useCallback((currentTimeSec: number, isEnded = false) => {
     const pcm16k = decodedPcm16kRef.current;
@@ -1068,10 +1062,10 @@ function LegacySttApp() {
       }
       const rms = Math.sqrt(sumSq / frameLen);
 
-      if (!vad.inSpeech && rms < 400) {
-        vad.noiseFloor = vad.noiseFloor * 0.94 + Math.max(160, rms * 1.9) * 0.06;
+      if (!vad.inSpeech && rms < 340) {
+        vad.noiseFloor = vad.noiseFloor * 0.94 + Math.max(110, rms * 1.85) * 0.06;
       }
-      const threshold = Math.max(195, Math.min(380, vad.noiseFloor));
+      const threshold = Math.max(120, Math.min(340, vad.noiseFloor));
 
       if (rms > threshold) {
         if (!vad.inSpeech) {
@@ -1092,7 +1086,7 @@ function LegacySttApp() {
         const speechDurSec = (f - vad.speechStartFrame) * 0.1;
         // 발화 후 0.3초(3프레임) 침묵이 실제로 감지된 순간(발화가 끝난 직후)에만 해당 구간을 클로바로 전송
         if (vad.silenceFrames >= 3) {
-          if (speechDurSec >= 0.7) {
+          if (speechDurSec >= 0.45) {
             flushCompletedSpeechChunkToClova(vad.speechStartFrame * 0.1, f * 0.1, currentTimeSec);
           }
           vad.inSpeech = false;
@@ -1108,7 +1102,7 @@ function LegacySttApp() {
       const startSec = vad.speechStartFrame * 0.1;
       vad.inSpeech = false;
       vad.silenceFrames = 0;
-      if (currentTimeSec - startSec >= 0.65) {
+      if (currentTimeSec - startSec >= 0.45) {
         flushCompletedSpeechChunkToClova(startSec, currentTimeSec, currentTimeSec);
       }
     }
@@ -1180,7 +1174,7 @@ function LegacySttApp() {
       inSpeech: false,
       speechStartFrame: 0,
       silenceFrames: 0,
-      noiseFloor: 220,
+      noiseFloor: 180,
       inflightCount: 0,
       lastChunkLabel: '',
     };
@@ -1192,6 +1186,9 @@ function LegacySttApp() {
     setIsAudioPlaying(false);
     setRecording(false);
     clearAudioFile();
+    resetSessionForNewAudio();
+    setConfirmedSlotFlags({ customer: false, phone: false, address: false, model: false });
+    setRecommendedClosingAction('NONE');
     showToast("음성 파일 및 STT 수신이 즉시 제거되었습니다.");
     setTimeout(() => clearToast(), 2000);
   };
@@ -1263,26 +1260,17 @@ function LegacySttApp() {
     let micSilenceChunks = 0;
 
     const flushMicSamplesToClova = (samples16k: number[]) => {
-      if (samples16k.length < 16000 * 0.55) return;
+      if (samples16k.length < 16000 * 0.45) return;
       const floatArr = new Float32Array(samples16k);
       const wavBlob = encodeWav16kMono(floatArr, 16000);
       const curSec = useCounselStore.getState().callSeconds;
       const m = String(Math.floor(curSec / 60)).padStart(2, '0');
       const s = String(Math.floor(curSec % 60)).padStart(2, '0');
-      const durSec = (samples16k.length / 16000).toFixed(1);
+      const durSec = Number((samples16k.length / 16000).toFixed(1));
 
       setInterimSttText('듣는중');
-      const formData = new FormData();
-      formData.append('file', wavBlob, `mic_${Date.now()}.wav`);
 
-      fetch(`http://127.0.0.1:8000/api/v1/stt/clova-chunk?start=${curSec}&end=${curSec + Number(durSec)}`, {
-        method: 'POST',
-        body: formData
-      })
-        .then(async (res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
-        })
+      requestClovaChunkStt(wavBlob, curSec, curSec + durSec)
         .then((data) => {
           const cleanText = (data.text || '').trim();
           if (cleanText) {
