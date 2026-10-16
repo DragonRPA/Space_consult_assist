@@ -407,48 +407,96 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
       return Number(m[1]) * 60 + Number(m[2]);
     };
 
-    const stripTs = (line: string): string => line.replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '').trim();
+    const extractMetaPrefix = (line: string): string => {
+      const m = line.match(/^(\[\d{1,2}:\d{2}(?::\d{2})?\](?:\s*\[\d+(?:\.\d+)?s\s*·\s*[^\]]+\])?)/);
+      return m ? m[1] : '';
+    };
 
-    // 직전 발화가 호흡/생각 멈춤으로 인해 문장 중간(연결어미·조사·전화번호/모델명 끊어 읽기)에서 잘린 경우 후속 발화와 한 문장으로 응집 병합
+    const stripMeta = (line: string): string =>
+      line
+        .replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '')
+        .replace(/^\[\d+(?:\.\d+)?s\s*·\s*[^\]]+\]\s*/, '')
+        .trim();
+
+    const normChars = (s: string): string => s.replace(/[\s.,?!~·\-]/g, '');
+
+    // 단일 줄 내부에서 동일 구절이 연속 2회 반복된 경우("A A B" -> "A B") 정화
+    const dedupImmediateRepeat = (body: string): string => {
+      const words = body.trim().split(/\s+/);
+      if (words.length >= 4) {
+        for (let half = Math.floor(words.length / 2); half >= 2; half--) {
+          const firstPart = normChars(words.slice(0, half).join(''));
+          const secondPart = normChars(words.slice(half, half * 2).join(''));
+          if (firstPart.length >= 6 && firstPart === secondPart) {
+            return words.slice(half).join(' ');
+          }
+        }
+      }
+      return body;
+    };
+
+    const curMeta = extractMetaPrefix(trimmed);
+    const rawBodyClean = dedupImmediateRepeat(stripMeta(rawText || trimmed));
+    const curBodyClean = dedupImmediateRepeat(stripMeta(trimmed));
+    const curNorm = normChars(curBodyClean);
+    if (!curNorm) return state;
+
+    const normalizedFinalLine = curMeta ? `${curMeta} ${curBodyClean}` : curBodyClean;
+    const normalizedRawLine = curMeta ? `${curMeta} ${rawBodyClean}` : rawBodyClean;
+
+    // 직전 발화와 비교하여 마침표/쉼표만 추가된 중복 발화이거나 누적(Cumulative) 확장된 발화인 경우 줄 추가 대신 제자리(In-place) 갱신
     if (state.finalParagraphs.length > 0) {
       const lastIdx = state.finalParagraphs.length - 1;
       const prevFinal = state.finalParagraphs[lastIdx];
-      const prevRaw = state.rawParagraphs[lastIdx] ?? prevFinal;
       const prevSec = parseTsSec(prevFinal);
-      const curSec = parseTsSec(trimmed);
-      const secDiff = curSec !== Number.MAX_SAFE_INTEGER && prevSec !== Number.MAX_SAFE_INTEGER ? curSec - prevSec : 0;
+      const curSec = parseTsSec(normalizedFinalLine);
+      const secDiff = curSec !== Number.MAX_SAFE_INTEGER && prevSec !== Number.MAX_SAFE_INTEGER ? Math.abs(curSec - prevSec) : 0;
 
-      const prevBody = stripTs(prevFinal);
-      const curBody = stripTs(trimmed);
-      const curRawBody = stripTs(rawText || trimmed);
+      const prevMeta = extractMetaPrefix(prevFinal);
+      const prevBody = stripMeta(prevFinal);
+      const prevNorm = normChars(prevBody);
 
-      if (curBody && prevBody !== curBody && secDiff >= 0 && secDiff <= 7) {
-        const isNumberDictationSplit =
-          /(?:010|공일공|연락처[가는은]?|전화번호[가는은]?|번호[가는은]?|모델명?[은이가]?|\d{2,4})[\s-]*$/.test(prevBody) &&
-          /^(?:\d{2,4}|공|일|이|삼|사|오|육|륙|칠|팔|구|하나|둘|셋|넷|에\s*\d|번)/.test(curBody);
-
-        const isShortUnfinishedFragment =
-          prevBody.replace(/\s+/g, '').length <= 6 &&
-          !/(?:요|다|까|죠|네|예|음|어|야|자)[.?!~]*$/.test(prevBody);
-
-        const isConnectiveClauseSplit =
-          prevBody.length <= 32 &&
-          secDiff <= 5 &&
-          /(?:는데|길래|더니|면서|려고|니까|지만|어서|아서|해서|하고|이고|며|고서|다가|은데|건데|거고|거나|부터|까지|에서|으로)[,.~]*$/.test(prevBody);
-
-        if (isNumberDictationSplit || isShortUnfinishedFragment || isConnectiveClauseSplit) {
-          const mergedFinal = `${prevFinal} ${curBody}`.replace(/\s+/g, ' ').trim();
-          const mergedRaw = `${prevRaw} ${curRawBody}`.replace(/\s+/g, ' ').trim();
+      // 1) 문장부호/공백만 다른 동일 문장 중복 차단 (예: [00:05] 문장 vs [00:06] 문장.)
+      if (curNorm === prevNorm) {
+        if (curBodyClean.length >= prevBody.length) {
+          const keepMeta = prevMeta || curMeta;
           const nextFinalParagraphs = [...state.finalParagraphs];
           const nextRawParagraphs = [...state.rawParagraphs];
-          nextFinalParagraphs[lastIdx] = mergedFinal;
-          nextRawParagraphs[lastIdx] = mergedRaw;
+          nextFinalParagraphs[lastIdx] = keepMeta ? `${keepMeta} ${curBodyClean}` : curBodyClean;
+          nextRawParagraphs[lastIdx] = keepMeta ? `${keepMeta} ${rawBodyClean}` : rawBodyClean;
           return {
             rawParagraphs: nextRawParagraphs,
             finalParagraphs: nextFinalParagraphs,
             correctionHistory: [...state.correctionHistory, ...newCorrections]
           };
         }
+        return state;
+      }
+
+      // 2) 이미 직전 줄에 완전히 포함된 부분 문자열인 경우 무시
+      if (secDiff <= 14 && prevNorm.length >= curNorm.length && prevNorm.includes(curNorm)) {
+        return state;
+      }
+
+      // 3) 직전 줄의 앞부분을 그대로 반복하면서 뒤에만 단어가 덧붙은 누적(Cumulative) 결과인 경우:
+      //    줄을 새로 복제하지 않고 직전 줄을 최신 누적 문장 및 최신 청크 사이즈로 제자리(In-place) 교체
+      const prefixCheckLen = Math.min(prevNorm.length, Math.max(5, Math.floor(prevNorm.length * 0.85)));
+      if (
+        secDiff <= 15 &&
+        prevNorm.length >= 5 &&
+        curNorm.length > prevNorm.length &&
+        (curNorm.startsWith(prevNorm) || curNorm.startsWith(prevNorm.slice(0, prefixCheckLen)))
+      ) {
+        const updatedMeta = curMeta || prevMeta;
+        const nextFinalParagraphs = [...state.finalParagraphs];
+        const nextRawParagraphs = [...state.rawParagraphs];
+        nextFinalParagraphs[lastIdx] = updatedMeta ? `${updatedMeta} ${curBodyClean}` : curBodyClean;
+        nextRawParagraphs[lastIdx] = updatedMeta ? `${updatedMeta} ${rawBodyClean}` : rawBodyClean;
+        return {
+          rawParagraphs: nextRawParagraphs,
+          finalParagraphs: nextFinalParagraphs,
+          correctionHistory: [...state.correctionHistory, ...newCorrections]
+        };
       }
     }
 
@@ -459,9 +507,9 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
       order: idx,
     }));
     paired.push({
-      finalLine: trimmed,
-      rawLine: rawText,
-      sec: parseTsSec(trimmed),
+      finalLine: normalizedFinalLine,
+      rawLine: normalizedRawLine,
+      sec: parseTsSec(normalizedFinalLine),
       order: paired.length,
     });
     paired.sort((a, b) => (a.sec !== b.sec ? a.sec - b.sec : a.order - b.order));

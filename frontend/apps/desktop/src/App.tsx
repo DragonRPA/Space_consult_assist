@@ -245,7 +245,10 @@ function LegacySttApp() {
   }, []);
 
   const updateTempoFromUtterance = useCallback((utteranceText: string, durationSec: number) => {
-    const clean = (utteranceText || '').replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '').trim();
+    const clean = (utteranceText || '')
+      .replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '')
+      .replace(/^\[\d+(?:\.\d+)?s\s*·\s*[^\]]+\]\s*/, '')
+      .trim();
     const syllables = (clean.match(/[가-힣0-9a-zA-Z]/g) || []).length;
     if (durationSec >= 0.9 && syllables >= 3) {
       const observedSps = Math.max(1.9, Math.min(7.2, syllables / durationSec));
@@ -441,33 +444,50 @@ function LegacySttApp() {
     return `${m}:${s}`;
   };
 
-  // STT 수신 텍스트 원문 직결 처리 (임의 단어 변형·의미 추론 배제)
-  const processIncomingSpeechUtterance = useCallback((rawText: string) => {
+  // STT 수신 텍스트 원문 직결 처리 (임의 단어 변형·의미 추론 배제 + 청크 사이즈 메타데이터 부착)
+  const processIncomingSpeechUtterance = useCallback((rawText: string, chunkSizeBadge?: string) => {
     if (!rawText || !rawText.trim()) return;
     const trimmed = rawText.trim();
     const liveStore = useCounselStore.getState();
 
-    const hasTimestamp = /^\[\d{1,2}:\d{2}(?::\d{2})?\]/.test(trimmed);
+    const tsAndSizeMatch = trimmed.match(
+      /^(\[\d{1,2}:\d{2}(?::\d{2})?\])\s*(\[\d+(?:\.\d+)?s\s*·\s*[^\]]+\])?\s*(.*)$/
+    );
 
     let timestampStr = '';
-    if (!hasTimestamp) {
+    let sizeTagStr = chunkSizeBadge ? `${chunkSizeBadge.trim()} ` : '';
+    let bodyText = trimmed;
+
+    if (tsAndSizeMatch) {
+      timestampStr = `${tsAndSizeMatch[1]} `;
+      if (tsAndSizeMatch[2] && !sizeTagStr) {
+        sizeTagStr = `${tsAndSizeMatch[2]} `;
+      }
+      bodyText = tsAndSizeMatch[3].trim();
+    } else {
+      const sizeOnlyMatch = trimmed.match(/^(\[\d+(?:\.\d+)?s\s*·\s*[^\]]+\])\s*(.*)$/);
+      if (sizeOnlyMatch) {
+        if (!sizeTagStr) sizeTagStr = `${sizeOnlyMatch[1]} `;
+        bodyText = sizeOnlyMatch[2].trim();
+      }
       const currentAudioTime = globalAudioRef.current ? globalAudioRef.current.currentTime : liveStore.audioCurrentTime;
       const targetSec = liveStore.activeAudioFile && currentAudioTime > 0 ? Math.floor(currentAudioTime) : liveStore.callSeconds;
       timestampStr = `[${formatTimer(targetSec)}] `;
-    } else {
-      const m = trimmed.match(/^(\[\d{1,2}:\d{2}(?::\d{2})?\])\s*/);
-      if (m) timestampStr = `${m[1]} `;
     }
 
-    const fullRawLine = hasTimestamp ? trimmed : `${timestampStr}${trimmed}`.trim();
-    const cleanContent = fullRawLine.replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '');
+    if (!bodyText) return;
+    const fullRawLine = `${timestampStr}${sizeTagStr}${bodyText}`.replace(/\s+/g, ' ').trim();
+    const cleanContent = bodyText;
 
-    // STT 엔진이 반환한 원문 그대로 대화창에 기록 (미완성 구절/번호 끊어 읽기는 store에서 자동 응집 병합)
+    // STT 엔진이 반환한 원문 그대로 대화창에 기록 (누적/중복 문장은 store에서 제자리 갱신)
     liveStore.appendFinalParagraph(fullRawLine, fullRawLine, []);
     const updatedParagraphs = useCounselStore.getState().finalParagraphs;
     const latestClean =
       updatedParagraphs.length > 0
-        ? updatedParagraphs[updatedParagraphs.length - 1].replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '')
+        ? updatedParagraphs[updatedParagraphs.length - 1]
+            .replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '')
+            .replace(/^\[\d+(?:\.\d+)?s\s*·\s*[^\]]+\]\s*/, '')
+            .trim()
         : cleanContent;
     evaluateUtteranceRules(cleanContent);
     if (latestClean !== cleanContent) {
@@ -582,8 +602,18 @@ function LegacySttApp() {
               setIsAudioStreamingActive(true);
               const cleanText = msg.text.trim();
               const { correctedText, corrections } = applyContextualCorrection(cleanText);
-              const rawLine = msg.full_line || (msg.timestamp ? `${msg.timestamp} ${cleanText}` : cleanText);
-              const correctedLine = msg.timestamp ? `${msg.timestamp} ${correctedText}` : correctedText;
+              const syllables = (cleanText.match(/[가-힣0-9a-zA-Z]/g) || []).length;
+              const estDur =
+                typeof msg.start === 'number' && typeof msg.end === 'number' && msg.end > msg.start
+                  ? Math.max(0.6, msg.end - msg.start)
+                  : typeof msg.duration === 'number' && msg.duration > 0
+                    ? msg.duration
+                    : Math.max(1.0, syllables / 4.1);
+              const estKb = Math.max(1, Math.round((estDur * 32000) / 1024));
+              const sizeBadge = `[${estDur.toFixed(1)}s · ${estKb}KB]`;
+              const tsPrefix = msg.timestamp ? `${msg.timestamp} ${sizeBadge}` : sizeBadge;
+              const rawLine = `${tsPrefix} ${cleanText}`;
+              const correctedLine = `${tsPrefix} ${correctedText}`;
               appendFinalParagraph(rawLine, correctedLine, corrections);
               evaluateUtteranceRules(correctedText);
             }
@@ -954,10 +984,13 @@ function LegacySttApp() {
       const floatArr = new Float32Array(samples16k);
       const wavBlob = encodeWav16kMono(floatArr, 16000);
       const durSec = Number((samples16k.length / 16000).toFixed(2));
+      const wavKb = Math.max(1, Math.round(wavBlob.size / 1024));
       const endSec = startSec + durSec;
       const m = String(Math.floor(startSec / 60)).padStart(2, '0');
       const s = String(Math.floor(startSec % 60)).padStart(2, '0');
       const chunkTs = `[${m}:${s}]`;
+      const chunkSizeBadge = `[${durSec.toFixed(1)}s · ${wavKb}KB]`;
+      const chunkHeader = `${chunkTs} ${chunkSizeBadge}`;
       const tp = tempoProfileRef.current;
       const gapMs = tp.clovaGapMs;
       const durMs = tp.clovaDurMs;
@@ -968,47 +1001,54 @@ function LegacySttApp() {
       setInterimSttText('듣는중');
 
       const chunkTexts: string[] = [];
-      let anchorBodyText = '';
+      let hasCommittedFirst = false;
+      const normSeg = (str: string) => str.replace(/[\s.,?!~·\-]/g, '');
 
       const handleChunkSegment = (cleanText: string) => {
         if (!cleanText || audioSessionIdRef.current !== capturedSessionId) return;
-        if (chunkTexts.includes(cleanText)) return;
-        chunkTexts.push(cleanText);
+        const incomingNorm = normSeg(cleanText);
+        if (!incomingNorm) return;
 
-        if (chunkTexts.length === 1) {
-          processIncomingSpeechUtterance(`${chunkTs} ${cleanText}`);
-          const curParas = useCounselStore.getState().finalParagraphs;
-          if (curParas.length > 0) {
-            anchorBodyText = curParas[curParas.length - 1]
-              .replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '')
-              .trim();
+        if (chunkTexts.length > 0) {
+          const lastIdx = chunkTexts.length - 1;
+          const prevNorm = normSeg(chunkTexts[lastIdx]);
+          if (prevNorm === incomingNorm || prevNorm.includes(incomingNorm)) {
+            return;
+          }
+          if (incomingNorm.startsWith(prevNorm)) {
+            chunkTexts[lastIdx] = cleanText;
           } else {
-            anchorBodyText = cleanText;
+            chunkTexts.push(cleanText);
           }
         } else {
-          // 동일 마이크 호흡 청크 내에서 클로바가 세부 구절을 나눈 경우, 줄바꿈 파편화 없이 해당 발화 줄에 즉시 이어 붙임
+          chunkTexts.push(cleanText);
+        }
+
+        const combinedChunkBody = chunkTexts.join(' ').replace(/\s+/g, ' ').trim();
+
+        if (!hasCommittedFirst) {
+          hasCommittedFirst = true;
+          processIncomingSpeechUtterance(`${chunkHeader} ${combinedChunkBody}`);
+        } else {
+          // 동일 1개 오디오 청크 내에서 세부 세그먼트가 나뉜 경우 해당 청크 줄을 제자리 갱신
           const storeState = useCounselStore.getState();
           const fParas = [...storeState.finalParagraphs];
           const rParas = [...storeState.rawParagraphs];
           let targetIdx = -1;
           for (let i = fParas.length - 1; i >= 0; i--) {
-            if (anchorBodyText && fParas[i].endsWith(anchorBodyText)) {
-              targetIdx = i;
-              break;
-            }
-            if (fParas[i].startsWith(chunkTs)) {
+            if (fParas[i].startsWith(chunkHeader) || fParas[i].startsWith(chunkTs)) {
               targetIdx = i;
               break;
             }
           }
           if (targetIdx >= 0) {
-            fParas[targetIdx] = `${fParas[targetIdx]} ${cleanText}`.replace(/\s+/g, ' ').trim();
-            rParas[targetIdx] = `${rParas[targetIdx] ?? fParas[targetIdx]} ${cleanText}`.replace(/\s+/g, ' ').trim();
-            anchorBodyText = fParas[targetIdx].replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '').trim();
+            const updatedLine = `${chunkHeader} ${combinedChunkBody}`;
+            fParas[targetIdx] = updatedLine;
+            rParas[targetIdx] = updatedLine;
             useCounselStore.setState({ finalParagraphs: fParas, rawParagraphs: rParas });
-            evaluateUtteranceRules(anchorBodyText);
+            evaluateUtteranceRules(combinedChunkBody);
           } else {
-            processIncomingSpeechUtterance(`${chunkTs} ${cleanText}`);
+            processIncomingSpeechUtterance(`${chunkHeader} ${combinedChunkBody}`);
           }
         }
       };
@@ -1380,47 +1420,115 @@ function LegacySttApp() {
     recognition.interimResults = true;
     recognition.lang = 'ko-KR';
 
+    // 각 resultIndex 별로 이미 확정(Commit)된 원문을 기록하여,
+    // 동일 resultIndex 내에서 interim -> interim 또는 interim -> isFinal 전환 시 앞 문장이 누적 반복되는 현상을 원천 차단
+    const consumedRawByResultIdx = new Map<number, string>();
+    let lastVoiceActivityMs = 0;
+
+    const normChars = (s: string): string => s.replace(/[\s.,?!~·\-]/g, '');
+
+    const extractUnconsumedSpeech = (fullTranscript: string, consumedRaw: string): string => {
+      const rawTrim = (fullTranscript || '').trim();
+      if (!rawTrim) return '';
+      if (!consumedRaw) return rawTrim;
+
+      const fullNorm = normChars(rawTrim);
+      const consNorm = normChars(consumedRaw);
+      if (!fullNorm || fullNorm === consNorm || consNorm.includes(fullNorm)) {
+        return '';
+      }
+
+      // 이미 커밋된 문장의 끝부분(4~5글자)과 현재 문장의 끝부분이 동일하고 글자수 차이가 미세(±4자 이내)하면
+      // 크롬이 문장부호나 조사 1글자만 교정한 것이므로 중복 출력하지 않음
+      const tailAnchor = consNorm.slice(-Math.min(5, consNorm.length));
+      if (
+        tailAnchor.length >= 2 &&
+        fullNorm.endsWith(tailAnchor) &&
+        Math.abs(fullNorm.length - consNorm.length) <= 4
+      ) {
+        return '';
+      }
+
+      const normIdxToRawEnd: number[] = [];
+      for (let k = 0; k < rawTrim.length; k++) {
+        if (!/[\s.,?!~·\-]/.test(rawTrim[k])) {
+          normIdxToRawEnd.push(k + 1);
+        }
+      }
+
+      const searchFrom = Math.max(0, consNorm.length - tailAnchor.length - 4);
+      const anchorPos = tailAnchor.length >= 2 ? fullNorm.indexOf(tailAnchor, searchFrom) : -1;
+      const endNormCount = anchorPos >= 0 ? anchorPos + tailAnchor.length : consNorm.length;
+
+      if (endNormCount >= normIdxToRawEnd.length) {
+        return '';
+      }
+      const rawCutIdx = normIdxToRawEnd[Math.max(0, endNormCount - 1)];
+      return rawTrim.slice(rawCutIdx).replace(/^[\s.,?!~·\-]+/, '').trim();
+    };
+
     const flushWebSpeechPending = (sessionId: number) => {
       if (isDisposed || audioSessionIdRef.current !== sessionId) return;
       const committed = webSpeechPendingFinalRef.current.trim();
       webSpeechPendingFinalRef.current = '';
       if (!committed) return;
-      const turnDurSec =
+
+      const syllables = (committed.match(/[가-힣0-9a-zA-Z]/g) || []).length;
+      const estBySyllables = Math.max(1.0, syllables / Math.max(2.4, tempoProfileRef.current.emaSps));
+      const endVoiceMs = lastVoiceActivityMs > webSpeechTurnStartMsRef.current ? lastVoiceActivityMs : Date.now();
+      const measuredSec =
         webSpeechTurnStartMsRef.current > 0
-          ? Math.max(1.0, (Date.now() - webSpeechTurnStartMsRef.current) / 1000)
-          : 2.5;
+          ? Math.max(0.9, (endVoiceMs - webSpeechTurnStartMsRef.current) / 1000 + 0.35)
+          : estBySyllables;
+      const turnDurSec = Number(Math.min(12.5, Math.max(estBySyllables * 0.72, measuredSec)).toFixed(1));
+      const sizeKb = Math.max(1, Math.round((turnDurSec * 32000) / 1024));
+      const chunkSizeBadge = `[${turnDurSec.toFixed(1)}s · ${sizeKb}KB]`;
+
       webSpeechTurnStartMsRef.current = 0;
+      lastVoiceActivityMs = 0;
       updateTempoFromUtterance(committed, turnDurSec);
-      processIncomingSpeechUtterance(committed);
+      processIncomingSpeechUtterance(committed, chunkSizeBadge);
       setInterimSttText('');
     };
 
     recognition.onresult = (event: any) => {
       if (isDisposed) return;
-      let interim = '';
-      let final = '';
+      lastVoiceActivityMs = Date.now();
+
+      let newFinalDelta = '';
+      let currentInterimDelta = '';
+      const unconsumedInterimEntries: Array<{ index: number; rawTranscript: string; delta: string }> = [];
 
       for (let i = event.resultIndex; i < event.results.length; ++i) {
-        const transcript = event.results[i][0].transcript;
+        const rawTranscript = String(event.results[i][0]?.transcript || '').trim();
+        if (!rawTranscript) continue;
+        const alreadyConsumed = consumedRawByResultIdx.get(i) || '';
+        const delta = extractUnconsumedSpeech(rawTranscript, alreadyConsumed);
+
         if (event.results[i].isFinal) {
-          final += transcript + ' ';
-        } else {
-          interim += transcript;
+          // isFinal 도달 즉시 해당 resultIndex 전체를 소비 완료 처리하여 재방출 차단
+          consumedRawByResultIdx.set(i, rawTranscript);
+          if (delta) {
+            newFinalDelta += (newFinalDelta ? ' ' : '') + delta;
+          }
+        } else if (delta) {
+          currentInterimDelta += (currentInterimDelta ? ' ' : '') + delta;
+          unconsumedInterimEntries.push({ index: i, rawTranscript, delta });
         }
       }
 
       const tp = tempoProfileRef.current;
       const capturedSessionId = audioSessionIdRef.current;
 
-      if (final.trim()) {
+      if (newFinalDelta.trim()) {
         if (webSpeechTurnStartMsRef.current === 0) {
-          webSpeechTurnStartMsRef.current = Date.now() - 1500;
+          webSpeechTurnStartMsRef.current = Date.now() - 1400;
         }
         if (webSpeechCommitTimerRef.current) {
           clearTimeout(webSpeechCommitTimerRef.current);
           webSpeechCommitTimerRef.current = null;
         }
-        const incomingFinal = final.trim();
+        const incomingFinal = newFinalDelta.trim();
         webSpeechPendingFinalRef.current = webSpeechPendingFinalRef.current
           ? `${webSpeechPendingFinalRef.current} ${incomingFinal}`.replace(/\s+/g, ' ').trim()
           : incomingFinal;
@@ -1431,50 +1539,67 @@ function LegacySttApp() {
             combinedPending
           );
         const isCompleteSentence =
-          combinedPending.length >= 34 ||
-          (combinedPending.length >= 16 && !isUnfinishedEnding && /(?:요|다|까|죠)[.?!~]*$/.test(combinedPending) && tp.targetSilenceSec <= 0.82);
+          combinedPending.length >= 28 ||
+          (combinedPending.length >= 12 && !isUnfinishedEnding && /(?:요|다|까|죠|니다|세요)[.?!~]*$/.test(combinedPending));
 
-        if (isCompleteSentence && !interim.trim()) {
+        if (isCompleteSentence && !currentInterimDelta.trim()) {
           flushWebSpeechPending(capturedSessionId);
         } else {
-          // 화자의 박자(targetSilenceSec)에 맞춰 크롬 내장 STT의 성급한 isFinal 절단을 홀딩하고 뒤이은 발화와 한 문장으로 결합
-          const previewDisplay = interim.trim()
-            ? `${combinedPending} ${interim.trim()}`
+          const previewDisplay = currentInterimDelta.trim()
+            ? `${combinedPending} ${currentInterimDelta.trim()}`
             : combinedPending;
           setInterimSttText(applyContextualCorrection(previewDisplay).correctedText);
           const holdSec = isUnfinishedEnding
-            ? Math.max(0.65, tp.targetSilenceSec * 0.95)
-            : Math.max(0.38, tp.targetSilenceSec * 0.68);
+            ? Math.max(0.60, tp.targetSilenceSec * 0.88)
+            : Math.max(0.35, tp.targetSilenceSec * 0.58);
           webSpeechCommitTimerRef.current = window.setTimeout(() => {
             webSpeechCommitTimerRef.current = null;
             flushWebSpeechPending(capturedSessionId);
           }, holdSec * 1000);
         }
-      } else if (interim) {
+      } else if (currentInterimDelta.trim()) {
         if (webSpeechTurnStartMsRef.current === 0) {
           webSpeechTurnStartMsRef.current = Date.now();
         }
         const combinedPreview = webSpeechPendingFinalRef.current
-          ? `${webSpeechPendingFinalRef.current} ${interim.trim()}`.replace(/\s+/g, ' ').trim()
-          : interim.trim();
+          ? `${webSpeechPendingFinalRef.current} ${currentInterimDelta.trim()}`.replace(/\s+/g, ' ').trim()
+          : currentInterimDelta.trim();
         const correctedInterim = applyContextualCorrection(combinedPreview).correctedText;
         setInterimSttText(correctedInterim);
+
         if (webSpeechCommitTimerRef.current) {
           clearTimeout(webSpeechCommitTimerRef.current);
         }
+        // 크롬이 isFinal을 지연시키는 긴 침묵 구간에서만 미소비(unconsumed) 델타를 안전하게 커밋하고 소비 오프셋을 즉시 기록
+        const interimFallbackHoldSec = Math.max(1.35, webSpeechSilenceSecRef.current * 1.25);
         webSpeechCommitTimerRef.current = window.setTimeout(() => {
-          if (!isDisposed && audioSessionIdRef.current === capturedSessionId && combinedPreview) {
-            webSpeechPendingFinalRef.current = combinedPreview;
-            flushWebSpeechPending(capturedSessionId);
-          }
           webSpeechCommitTimerRef.current = null;
-        }, webSpeechSilenceSecRef.current * 1000);
+          if (!isDisposed && audioSessionIdRef.current === capturedSessionId) {
+            let freshlyConsumed = '';
+            for (const item of unconsumedInterimEntries) {
+              const prevConsumed = consumedRawByResultIdx.get(item.index) || '';
+              const freshDelta = extractUnconsumedSpeech(item.rawTranscript, prevConsumed);
+              consumedRawByResultIdx.set(item.index, item.rawTranscript);
+              if (freshDelta) {
+                freshlyConsumed += (freshlyConsumed ? ' ' : '') + freshDelta;
+              }
+            }
+            if (freshlyConsumed) {
+              webSpeechPendingFinalRef.current = webSpeechPendingFinalRef.current
+                ? `${webSpeechPendingFinalRef.current} ${freshlyConsumed}`.replace(/\s+/g, ' ').trim()
+                : freshlyConsumed;
+            }
+            if (webSpeechPendingFinalRef.current.trim()) {
+              flushWebSpeechPending(capturedSessionId);
+            }
+          }
+        }, interimFallbackHoldSec * 1000);
       }
 
       const currentStream = (
         webSpeechPendingFinalRef.current
-          ? `${webSpeechPendingFinalRef.current} ${interim.trim() || final.trim()}`
-          : interim.trim() || final.trim()
+          ? `${webSpeechPendingFinalRef.current} ${currentInterimDelta.trim() || newFinalDelta.trim()}`
+          : currentInterimDelta.trim() || newFinalDelta.trim()
       ).trim();
       if (currentStream) {
         const correctedStream = applyContextualCorrection(currentStream).correctedText;
@@ -1493,6 +1618,7 @@ function LegacySttApp() {
 
     // Keep-Alive Auto-Recovery
     recognition.onend = () => {
+      consumedRawByResultIdx.clear();
       if (!isDisposed && isRecordingRef.current && useCounselStore.getState().sttEngine === 'web_speech') {
         setTimeout(() => {
           if (!isDisposed && isRecordingRef.current && useCounselStore.getState().sttEngine === 'web_speech') {
@@ -2592,12 +2718,15 @@ function LegacySttApp() {
               {activeParagraphs.length > 0 ? (
                 <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.65, fontSize: '13.5px' }}>
                   {activeParagraphs.map((line, pIdx) => {
-                    const match = line.match(/^(\[\d{1,2}:\d{2}(?::\d{2})?\])\s*(.*)$/);
+                    const match = line.match(
+                      /^(\[\d{1,2}:\d{2}(?::\d{2})?\])\s*(\[\d+(?:\.\d+)?s\s*·\s*[^\]]+\])?\s*(.*)$/
+                    );
                     const timestampBadge = match ? match[1] : null;
-                    const contentText = match ? match[2] : line;
+                    const chunkSizeBadge = match ? match[2] : null;
+                    const contentText = match ? match[3] : line;
 
                     return (
-                      <div key={pIdx} style={{ display: 'flex', alignItems: 'baseline', gap: '7px', minHeight: '1.5em', marginBottom: '4px' }}>
+                      <div key={pIdx} style={{ display: 'flex', alignItems: 'baseline', gap: '6px', minHeight: '1.5em', marginBottom: '4px' }}>
                         {timestampBadge && (
                           <span style={{
                             fontFamily: 'monospace',
@@ -2613,6 +2742,23 @@ function LegacySttApp() {
                             userSelect: 'none'
                           }}>
                             {timestampBadge}
+                          </span>
+                        )}
+                        {chunkSizeBadge && (
+                          <span style={{
+                            fontFamily: 'monospace',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
+                            color: '#0369a1',
+                            backgroundColor: '#f0f9ff',
+                            border: '1px solid #bae6fd',
+                            borderRadius: '3px',
+                            padding: '0px 5px',
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap',
+                            userSelect: 'none'
+                          }}>
+                            {chunkSizeBadge}
                           </span>
                         )}
                         <div style={{ flex: 1 }}>
