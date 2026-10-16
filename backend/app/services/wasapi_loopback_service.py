@@ -344,8 +344,8 @@ class LoopbackSTTService:
 
         audio_int16 = np.clip(audio_16k * 32767, -32768, 32767).astype("<i2")
         pcm_bytes = audio_int16.tobytes()
-        result = transcribe_pcm_with_clova_grpc(pcm_bytes)
-        return str(result.get("text", "")).strip()
+        _segments, _lines, merged_text = transcribe_pcm_with_clova_grpc(pcm_bytes)
+        return str(merged_text or "").strip()
 
 
     def _inference_worker(self, segment_callback: Callable[[dict], None]):

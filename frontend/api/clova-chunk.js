@@ -287,6 +287,7 @@ function streamClovaGrpcPcm({ pcmBuffer, startSec, secretKey, grpcHost, onSegmen
 
     grpcReq.write(buildConfigRequest(configPayload));
 
+    const streamStartMs = Date.now();
     let idx = 0;
     const sendNextChunk = () => {
       if (settled) return;
@@ -297,12 +298,15 @@ function streamClovaGrpcPcm({ pcmBuffer, startSec, secretKey, grpcHost, onSegmen
         return finishResolve(segments);
       }
       if (idx >= totalChunks) {
-        // 모든 오디오 프레임 전송 완료 후 서버가 마지막 epFlag 응답을 보낼 때까지 최대 3.5초 대기
+        // CLOVA gRPC 서버는 1.0x 실배속으로 음성을 처리하므로, 전체 오디오 길이만큼 서버가 epFlag 응답을 보낼 때까지 대기
+        const audioDurMs = totalChunks * 100;
+        const elapsedSendMs = Date.now() - streamStartMs;
+        const remainingServerMs = Math.max(4500, audioDurMs - elapsedSendMs + 4500);
         sendTimer = setTimeout(() => {
           try {
             grpcReq.end();
           } catch (_) {}
-        }, 3500);
+        }, remainingServerMs);
         return;
       }
 
