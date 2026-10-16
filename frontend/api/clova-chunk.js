@@ -133,17 +133,32 @@ function formatMmSs(sec) {
   return `[${m}:${s}]`;
 }
 
-function streamClovaGrpcPcm({ pcmBuffer, startSec, secretKey, grpcHost, onSegment, isClientClosed }) {
+function streamClovaGrpcPcm({
+  pcmBuffer,
+  startSec,
+  secretKey,
+  grpcHost,
+  gapThresholdMs = 850,
+  durationThresholdMs = 9000,
+  onSegment,
+  isClientClosed,
+}) {
   return new Promise((resolve, reject) => {
     const targetHost = (grpcHost || DEFAULT_GRPC_HOST).replace(/^https?:\/\//, '');
     const client = http2.connect(`https://${targetHost}`);
     let settled = false;
     let sendTimer = null;
+    let tailSettleTimer = null;
+    let allChunksSent = false;
 
     const cleanup = () => {
       if (sendTimer) {
         clearTimeout(sendTimer);
         sendTimer = null;
+      }
+      if (tailSettleTimer) {
+        clearTimeout(tailSettleTimer);
+        tailSettleTimer = null;
       }
       try {
         client.close();
@@ -208,6 +223,7 @@ function streamClovaGrpcPcm({ pcmBuffer, startSec, secretKey, grpcHost, onSegmen
           const tr = parsed.transcription;
           if (tr) {
             const rawText = String(tr.text || '').trim();
+            const seqId = typeof tr.seqId === 'number' ? tr.seqId : 0;
             if (rawText) {
               const relStartSec = typeof tr.startTimestamp === 'number' ? tr.startTimestamp / 1000.0 : 0;
               const relEndSec = typeof tr.endTimestamp === 'number' ? tr.endTimestamp / 1000.0 : relStartSec;
@@ -231,10 +247,21 @@ function streamClovaGrpcPcm({ pcmBuffer, startSec, secretKey, grpcHost, onSegmen
                 } catch (_) {}
               }
             }
-            if (tr.epFlag === true || (typeof tr.seqId === 'number' && tr.seqId >= totalChunks)) {
+            // 모든 PCM 패킷 전송이 끝난 후 마지막 구간(seqId >= totalChunks - 3)에 도달했을 때만 즉시 종료
+            if (allChunksSent && (seqId >= totalChunks || (tr.epFlag === true && seqId >= Math.max(1, totalChunks - 4)))) {
               try {
                 grpcReq.end();
               } catch (_) {}
+            } else if (allChunksSent && tr.epFlag === true) {
+              // 중간 구간에서 epFlag가 발생한 경우 남은 오디오에 대한 후속 세그먼트를 위해 여유 대기 후 종료
+              if (tailSettleTimer) clearTimeout(tailSettleTimer);
+              const remainingChunks = Math.max(0, totalChunks - seqId);
+              const waitMs = Math.min(4500, Math.max(900, remainingChunks * 95 + 700));
+              tailSettleTimer = setTimeout(() => {
+                try {
+                  grpcReq.end();
+                } catch (_) {}
+              }, waitMs);
             }
           }
         } catch (_) {}
@@ -265,6 +292,9 @@ function streamClovaGrpcPcm({ pcmBuffer, startSec, secretKey, grpcHost, onSegmen
       }
     });
 
+    const safeGapMs = Math.max(500, Math.min(1600, Math.round(Number(gapThresholdMs) || 850)));
+    const safeDurMs = Math.max(5000, Math.min(15000, Math.round(Number(durationThresholdMs) || 9000)));
+
     const configPayload = JSON.stringify({
       transcription: { language: 'ko' },
       keywordBoosting: {
@@ -277,10 +307,10 @@ function streamClovaGrpcPcm({ pcmBuffer, startSec, secretKey, grpcHost, onSegmen
       },
       semanticEpd: {
         skipEmptyText: true,
-        useWordEpd: true,
+        useWordEpd: false,
         usePeriodEpd: true,
-        gapThreshold: 350,
-        durationThreshold: 3500,
+        gapThreshold: safeGapMs,
+        durationThreshold: safeDurMs,
         syllableThreshold: 0,
       },
     });
@@ -298,7 +328,8 @@ function streamClovaGrpcPcm({ pcmBuffer, startSec, secretKey, grpcHost, onSegmen
         return finishResolve(segments);
       }
       if (idx >= totalChunks) {
-        // CLOVA gRPC 서버는 1.0x 실배속으로 음성을 처리하므로, 전체 오디오 길이만큼 서버가 epFlag 응답을 보낼 때까지 대기
+        allChunksSent = true;
+        // CLOVA gRPC 서버는 1.0x 실배속으로 음성을 처리하므로, 전체 오디오 길이만큼 서버가 최종 응답을 보낼 때까지 대기
         const audioDurMs = totalChunks * 100;
         const elapsedSendMs = Date.now() - streamStartMs;
         const remainingServerMs = Math.max(4500, audioDurMs - elapsedSendMs + 4500);
@@ -356,6 +387,8 @@ module.exports = async function handler(req, res) {
     let startSec = Number(req.query?.start || 0);
     let endSec = Number(req.query?.end || 0);
     let streamMode = req.query?.stream === '1' || req.query?.stream === 'true';
+    let gapThresholdMs = Number(req.query?.gap_ms || 850);
+    let durationThresholdMs = Number(req.query?.dur_ms || 9000);
 
     if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
       if (req.body.audio_base64) {
@@ -364,6 +397,8 @@ module.exports = async function handler(req, res) {
       if (req.body.start !== undefined) startSec = Number(req.body.start);
       if (req.body.end !== undefined) endSec = Number(req.body.end);
       if (req.body.stream !== undefined) streamMode = Boolean(req.body.stream);
+      if (req.body.gap_ms !== undefined) gapThresholdMs = Number(req.body.gap_ms);
+      if (req.body.dur_ms !== undefined) durationThresholdMs = Number(req.body.dur_ms);
     } else if (Buffer.isBuffer(req.body)) {
       wavBuffer = req.body;
     } else if (typeof req.body === 'string' && req.body.length > 0) {
@@ -375,6 +410,8 @@ module.exports = async function handler(req, res) {
         if (parsed.start !== undefined) startSec = Number(parsed.start);
         if (parsed.end !== undefined) endSec = Number(parsed.end);
         if (parsed.stream !== undefined) streamMode = Boolean(parsed.stream);
+        if (parsed.gap_ms !== undefined) gapThresholdMs = Number(parsed.gap_ms);
+        if (parsed.dur_ms !== undefined) durationThresholdMs = Number(parsed.dur_ms);
       } catch (_) {
         wavBuffer = Buffer.from(req.body, 'binary');
       }
@@ -397,6 +434,8 @@ module.exports = async function handler(req, res) {
             if (parsed.start !== undefined) startSec = Number(parsed.start);
             if (parsed.end !== undefined) endSec = Number(parsed.end);
             if (parsed.stream !== undefined) streamMode = Boolean(parsed.stream);
+            if (parsed.gap_ms !== undefined) gapThresholdMs = Number(parsed.gap_ms);
+            if (parsed.dur_ms !== undefined) durationThresholdMs = Number(parsed.dur_ms);
           } catch (_) {}
         }
         if (!wavBuffer) {
@@ -444,6 +483,8 @@ module.exports = async function handler(req, res) {
         startSec,
         secretKey,
         grpcHost,
+        gapThresholdMs,
+        durationThresholdMs,
         isClientClosed: () => clientAborted || res.writableEnded,
         onSegment: (segObj) => {
           if (!res.writableEnded) {
@@ -463,6 +504,8 @@ module.exports = async function handler(req, res) {
       startSec,
       secretKey,
       grpcHost,
+      gapThresholdMs,
+      durationThresholdMs,
       isClientClosed: () => clientAborted,
     });
 

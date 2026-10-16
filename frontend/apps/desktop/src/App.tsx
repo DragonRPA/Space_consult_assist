@@ -189,12 +189,87 @@ function LegacySttApp() {
   const audioSessionIdRef = useRef<number>(0);
   const clovaAbortControllersRef = useRef<AbortController[]>([]);
   const clovaInflightCountRef = useRef<number>(0);
-  // ── STT 청크 시간 설정 ─────────────────────────────────────────────────────
-  const whisperMaxChunkSec = 1.2;   // Whisper 최대 세그먼트 (초)
-  const whisperSilenceSec = 0.2;     // Whisper 무음 감지 (초)
-  const webSpeechSilenceSec = 1.8; // Web Speech 커밋 지연 (초, 문장 중간 끊김 방지)
-  const webSpeechSilenceSecRef = useRef(1.8);
+
+  // ── 실시간 화자 템포·박자 적응형 VAD 프로파일러 (Speaker Tempo & Cadence Profiler) ──
+  const [tempoBadgeText, setTempoBadgeText] = useState<string>('박자 보통 0.9s');
+  const tempoProfileRef = useRef({
+    emaSps: 4.1,             // 화자 평균 발화 속도 (음절/초, 한국어 통화 표준 4.1)
+    emaBreathPauseSec: 0.38, // 문장 내 숨고르기(Micro-Pause) 평균 길이 (초)
+    emaEnvelopeRate: 3.8,    // 음향 포락선 음절 맥박 빈도 (peaks/sec)
+    tempoMultiplier: 1.0,    // 통합 박자 배율 (0.76 = 빠름 ~ 1.48 = 느림/숙고)
+    targetSilenceSec: 0.90,  // 표준 문장 절단 침묵 기준 (초, 기본 0.90s, 범위 0.68s ~ 1.48s)
+    targetClauseSec: 0.58,   // 장문(5.8초 이상) 구절 호흡 절단 기준 (초, 범위 0.44s ~ 0.88s)
+    softMaxChunkSec: 8.5,    // 소프트 에너지 골짜기 절단 시작 시점 (초)
+    hardMaxChunkSec: 11.0,   // 최대 강제 절단 상한 (초)
+    clovaGapMs: 850,         // CLOVA gRPC semanticEpd gapThreshold (ms)
+    clovaDurMs: 9500,        // CLOVA gRPC semanticEpd durationThreshold (ms)
+  });
+
+  const whisperMaxChunkSec = 1.2;
+  const whisperSilenceSec = 0.2;
+  const webSpeechSilenceSecRef = useRef(1.15);
   const webSpeechCommitTimerRef = useRef<number | null>(null);
+  const webSpeechTurnStartMsRef = useRef<number>(0);
+
+  const recomputeTempoProfile = useCallback(() => {
+    const tp = tempoProfileRef.current;
+    // 음절 속도(SPS)와 실시간 음향 포락선 맥박(Envelope Rate)을 결합한 유효 말하기 속도
+    const effectiveRate = tp.emaSps * 0.65 + tp.emaEnvelopeRate * 0.35;
+    // 말이 빠를수록(< 1.0) 기민하게 자르고, 느릴수록(> 1.0) 여유 있게 대기
+    const rateFactor = Math.max(0.76, Math.min(1.48, 4.15 / Math.max(2.2, effectiveRate)));
+    // 화자의 평소 문장 내 숨고르기 길이(emaBreathPauseSec)의 2.15배 이상은 무조건 보장하여 문장 중간 절단 방지
+    const breathSafeSilence = tp.emaBreathPauseSec * 2.15;
+    const nextSilenceSec = Math.max(0.68, Math.min(1.48, Math.max(0.90 * rateFactor, breathSafeSilence)));
+    const nextClauseSec = Math.max(0.44, Math.min(0.88, nextSilenceSec * 0.64));
+    const nextSoftMaxSec = Math.max(7.2, Math.min(10.8, 8.5 * rateFactor));
+    const nextHardMaxSec = Math.max(9.2, Math.min(13.0, 11.0 * rateFactor));
+    const nextClovaGapMs = Math.round(Math.max(650, Math.min(1350, nextSilenceSec * 950)));
+    const nextClovaDurMs = Math.round(Math.max(7500, Math.min(13000, nextHardMaxSec * 900)));
+
+    tp.tempoMultiplier = Number(rateFactor.toFixed(2));
+    tp.targetSilenceSec = Number(nextSilenceSec.toFixed(2));
+    tp.targetClauseSec = Number(nextClauseSec.toFixed(2));
+    tp.softMaxChunkSec = Number(nextSoftMaxSec.toFixed(2));
+    tp.hardMaxChunkSec = Number(nextHardMaxSec.toFixed(2));
+    tp.clovaGapMs = nextClovaGapMs;
+    tp.clovaDurMs = nextClovaDurMs;
+
+    // 웹 음성 STT 침묵 커밋 타이머도 화자 템포에 동기화
+    webSpeechSilenceSecRef.current = Number(Math.max(0.85, Math.min(1.65, nextSilenceSec * 1.15)).toFixed(2));
+
+    const tempoTag =
+      nextSilenceSec <= 0.78 ? '박자 빠름' : nextSilenceSec >= 1.15 ? '박자 느림' : '박자 보통';
+    const nextBadge = `${tempoTag} ${nextSilenceSec.toFixed(1)}s`;
+    setTempoBadgeText((prev) => (prev === nextBadge ? prev : nextBadge));
+  }, []);
+
+  const updateTempoFromUtterance = useCallback((utteranceText: string, durationSec: number) => {
+    const clean = (utteranceText || '').replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '').trim();
+    const syllables = (clean.match(/[가-힣0-9a-zA-Z]/g) || []).length;
+    if (durationSec >= 0.9 && syllables >= 3) {
+      const observedSps = Math.max(1.9, Math.min(7.2, syllables / durationSec));
+      const tp = tempoProfileRef.current;
+      tp.emaSps = tp.emaSps * 0.68 + observedSps * 0.32;
+      recomputeTempoProfile();
+    }
+  }, [recomputeTempoProfile]);
+
+  const resetTempoProfile = useCallback(() => {
+    tempoProfileRef.current = {
+      emaSps: 4.1,
+      emaBreathPauseSec: 0.38,
+      emaEnvelopeRate: 3.8,
+      tempoMultiplier: 1.0,
+      targetSilenceSec: 0.90,
+      targetClauseSec: 0.58,
+      softMaxChunkSec: 8.5,
+      hardMaxChunkSec: 11.0,
+      clovaGapMs: 850,
+      clovaDurMs: 9500,
+    };
+    webSpeechSilenceSecRef.current = 1.15;
+    setTempoBadgeText('박자 보통 0.9s');
+  }, []);
 
   // Periodic Local GPU Server Heartbeat Monitor (Every 3 seconds)
   useEffect(() => {
@@ -216,9 +291,6 @@ function LegacySttApp() {
     const interval = setInterval(checkGpuServer, 3000);
     return () => { isMounted = false; clearInterval(interval); };
   }, []);
-
-  // Web Speech 침묵 타임아웃을 ref에 동기화 (useEffect 재실행 없이 최신값 반영)
-  useEffect(() => { webSpeechSilenceSecRef.current = webSpeechSilenceSec; }, [webSpeechSilenceSec]);
 
   // Whisper / NAVER CLOVA 청크 파라미터 변경 시 WebSocket으로 즉시 전송 (서버 재시작 불필요)
   useEffect(() => {
@@ -387,9 +459,17 @@ function LegacySttApp() {
     const fullRawLine = hasTimestamp ? trimmed : `${timestampStr}${trimmed}`.trim();
     const cleanContent = fullRawLine.replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '');
 
-    // STT 엔진이 반환한 원문 그대로 대화창에 기록
+    // STT 엔진이 반환한 원문 그대로 대화창에 기록 (미완성 구절/번호 끊어 읽기는 store에서 자동 응집 병합)
     liveStore.appendFinalParagraph(fullRawLine, fullRawLine, []);
+    const updatedParagraphs = useCounselStore.getState().finalParagraphs;
+    const latestClean =
+      updatedParagraphs.length > 0
+        ? updatedParagraphs[updatedParagraphs.length - 1].replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '')
+        : cleanContent;
     evaluateUtteranceRules(cleanContent);
+    if (latestClean !== cleanContent) {
+      evaluateUtteranceRules(latestClean);
+    }
   }, [evaluateUtteranceRules]);
 
   // Direct Text Conversation Parser (Instant Diagnosis & SOP Checklist trigger)
@@ -606,6 +686,7 @@ function LegacySttApp() {
 
     // 3. 화면 상담 세션 완전 초기화 (파일명 기반 사전 정보 표출 및 파일 메모리 디코딩 일절 금지)
     resetSessionForNewAudio();
+    resetTempoProfile();
     setConfirmedSlotFlags({ customer: false, phone: false, address: false, model: false });
     setRecommendedClosingAction('NONE');
 
@@ -646,7 +727,7 @@ function LegacySttApp() {
 
     showToast(`[${file.name}] 스피커 재생 및 마이크 수음 시작`);
     setTimeout(() => clearToast(), 3000);
-  }, [abortAllClovaStreams, resetSessionForNewAudio, setActiveAudioFile, setIsAudioPlaying, setAudioTime, setInterimSttText, setRecording, startSttStreaming, showToast, clearToast]);
+  }, [abortAllClovaStreams, resetSessionForNewAudio, resetTempoProfile, setActiveAudioFile, setIsAudioPlaying, setAudioTime, setInterimSttText, setRecording, startSttStreaming, showToast, clearToast]);
 
   // GLOBAL WINDOW DRAG & DROP & PASTE INTERCEPTOR
   useEffect(() => {
@@ -786,6 +867,7 @@ function LegacySttApp() {
     setRecording(false);
     clearAudioFile();
     resetSessionForNewAudio();
+    resetTempoProfile();
     setConfirmedSlotFlags({ customer: false, phone: false, address: false, model: false });
     setRecommendedClosingAction('NONE');
     showToast("음성 파일 및 STT 수신이 즉시 제거되었습니다.");
@@ -845,7 +927,7 @@ function LegacySttApp() {
     }
   }, [finalParagraphs, interimSttText, isUserScrolledUp]);
 
-  // 100% 물리적 마이크(getUserMedia) 실시간 수음 + NAVER CLOVA Speech gRPC 스트리밍 전송
+  // 100% 물리적 마이크(getUserMedia) 실시간 수음 + 화자 박자(Tempo) 적응형 VAD + NAVER CLOVA Speech gRPC 스트리밍 전송
   // (m4a 재생 시에도 파일 데이터를 읽지 않고, 오직 스피커에서 나와 마이크로 들어온 실제 소리만 캡처하여 전송)
   useEffect(() => {
     let processorNode: ScriptProcessorNode | null = null;
@@ -856,10 +938,15 @@ function LegacySttApp() {
     let micVoicedChunks = 0;
     let micSpeechStartSec = 0;
     let micNoiseFloor = 55;
-    const PRE_ROLL_MAX = 5600; // 0.35초 (16kHz 기준)
+    let prevFrameRms = 0;
+    let prevRmsRising = false;
+    let voicedPeakCount = 0;
+    let voicedRmsSum = 0;
+    let recentVoicedRms: number[] = [];
+    const PRE_ROLL_MAX = 7200; // 0.45초 (16kHz 기준, 첫 자음/음절 유실 방지)
 
     const flushMicSamplesToClova = async (samples16k: number[], startSec: number) => {
-      if (samples16k.length < 16000 * 0.5) return;
+      if (samples16k.length < 16000 * 0.55) return;
       const capturedSessionId = audioSessionIdRef.current;
       const floatArr = new Float32Array(samples16k);
       const wavBlob = encodeWav16kMono(floatArr, 16000);
@@ -867,15 +954,65 @@ function LegacySttApp() {
       const endSec = startSec + durSec;
       const m = String(Math.floor(startSec / 60)).padStart(2, '0');
       const s = String(Math.floor(startSec % 60)).padStart(2, '0');
+      const chunkTs = `[${m}:${s}]`;
+      const tp = tempoProfileRef.current;
+      const gapMs = tp.clovaGapMs;
+      const durMs = tp.clovaDurMs;
 
       const abortCtrl = new AbortController();
       clovaAbortControllersRef.current.push(abortCtrl);
       clovaInflightCountRef.current += 1;
       setInterimSttText('듣는중');
 
+      const chunkTexts: string[] = [];
+      let anchorBodyText = '';
+
+      const handleChunkSegment = (cleanText: string) => {
+        if (!cleanText || audioSessionIdRef.current !== capturedSessionId) return;
+        if (chunkTexts.includes(cleanText)) return;
+        chunkTexts.push(cleanText);
+
+        if (chunkTexts.length === 1) {
+          processIncomingSpeechUtterance(`${chunkTs} ${cleanText}`);
+          const curParas = useCounselStore.getState().finalParagraphs;
+          if (curParas.length > 0) {
+            anchorBodyText = curParas[curParas.length - 1]
+              .replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '')
+              .trim();
+          } else {
+            anchorBodyText = cleanText;
+          }
+        } else {
+          // 동일 마이크 호흡 청크 내에서 클로바가 세부 구절을 나눈 경우, 줄바꿈 파편화 없이 해당 발화 줄에 즉시 이어 붙임
+          const storeState = useCounselStore.getState();
+          const fParas = [...storeState.finalParagraphs];
+          const rParas = [...storeState.rawParagraphs];
+          let targetIdx = -1;
+          for (let i = fParas.length - 1; i >= 0; i--) {
+            if (anchorBodyText && fParas[i].endsWith(anchorBodyText)) {
+              targetIdx = i;
+              break;
+            }
+            if (fParas[i].startsWith(chunkTs)) {
+              targetIdx = i;
+              break;
+            }
+          }
+          if (targetIdx >= 0) {
+            fParas[targetIdx] = `${fParas[targetIdx]} ${cleanText}`.replace(/\s+/g, ' ').trim();
+            rParas[targetIdx] = `${rParas[targetIdx] ?? fParas[targetIdx]} ${cleanText}`.replace(/\s+/g, ' ').trim();
+            anchorBodyText = fParas[targetIdx].replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '').trim();
+            useCounselStore.setState({ finalParagraphs: fParas, rawParagraphs: rParas });
+            evaluateUtteranceRules(anchorBodyText);
+          } else {
+            processIncomingSpeechUtterance(`${chunkTs} ${cleanText}`);
+          }
+        }
+      };
+
       try {
         const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const qs = `stream=1&start=${startSec.toFixed(2)}&end=${endSec.toFixed(2)}`;
+        const qs = `stream=1&start=${startSec.toFixed(2)}&end=${endSec.toFixed(2)}&gap_ms=${gapMs}&dur_ms=${durMs}`;
         let response: Response | null = null;
 
         if (isLocalHost) {
@@ -918,6 +1055,8 @@ function LegacySttApp() {
               audio_base64: audioBase64,
               start: Number(startSec.toFixed(2)),
               end: Number(endSec.toFixed(2)),
+              gap_ms: gapMs,
+              dur_ms: durMs,
               stream: true,
             }),
             signal: abortCtrl.signal,
@@ -946,8 +1085,7 @@ function LegacySttApp() {
                 const segObj = JSON.parse(trimmed);
                 const cleanText = String(segObj?.text || '').trim();
                 if (cleanText) {
-                  const ts = segObj.timestamp || `[${m}:${s}]`;
-                  processIncomingSpeechUtterance(`${ts} ${cleanText}`);
+                  handleChunkSegment(cleanText);
                 }
               } catch (_) {}
             }
@@ -957,8 +1095,7 @@ function LegacySttApp() {
               const segObj = JSON.parse(lineBuf.trim());
               const cleanText = String(segObj?.text || '').trim();
               if (cleanText) {
-                const ts = segObj.timestamp || `[${m}:${s}]`;
-                processIncomingSpeechUtterance(`${ts} ${cleanText}`);
+                handleChunkSegment(cleanText);
               }
             } catch (_) {}
           }
@@ -966,7 +1103,7 @@ function LegacySttApp() {
           const data = await response.json();
           const cleanText = String(data?.text || '').trim();
           if (cleanText && audioSessionIdRef.current === capturedSessionId) {
-            processIncomingSpeechUtterance(`[${m}:${s}] ${cleanText}`);
+            handleChunkSegment(cleanText);
           }
         }
       } catch (err: any) {
@@ -974,6 +1111,9 @@ function LegacySttApp() {
           console.warn('마이크 클로바 STT 전사 실패:', err);
         }
       } finally {
+        if (chunkTexts.length > 0 && audioSessionIdRef.current === capturedSessionId) {
+          updateTempoFromUtterance(chunkTexts.join(' '), durSec);
+        }
         clovaAbortControllersRef.current = clovaAbortControllersRef.current.filter((c) => c !== abortCtrl);
         clovaInflightCountRef.current = Math.max(0, clovaInflightCountRef.current - 1);
         if (!micInSpeech && clovaInflightCountRef.current === 0) {
@@ -1037,29 +1177,66 @@ function LegacySttApp() {
                 micNoiseFloor = micNoiseFloor * 0.95 + Math.max(40, rms) * 0.05;
               }
               const threshold = Math.max(55, Math.min(145, micNoiseFloor * 1.55));
+              const tp = tempoProfileRef.current;
 
               if (rms > threshold) {
                 if (!micInSpeech) {
                   micInSpeech = true;
                   micSilenceChunks = 0;
                   micVoicedChunks = 0;
+                  voicedPeakCount = 0;
+                  voicedRmsSum = 0;
+                  recentVoicedRms = [];
+                  prevFrameRms = rms;
+                  prevRmsRising = true;
                   const audioEl = globalAudioRef.current;
                   micSpeechStartSec =
                     state.activeAudioFile && audioEl && audioEl.currentTime > 0
-                      ? Math.max(0, audioEl.currentTime - 0.35)
+                      ? Math.max(0, audioEl.currentTime - 0.45)
                       : state.callSeconds;
                   micSpeechSamples = [...micPreRollSamples];
+                } else if (micSilenceChunks >= 2) {
+                  // 문장 도중 잠깐 숨을 고른 뒤(0.17s ~ 1.35s) 다시 말을 이어간 경우 -> 화자의 고유 호흡 길이 학습
+                  const breathPauseSec = (micSilenceChunks * outLen) / 16000;
+                  if (breathPauseSec >= 0.16 && breathPauseSec <= 1.35) {
+                    tp.emaBreathPauseSec = tp.emaBreathPauseSec * 0.72 + breathPauseSec * 0.28;
+                    recomputeTempoProfile();
+                  }
                 }
+
+                // 음향 포락선 음절 맥박(Syllable Peak) 감지: 실시간 말하기 빠르기 추정
+                if (prevRmsRising && rms < prevFrameRms && prevFrameRms > threshold * 1.22) {
+                  voicedPeakCount += 1;
+                }
+                prevRmsRising = rms > prevFrameRms;
+                prevFrameRms = rms;
+
                 micVoicedChunks += 1;
                 micSilenceChunks = 0;
+                voicedRmsSum += rms;
+                recentVoicedRms.push(rms);
+                if (recentVoicedRms.length > 4) recentVoicedRms.shift();
+
+                if (micVoicedChunks > 0 && micVoicedChunks % 10 === 0) {
+                  const voicedDurSec = (micVoicedChunks * outLen) / 16000;
+                  if (voicedDurSec >= 0.8) {
+                    const estPeakRate = Math.max(2.0, Math.min(6.8, (voicedPeakCount / voicedDurSec) * 1.45));
+                    tp.emaEnvelopeRate = tp.emaEnvelopeRate * 0.75 + estPeakRate * 0.25;
+                    recomputeTempoProfile();
+                  }
+                }
+
                 for (let i = 0; i < downsampled.length; i++) micSpeechSamples.push(downsampled[i]);
                 setInterimSttText('듣는중');
 
-                // 4.8초 이상 쉼 없이 이어지는 발화는 구절 단위로 즉시 전송
-                if (micSpeechSamples.length >= 16000 * 4.8) {
+                // 소프트 에너지 골짜기 절단(Soft Valley Split):
+                // softMaxChunkSec(기본 8.5s) 이후 에너지가 순간 낮아지는 음절 골짜기에서 자연 절단하거나 hardMaxChunkSec(기본 11.0s) 도달 시 절단
+                const uttDurSec = micSpeechSamples.length / 16000;
+                const isEnergyValley = rms < threshold * 1.22;
+                if (uttDurSec >= tp.hardMaxChunkSec || (uttDurSec >= tp.softMaxChunkSec && isEnergyValley)) {
                   const toSend = micSpeechSamples;
                   const startToSend = micSpeechStartSec;
-                  micPreRollSamples = downsampled.slice(-Math.min(downsampled.length, 3200));
+                  micPreRollSamples = downsampled.slice(-Math.min(downsampled.length, 4800));
                   micSpeechSamples = [];
                   micInSpeech = false;
                   micSilenceChunks = 0;
@@ -1067,6 +1244,8 @@ function LegacySttApp() {
                   flushMicSamplesToClova(toSend, startToSend);
                 }
               } else {
+                prevRmsRising = false;
+                prevFrameRms = rms;
                 for (let i = 0; i < downsampled.length; i++) micPreRollSamples.push(downsampled[i]);
                 if (micPreRollSamples.length > PRE_ROLL_MAX) {
                   micPreRollSamples.splice(0, micPreRollSamples.length - PRE_ROLL_MAX);
@@ -1075,18 +1254,45 @@ function LegacySttApp() {
                 if (micInSpeech) {
                   micSilenceChunks += 1;
                   for (let i = 0; i < downsampled.length; i++) micSpeechSamples.push(downsampled[i]);
-                  const isSentencePause = micSilenceChunks >= 5; // 약 0.42초 침묵
-                  const isClausePause = micSpeechSamples.length >= 16000 * 3.0 && micSilenceChunks >= 3; // 3초 이상 발화 후 0.25초 휴지
 
-                  if (isSentencePause || isClausePause) {
+                  const silenceDurSec = (micSilenceChunks * outLen) / 16000;
+                  const uttDurSec = micSpeechSamples.length / 16000;
+                  const voicedDurSec = (micVoicedChunks * outLen) / 16000;
+
+                  // 직전 유성음 구간의 억양/에너지 감쇠(Terminal Prosody Decay vs Hesitation Hold) 분석
+                  const meanVoicedRms = voicedRmsSum / Math.max(1, micVoicedChunks);
+                  const tailVoicedRms =
+                    recentVoicedRms.length > 0
+                      ? recentVoicedRms.reduce((a, b) => a + b, 0) / recentVoicedRms.length
+                      : meanVoicedRms;
+                  // 말을 생각하느라 모음을 끌거나 높은 에너지에서 갑자기 멈춘 경우(+0.18s 대기), 문장 끝 억양이 자연 하강한 경우(-0.06s)
+                  const hesitationBonusSec =
+                    tailVoicedRms > meanVoicedRms * 1.04 ? 0.18 : tailVoicedRms < meanVoicedRms * 0.78 ? -0.06 : 0;
+
+                  // 4단계 발화 길이에 따른 적응형 침묵 절단 임계시간 계산
+                  let requiredSilenceSec: number;
+                  if (uttDurSec < 2.3) {
+                    // Stage 1: 도입부 / 전화번호·모델명 끊어 읽기 보호 구간 (성급한 단어 파편화 방지)
+                    requiredSilenceSec = tp.targetSilenceSec * 1.28 + Math.max(0, hesitationBonusSec);
+                  } else if (uttDurSec < 5.8) {
+                    // Stage 2: 표준 대화 문장 구간 (화자 맞춤형 템포 기준 적용)
+                    requiredSilenceSec = Math.max(0.65, tp.targetSilenceSec + hesitationBonusSec);
+                  } else if (uttDurSec < tp.softMaxChunkSec) {
+                    // Stage 3: 5.8초 이상 장문 발화 구간 (구절 호흡 휴지에서 자연스럽게 절단)
+                    requiredSilenceSec = tp.targetClauseSec;
+                  } else {
+                    // Stage 4: 8.5초 이상 초장문 구간 (미세 호흡만 감지되어도 즉시 절단)
+                    requiredSilenceSec = 0.18;
+                  }
+
+                  if (silenceDurSec >= requiredSilenceSec) {
                     const toSend = micSpeechSamples;
                     const startToSend = micSpeechStartSec;
-                    const voiced = micVoicedChunks;
                     micSpeechSamples = [];
                     micInSpeech = false;
                     micSilenceChunks = 0;
                     micVoicedChunks = 0;
-                    if (voiced >= 3 && toSend.length >= 16000 * 0.5) {
+                    if (voicedDurSec >= 0.25 && toSend.length >= 16000 * 0.55) {
                       flushMicSamplesToClova(toSend, startToSend);
                     } else if (clovaInflightCountRef.current === 0) {
                       setInterimSttText('');
@@ -1120,7 +1326,7 @@ function LegacySttApp() {
     }
 
     return () => {
-      if (micInSpeech && micVoicedChunks >= 3 && micSpeechSamples.length >= 16000 * 0.5) {
+      if (micInSpeech && micVoicedChunks >= 3 && micSpeechSamples.length >= 16000 * 0.55) {
         flushMicSamplesToClova(micSpeechSamples, micSpeechStartSec);
         micSpeechSamples = [];
         micInSpeech = false;
@@ -1132,7 +1338,7 @@ function LegacySttApp() {
       if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     };
-  }, [isRecording, processIncomingSpeechUtterance, setInterimSttText]);
+  }, [isRecording, processIncomingSpeechUtterance, evaluateUtteranceRules, recomputeTempoProfile, updateTempoFromUtterance, setInterimSttText]);
 
   // Robust Persistent Web Speech API with Multi-Entity & Action Auto-Trigger
   useEffect(() => {
@@ -1173,9 +1379,18 @@ function LegacySttApp() {
           webSpeechCommitTimerRef.current = null;
         }
         const rawSentence = final.trim();
+        const turnDurSec =
+          webSpeechTurnStartMsRef.current > 0
+            ? Math.max(1.0, (Date.now() - webSpeechTurnStartMsRef.current) / 1000)
+            : 2.5;
+        webSpeechTurnStartMsRef.current = 0;
+        updateTempoFromUtterance(rawSentence, turnDurSec);
         processIncomingSpeechUtterance(rawSentence);
         setInterimSttText('');
       } else if (interim) {
+        if (webSpeechTurnStartMsRef.current === 0) {
+          webSpeechTurnStartMsRef.current = Date.now();
+        }
         const correctedInterim = applyContextualCorrection(interim).correctedText;
         setInterimSttText(correctedInterim);
         if (webSpeechCommitTimerRef.current) {
@@ -1185,6 +1400,12 @@ function LegacySttApp() {
         const capturedSessionId = audioSessionIdRef.current;
         webSpeechCommitTimerRef.current = window.setTimeout(() => {
           if (!isDisposed && audioSessionIdRef.current === capturedSessionId && capturedInterim) {
+            const turnDurSec =
+              webSpeechTurnStartMsRef.current > 0
+                ? Math.max(1.0, (Date.now() - webSpeechTurnStartMsRef.current) / 1000)
+                : 2.5;
+            webSpeechTurnStartMsRef.current = 0;
+            updateTempoFromUtterance(capturedInterim, turnDurSec);
             processIncomingSpeechUtterance(capturedInterim);
             setInterimSttText('');
           }
@@ -1690,6 +1911,38 @@ function LegacySttApp() {
           }}>
             <PhoneCall size={12} className={isCallActive ? "animate-pulse" : ""} />
             <span className="font-mono">{formatTimer(callSeconds)}</span>
+          </div>
+
+          {/* Adaptive Speaker Tempo Status Pill */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 8px',
+            borderRadius: '5px',
+            backgroundColor: tempoBadgeText.startsWith('박자 빠름')
+              ? '#eff6ff'
+              : tempoBadgeText.startsWith('박자 느림')
+              ? '#fefce8'
+              : 'var(--surface-2)',
+            border: `1px solid ${
+              tempoBadgeText.startsWith('박자 빠름')
+                ? '#93c5fd'
+                : tempoBadgeText.startsWith('박자 느림')
+                ? '#fde047'
+                : 'var(--hairline)'
+            }`,
+            color: tempoBadgeText.startsWith('박자 빠름')
+              ? '#1d4ed8'
+              : tempoBadgeText.startsWith('박자 느림')
+              ? '#854d0e'
+              : 'var(--ink-muted)',
+            fontSize: '11.5px',
+            fontWeight: 700,
+            whiteSpace: 'nowrap'
+          }}>
+            <Clock size={11} />
+            <span>{tempoBadgeText}</span>
           </div>
 
           {/* Engine Selector */}

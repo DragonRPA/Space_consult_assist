@@ -193,10 +193,20 @@ def _sync_transcribe_with_clova(audio_path: str):
     return result_segments, full_lines, duration
 
 
-def _sync_clova_single_wav_chunk(wav_bytes: bytes, start_offset_sec: float = 0.0):
+def _sync_clova_single_wav_chunk(
+    wav_bytes: bytes,
+    start_offset_sec: float = 0.0,
+    gap_ms: int = 850,
+    dur_ms: int = 9000,
+):
     """실시간 통화 중 오디오 청크(16kHz Mono PCM/WAV)를 CLOVA Speech gRPC 스트리밍으로 전사"""
     from app.services.clova_grpc_service import transcribe_pcm_with_clova_grpc
-    segments, _, combined_text = transcribe_pcm_with_clova_grpc(wav_bytes, start_offset_sec=start_offset_sec)
+    segments, _, combined_text = transcribe_pcm_with_clova_grpc(
+        wav_bytes,
+        start_offset_sec=start_offset_sec,
+        gap_threshold_ms=gap_ms,
+        duration_threshold_ms=dur_ms,
+    )
     return combined_text, segments
 
 
@@ -206,6 +216,8 @@ async def transcribe_realtime_clova_chunk(
     start: float = 0.0,
     end: float = 0.0,
     stream: int = 0,
+    gap_ms: int = 850,
+    dur_ms: int = 9000,
 ):
     """
     통화 실시간 스트리밍 전사 엔드포인트 (CLOVA Speech gRPC: clovaspeech-gw.ncloud.com:50051).
@@ -227,7 +239,12 @@ async def transcribe_realtime_clova_chunk(
     if stream == 1:
         def ndjson_generator():
             try:
-                for seg in stream_pcm_with_clova_grpc(wav_bytes, start_offset_sec=start):
+                for seg in stream_pcm_with_clova_grpc(
+                    wav_bytes,
+                    start_offset_sec=start,
+                    gap_threshold_ms=gap_ms,
+                    duration_threshold_ms=dur_ms,
+                ):
                     yield _json.dumps(seg, ensure_ascii=False) + "\n"
             except Exception as stream_err:
                 logger.error(f"Clova gRPC NDJSON stream error: {stream_err}", exc_info=True)
@@ -243,7 +260,7 @@ async def transcribe_realtime_clova_chunk(
         )
 
     try:
-        text, segments = await asyncio.to_thread(_sync_clova_single_wav_chunk, wav_bytes, start)
+        text, segments = await asyncio.to_thread(_sync_clova_single_wav_chunk, wav_bytes, start, gap_ms, dur_ms)
         elapsed_ms = int((_time.time() - t0) * 1000)
         m = int(start // 60)
         s = int(start % 60)

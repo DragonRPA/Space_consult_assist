@@ -394,7 +394,6 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
     const trimmed = (rawText || correctedText || '').trim();
     if (!trimmed) return state;
 
-    // 완전히 동일한 타임스탬프+문장 중복만 방어하고, 부분 문자열 포함 여부에 따른 임의 삭제/병합은 수행하지 않음
     if (state.finalParagraphs.includes(trimmed)) {
       return state;
     }
@@ -407,6 +406,51 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
       }
       return Number(m[1]) * 60 + Number(m[2]);
     };
+
+    const stripTs = (line: string): string => line.replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '').trim();
+
+    // 직전 발화가 호흡/생각 멈춤으로 인해 문장 중간(연결어미·조사·전화번호/모델명 끊어 읽기)에서 잘린 경우 후속 발화와 한 문장으로 응집 병합
+    if (state.finalParagraphs.length > 0) {
+      const lastIdx = state.finalParagraphs.length - 1;
+      const prevFinal = state.finalParagraphs[lastIdx];
+      const prevRaw = state.rawParagraphs[lastIdx] ?? prevFinal;
+      const prevSec = parseTsSec(prevFinal);
+      const curSec = parseTsSec(trimmed);
+      const secDiff = curSec !== Number.MAX_SAFE_INTEGER && prevSec !== Number.MAX_SAFE_INTEGER ? curSec - prevSec : 0;
+
+      const prevBody = stripTs(prevFinal);
+      const curBody = stripTs(trimmed);
+      const curRawBody = stripTs(rawText || trimmed);
+
+      if (curBody && prevBody !== curBody && secDiff >= 0 && secDiff <= 7) {
+        const isNumberDictationSplit =
+          /(?:010|공일공|연락처[가는은]?|전화번호[가는은]?|번호[가는은]?|모델명?[은이가]?|\d{2,4})[\s-]*$/.test(prevBody) &&
+          /^(?:\d{2,4}|공|일|이|삼|사|오|육|륙|칠|팔|구|하나|둘|셋|넷|에\s*\d|번)/.test(curBody);
+
+        const isShortUnfinishedFragment =
+          prevBody.replace(/\s+/g, '').length <= 6 &&
+          !/(?:요|다|까|죠|네|예|음|어|야|자)[.?!~]*$/.test(prevBody);
+
+        const isConnectiveClauseSplit =
+          prevBody.length <= 32 &&
+          secDiff <= 5 &&
+          /(?:는데|길래|더니|면서|려고|니까|지만|어서|아서|해서|하고|이고|며|고서|다가|은데|건데|거고|거나|부터|까지|에서|으로)[,.~]*$/.test(prevBody);
+
+        if (isNumberDictationSplit || isShortUnfinishedFragment || isConnectiveClauseSplit) {
+          const mergedFinal = `${prevFinal} ${curBody}`.replace(/\s+/g, ' ').trim();
+          const mergedRaw = `${prevRaw} ${curRawBody}`.replace(/\s+/g, ' ').trim();
+          const nextFinalParagraphs = [...state.finalParagraphs];
+          const nextRawParagraphs = [...state.rawParagraphs];
+          nextFinalParagraphs[lastIdx] = mergedFinal;
+          nextRawParagraphs[lastIdx] = mergedRaw;
+          return {
+            rawParagraphs: nextRawParagraphs,
+            finalParagraphs: nextFinalParagraphs,
+            correctionHistory: [...state.correctionHistory, ...newCorrections]
+          };
+        }
+      }
+    }
 
     const paired = state.finalParagraphs.map((fp, idx) => ({
       finalLine: fp,

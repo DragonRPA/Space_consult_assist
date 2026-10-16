@@ -77,16 +77,22 @@ def _encode_len_delimited(field_num: int, data: bytes) -> bytes:
     return tag + length + data
 
 
-def build_nest_config_request(config_dict: Optional[Dict] = None) -> bytes:
+def build_nest_config_request(
+    config_dict: Optional[Dict] = None,
+    gap_threshold_ms: int = 850,
+    duration_threshold_ms: int = 9000,
+) -> bytes:
+    safe_gap = max(500, min(1600, int(gap_threshold_ms or 850)))
+    safe_dur = max(5000, min(15000, int(duration_threshold_ms or 9000)))
     if config_dict is None:
         config_dict = {
             "transcription": {"language": "ko"},
             "semanticEpd": {
                 "skipEmptyText": True,
-                "useWordEpd": True,
+                "useWordEpd": False,
                 "usePeriodEpd": True,
-                "gapThreshold": 350,
-                "durationThreshold": 3500,
+                "gapThreshold": safe_gap,
+                "durationThreshold": safe_dur,
                 "syllableThreshold": 0,
             },
             "keywordBoosting": {
@@ -163,6 +169,8 @@ def extract_pcm_s16le_from_wav_or_raw(audio_bytes: bytes) -> bytes:
 def stream_pcm_with_clova_grpc(
     pcm_Or_wav_bytes: bytes,
     start_offset_sec: float = 0.0,
+    gap_threshold_ms: int = 850,
+    duration_threshold_ms: int = 9000,
 ) -> Generator[Dict, None, None]:
     """
     16kHz 1ch 16-bit PCM 데이터를 CLOVA Speech gRPC 실시간 스트리밍 API로 전송하며,
@@ -185,7 +193,10 @@ def stream_pcm_with_clova_grpc(
     last_seq_id_box = [0]
 
     def request_iterator():
-        yield build_nest_config_request()
+        yield build_nest_config_request(
+            gap_threshold_ms=gap_threshold_ms,
+            duration_threshold_ms=duration_threshold_ms,
+        )
         config_done_event.wait(timeout=3.0)
         chunk_size = 8000  # 0.25s of 16kHz 16-bit mono PCM (32,000 bytes/sec)
         total_len = len(pcm_bytes)
@@ -200,7 +211,7 @@ def stream_pcm_with_clova_grpc(
             if is_last:
                 last_seq_id_box[0] = cur_seq
             yield build_nest_data_request(pcm_bytes[offset:end], seq_id=cur_seq, ep_flag=is_last)
-        # 서버로부터 epFlag=True 최종 응답을 수신할 때까지 클라이언트 스트림 half-close(END_STREAM) 보류
+        # 서버로부터 최종 응답을 수신할 때까지 클라이언트 스트림 half-close(END_STREAM) 보류
         stop_send_event.wait(timeout=45.0)
 
     metadata = (("authorization", f"Bearer {secret_key}"),)
@@ -249,7 +260,10 @@ def stream_pcm_with_clova_grpc(
                         "provider": "naver_clova",
                     }
 
-                if ep_flag or (last_seq_id_box[0] > 0 and seq_id == last_seq_id_box[0]):
+                if last_seq_id_box[0] > 0 and (
+                    seq_id >= last_seq_id_box[0]
+                    or (ep_flag and seq_id >= max(1, last_seq_id_box[0] - 2))
+                ):
                     stop_send_event.set()
                     break
     finally:
@@ -260,12 +274,19 @@ def stream_pcm_with_clova_grpc(
 def transcribe_pcm_with_clova_grpc(
     pcm_or_wav_bytes: bytes,
     start_offset_sec: float = 0.0,
+    gap_threshold_ms: int = 850,
+    duration_threshold_ms: int = 9000,
 ) -> Tuple[List[Dict], List[str], str]:
     """단일 오디오 버퍼를 CLOVA Speech gRPC로 전사하여 (세그먼트 리스트, 라인 리스트, 병합 텍스트) 반환"""
     segments: List[Dict] = []
     full_lines: List[str] = []
     texts: List[str] = []
-    for seg in stream_pcm_with_clova_grpc(pcm_or_wav_bytes, start_offset_sec=start_offset_sec):
+    for seg in stream_pcm_with_clova_grpc(
+        pcm_or_wav_bytes,
+        start_offset_sec=start_offset_sec,
+        gap_threshold_ms=gap_threshold_ms,
+        duration_threshold_ms=duration_threshold_ms,
+    ):
         segments.append(seg)
         full_lines.append(seg["full_line"])
         texts.append(seg["text"])
