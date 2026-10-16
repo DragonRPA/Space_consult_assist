@@ -50,7 +50,7 @@ const DOMAIN_CORRECTION_RULES: DomainRule[] = [
 
   // [A] 장비 모델명 (긴 모델명 S12, W12, W15, J600T, J800 등을 S1, S2보다 먼저 평가)
   {
-    pattern: /(?:에스|애스|엑스|S|X)\s*(?:12|십\s*이|일\s*이|트웰브)\s*(?:엘|L)?|f10이/gi,
+    pattern: /(?:에스|애스|엑스|S|X)\s*(?:12|십\s*이|시\s*비|씨\s*비|cb|일\s*이|트웰브)\s*(?:엘|L)?|f10이/gi,
     replacement: (m: string) => (/엘|L/i.test(m) ? 'S12L' : 'S12'),
     category: '장비모델'
   },

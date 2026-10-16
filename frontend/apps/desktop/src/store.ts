@@ -425,9 +425,32 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
       }
     }
 
+    const parseTsSec = (line: string): number => {
+      const m = line.match(/^\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]/);
+      if (!m) return Number.MAX_SAFE_INTEGER;
+      if (m[3] !== undefined) {
+        return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+      }
+      return Number(m[1]) * 60 + Number(m[2]);
+    };
+
+    const paired = state.finalParagraphs.map((fp, idx) => ({
+      finalLine: fp,
+      rawLine: state.rawParagraphs[idx] ?? fp,
+      sec: parseTsSec(fp),
+      order: idx,
+    }));
+    paired.push({
+      finalLine: trimmed,
+      rawLine: rawText,
+      sec: parseTsSec(trimmed),
+      order: paired.length,
+    });
+    paired.sort((a, b) => (a.sec !== b.sec ? a.sec - b.sec : a.order - b.order));
+
     return {
-      rawParagraphs: [...state.rawParagraphs, rawText],
-      finalParagraphs: [...state.finalParagraphs, trimmed],
+      rawParagraphs: paired.map(p => p.rawLine),
+      finalParagraphs: paired.map(p => p.finalLine),
       correctionHistory: [...state.correctionHistory, ...newCorrections]
     };
   }),

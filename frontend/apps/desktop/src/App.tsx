@@ -2263,7 +2263,7 @@ function LegacySttApp() {
                   }}
                 >
                   <option value="">모델 선택</option>
-                  {['J600T', 'J800', 'S7P', 'S7', 'S5', 'S12L', 'XD80', 'XD60', 'S800', 'M100', 'Q45'].map(m => (
+                  {['J600T', 'J800', 'S12', 'S12L', 'S7P', 'S7', 'S5', 'S3', 'S2', 'S1', 'R3', 'W12', 'W15', 'XD80', 'XD60', 'S800', 'M100', 'Q45'].map(m => (
                     <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
