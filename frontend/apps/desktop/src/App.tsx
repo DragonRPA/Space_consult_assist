@@ -210,6 +210,7 @@ function LegacySttApp() {
   const webSpeechSilenceSecRef = useRef(1.15);
   const webSpeechCommitTimerRef = useRef<number | null>(null);
   const webSpeechTurnStartMsRef = useRef<number>(0);
+  const webSpeechPendingFinalRef = useRef<string>('');
 
   const recomputeTempoProfile = useCallback(() => {
     const tp = tempoProfileRef.current;
@@ -268,6 +269,8 @@ function LegacySttApp() {
       clovaDurMs: 9500,
     };
     webSpeechSilenceSecRef.current = 1.15;
+    webSpeechPendingFinalRef.current = '';
+    webSpeechTurnStartMsRef.current = 0;
     setTempoBadgeText('박자 보통 0.9s');
   }, []);
 
@@ -1157,9 +1160,10 @@ function LegacySttApp() {
               for (let i = 0; i < out.length; i++) out[i] = 0;
 
               const state = useCounselStore.getState();
-              if (!isRecordingRef.current || state.sttEngine !== 'naver_clova') {
+              if (!isRecordingRef.current) {
                 return;
               }
+              const isClovaActive = state.sttEngine === 'naver_clova';
 
               const input = e.inputBuffer.getChannelData(0);
               const outLen = Math.floor(input.length / ratio);
@@ -1194,9 +1198,9 @@ function LegacySttApp() {
                     state.activeAudioFile && audioEl && audioEl.currentTime > 0
                       ? Math.max(0, audioEl.currentTime - 0.45)
                       : state.callSeconds;
-                  micSpeechSamples = [...micPreRollSamples];
+                  micSpeechSamples = isClovaActive ? [...micPreRollSamples] : [];
                 } else if (micSilenceChunks >= 2) {
-                  // 문장 도중 잠깐 숨을 고른 뒤(0.17s ~ 1.35s) 다시 말을 이어간 경우 -> 화자의 고유 호흡 길이 학습
+                  // 문장 도중 잠깐 숨을 고른 뒤(0.16s ~ 1.35s) 다시 말을 이어간 경우 -> 클로바 & 내장 STT 공통으로 화자 고유 호흡 길이 학습
                   const breathPauseSec = (micSilenceChunks * outLen) / 16000;
                   if (breathPauseSec >= 0.16 && breathPauseSec <= 1.35) {
                     tp.emaBreathPauseSec = tp.emaBreathPauseSec * 0.72 + breathPauseSec * 0.28;
@@ -1204,7 +1208,7 @@ function LegacySttApp() {
                   }
                 }
 
-                // 음향 포락선 음절 맥박(Syllable Peak) 감지: 실시간 말하기 빠르기 추정
+                // 음향 포락선 음절 맥박(Syllable Peak) 감지: 클로바 & 내장 STT 공통 실시간 말하기 빠르기 추정
                 if (prevRmsRising && rms < prevFrameRms && prevFrameRms > threshold * 1.22) {
                   voicedPeakCount += 1;
                 }
@@ -1224,6 +1228,10 @@ function LegacySttApp() {
                     tp.emaEnvelopeRate = tp.emaEnvelopeRate * 0.75 + estPeakRate * 0.25;
                     recomputeTempoProfile();
                   }
+                }
+
+                if (!isClovaActive) {
+                  return;
                 }
 
                 for (let i = 0; i < downsampled.length; i++) micSpeechSamples.push(downsampled[i]);
@@ -1246,17 +1254,23 @@ function LegacySttApp() {
               } else {
                 prevRmsRising = false;
                 prevFrameRms = rms;
-                for (let i = 0; i < downsampled.length; i++) micPreRollSamples.push(downsampled[i]);
-                if (micPreRollSamples.length > PRE_ROLL_MAX) {
-                  micPreRollSamples.splice(0, micPreRollSamples.length - PRE_ROLL_MAX);
+                if (isClovaActive) {
+                  for (let i = 0; i < downsampled.length; i++) micPreRollSamples.push(downsampled[i]);
+                  if (micPreRollSamples.length > PRE_ROLL_MAX) {
+                    micPreRollSamples.splice(0, micPreRollSamples.length - PRE_ROLL_MAX);
+                  }
                 }
 
                 if (micInSpeech) {
                   micSilenceChunks += 1;
-                  for (let i = 0; i < downsampled.length; i++) micSpeechSamples.push(downsampled[i]);
+                  if (isClovaActive) {
+                    for (let i = 0; i < downsampled.length; i++) micSpeechSamples.push(downsampled[i]);
+                  }
 
                   const silenceDurSec = (micSilenceChunks * outLen) / 16000;
-                  const uttDurSec = micSpeechSamples.length / 16000;
+                  const uttDurSec = isClovaActive
+                    ? micSpeechSamples.length / 16000
+                    : ((micVoicedChunks + micSilenceChunks) * outLen) / 16000;
                   const voicedDurSec = (micVoicedChunks * outLen) / 16000;
 
                   // 직전 유성음 구간의 억양/에너지 감쇠(Terminal Prosody Decay vs Hesitation Hold) 분석
@@ -1292,10 +1306,12 @@ function LegacySttApp() {
                     micInSpeech = false;
                     micSilenceChunks = 0;
                     micVoicedChunks = 0;
-                    if (voicedDurSec >= 0.25 && toSend.length >= 16000 * 0.55) {
-                      flushMicSamplesToClova(toSend, startToSend);
-                    } else if (clovaInflightCountRef.current === 0) {
-                      setInterimSttText('');
+                    if (isClovaActive) {
+                      if (voicedDurSec >= 0.25 && toSend.length >= 16000 * 0.55) {
+                        flushMicSamplesToClova(toSend, startToSend);
+                      } else if (clovaInflightCountRef.current === 0) {
+                        setInterimSttText('');
+                      }
                     }
                   }
                 }
@@ -1326,7 +1342,12 @@ function LegacySttApp() {
     }
 
     return () => {
-      if (micInSpeech && micVoicedChunks >= 3 && micSpeechSamples.length >= 16000 * 0.55) {
+      if (
+        useCounselStore.getState().sttEngine === 'naver_clova' &&
+        micInSpeech &&
+        micVoicedChunks >= 3 &&
+        micSpeechSamples.length >= 16000 * 0.55
+      ) {
         flushMicSamplesToClova(micSpeechSamples, micSpeechStartSec);
         micSpeechSamples = [];
         micInSpeech = false;
@@ -1359,6 +1380,21 @@ function LegacySttApp() {
     recognition.interimResults = true;
     recognition.lang = 'ko-KR';
 
+    const flushWebSpeechPending = (sessionId: number) => {
+      if (isDisposed || audioSessionIdRef.current !== sessionId) return;
+      const committed = webSpeechPendingFinalRef.current.trim();
+      webSpeechPendingFinalRef.current = '';
+      if (!committed) return;
+      const turnDurSec =
+        webSpeechTurnStartMsRef.current > 0
+          ? Math.max(1.0, (Date.now() - webSpeechTurnStartMsRef.current) / 1000)
+          : 2.5;
+      webSpeechTurnStartMsRef.current = 0;
+      updateTempoFromUtterance(committed, turnDurSec);
+      processIncomingSpeechUtterance(committed);
+      setInterimSttText('');
+    };
+
     recognition.onresult = (event: any) => {
       if (isDisposed) return;
       let interim = '';
@@ -1373,47 +1409,73 @@ function LegacySttApp() {
         }
       }
 
+      const tp = tempoProfileRef.current;
+      const capturedSessionId = audioSessionIdRef.current;
+
       if (final.trim()) {
+        if (webSpeechTurnStartMsRef.current === 0) {
+          webSpeechTurnStartMsRef.current = Date.now() - 1500;
+        }
         if (webSpeechCommitTimerRef.current) {
           clearTimeout(webSpeechCommitTimerRef.current);
           webSpeechCommitTimerRef.current = null;
         }
-        const rawSentence = final.trim();
-        const turnDurSec =
-          webSpeechTurnStartMsRef.current > 0
-            ? Math.max(1.0, (Date.now() - webSpeechTurnStartMsRef.current) / 1000)
-            : 2.5;
-        webSpeechTurnStartMsRef.current = 0;
-        updateTempoFromUtterance(rawSentence, turnDurSec);
-        processIncomingSpeechUtterance(rawSentence);
-        setInterimSttText('');
+        const incomingFinal = final.trim();
+        webSpeechPendingFinalRef.current = webSpeechPendingFinalRef.current
+          ? `${webSpeechPendingFinalRef.current} ${incomingFinal}`.replace(/\s+/g, ' ').trim()
+          : incomingFinal;
+
+        const combinedPending = webSpeechPendingFinalRef.current;
+        const isUnfinishedEnding =
+          /(?:는데|길래|더니|면서|려고|니까|지만|어서|아서|해서|하고|이고|며|고서|다가|은데|건데|거고|거나|부터|까지|에서|으로|010|공일공|연락처[가는은]?|전화번호[가는은]?|모델명?[은이가]?|\d{2,4})$/.test(
+            combinedPending
+          );
+        const isCompleteSentence =
+          combinedPending.length >= 34 ||
+          (combinedPending.length >= 16 && !isUnfinishedEnding && /(?:요|다|까|죠)[.?!~]*$/.test(combinedPending) && tp.targetSilenceSec <= 0.82);
+
+        if (isCompleteSentence && !interim.trim()) {
+          flushWebSpeechPending(capturedSessionId);
+        } else {
+          // 화자의 박자(targetSilenceSec)에 맞춰 크롬 내장 STT의 성급한 isFinal 절단을 홀딩하고 뒤이은 발화와 한 문장으로 결합
+          const previewDisplay = interim.trim()
+            ? `${combinedPending} ${interim.trim()}`
+            : combinedPending;
+          setInterimSttText(applyContextualCorrection(previewDisplay).correctedText);
+          const holdSec = isUnfinishedEnding
+            ? Math.max(0.65, tp.targetSilenceSec * 0.95)
+            : Math.max(0.38, tp.targetSilenceSec * 0.68);
+          webSpeechCommitTimerRef.current = window.setTimeout(() => {
+            webSpeechCommitTimerRef.current = null;
+            flushWebSpeechPending(capturedSessionId);
+          }, holdSec * 1000);
+        }
       } else if (interim) {
         if (webSpeechTurnStartMsRef.current === 0) {
           webSpeechTurnStartMsRef.current = Date.now();
         }
-        const correctedInterim = applyContextualCorrection(interim).correctedText;
+        const combinedPreview = webSpeechPendingFinalRef.current
+          ? `${webSpeechPendingFinalRef.current} ${interim.trim()}`.replace(/\s+/g, ' ').trim()
+          : interim.trim();
+        const correctedInterim = applyContextualCorrection(combinedPreview).correctedText;
         setInterimSttText(correctedInterim);
         if (webSpeechCommitTimerRef.current) {
           clearTimeout(webSpeechCommitTimerRef.current);
         }
-        const capturedInterim = interim.trim();
-        const capturedSessionId = audioSessionIdRef.current;
         webSpeechCommitTimerRef.current = window.setTimeout(() => {
-          if (!isDisposed && audioSessionIdRef.current === capturedSessionId && capturedInterim) {
-            const turnDurSec =
-              webSpeechTurnStartMsRef.current > 0
-                ? Math.max(1.0, (Date.now() - webSpeechTurnStartMsRef.current) / 1000)
-                : 2.5;
-            webSpeechTurnStartMsRef.current = 0;
-            updateTempoFromUtterance(capturedInterim, turnDurSec);
-            processIncomingSpeechUtterance(capturedInterim);
-            setInterimSttText('');
+          if (!isDisposed && audioSessionIdRef.current === capturedSessionId && combinedPreview) {
+            webSpeechPendingFinalRef.current = combinedPreview;
+            flushWebSpeechPending(capturedSessionId);
           }
           webSpeechCommitTimerRef.current = null;
         }, webSpeechSilenceSecRef.current * 1000);
       }
 
-      const currentStream = interim.trim() || final.trim();
+      const currentStream = (
+        webSpeechPendingFinalRef.current
+          ? `${webSpeechPendingFinalRef.current} ${interim.trim() || final.trim()}`
+          : interim.trim() || final.trim()
+      ).trim();
       if (currentStream) {
         const correctedStream = applyContextualCorrection(currentStream).correctedText;
         evaluateUtteranceRules(correctedStream);
