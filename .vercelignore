@@ -1,0 +1,17 @@
+backend/
+recordings/
+scratch/
+aws_sejong_prototype/
+docs/
+tools/
+scripts/
+*.pdf
+*.wav
+*.m4a
+*.mp3
+*.txt
+*.py
+**/node_modules/
+**/.venv/
+**/.git/
+.env*
