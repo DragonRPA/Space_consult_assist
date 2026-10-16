@@ -4,17 +4,15 @@ import {
   Loader2, RotateCcw, Wrench, CheckCircle2,
   History, Sparkles, X, ChevronDown,
   ChevronUp, Check, ArrowRight, RefreshCw, ShieldAlert,
-  Layers, Cpu, FileText, BookOpen, Copy, Clock,
+  Layers, Cpu, FileText, BookOpen, Clock,
   Package, Smartphone, Edit3
 } from 'lucide-react';
 import {
   DEFAULT_MODEL_SPECS,
-  DEFAULT_SPECIAL_GUIDES,
   DEFAULT_SYMPTOM_PRESETS,
   getModelErrorCodes,
   getModelErrorCodePanelTitle,
-  type ModelSpec,
-  type SpecialGuide
+  type ModelSpec
 } from './manualKnowledgeData';
 import {
   DispatchDocPackageModal,
@@ -578,12 +576,7 @@ export function matchesIntegratedSessionQuery(record: ConsultSessionRecord, full
   });
 }
 
-export interface CounselAssistV2Props {
-  initialOpenGuides?: boolean;
-  openGuidesTrigger?: number;
-}
-
-export default function CounselAssistV2({ initialOpenGuides, openGuidesTrigger }: CounselAssistV2Props = {}) {
+export default function CounselAssistV2() {
   // ① 고객 및 장비 선택
   const [searchText, setSearchText]                 = useState('');
   const [searchResults, setSearchResults]           = useState<Customer[]>([]);
@@ -608,45 +601,9 @@ export default function CounselAssistV2({ initialOpenGuides, openGuidesTrigger }
   const [showPhotoManagerModal, setShowPhotoManagerModal]       = useState(false);
   const [photoEvidence, setPhotoEvidence]                       = useState<SitePhotoSketchEvidence | null>(null);
 
-  // ①-2 모델 하드웨어 제원 & 상황별 매뉴얼 가이드
+  // ①-2 모델 하드웨어 제원
   const [currentModelSpec, setCurrentModelSpec]     = useState<ModelSpec | null>(() => DEFAULT_MODEL_SPECS['J600T'] || null);
   const [showModelSpec, setShowModelSpec]           = useState(false);
-  const [specialGuides, setSpecialGuides]           = useState<SpecialGuide[]>(DEFAULT_SPECIAL_GUIDES);
-  const [showGuidesModal, setShowGuidesModal]       = useState<boolean>(() => {
-    if (initialOpenGuides) return true;
-    if (typeof window !== 'undefined') {
-      const search = window.location.search || '';
-      const hash = window.location.hash || '';
-      return search.includes('guides') || hash.includes('guides');
-    }
-    return false;
-  });
-  const [selectedGuideId, setSelectedGuideId]       = useState<string>('GUIDE_BRUSH_AUTO');
-
-  useEffect(() => {
-    if (initialOpenGuides) {
-      setShowGuidesModal(true);
-      setTimeout(() => {
-        const el = document.querySelector('[data-special-guides-panel]');
-        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
-    }
-  }, [initialOpenGuides]);
-
-  useEffect(() => {
-    if (openGuidesTrigger && openGuidesTrigger > 0) {
-      setShowGuidesModal(prev => {
-        const next = !prev;
-        if (next) {
-          setTimeout(() => {
-            const el = document.querySelector('[data-special-guides-panel]');
-            el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }, 100);
-        }
-        return next;
-      });
-    }
-  }, [openGuidesTrigger]);
 
   // ② 증상 목록 및 필터링
   const [symptomPresets, setSymptomPresets]         = useState<SymptomPreset[]>(DEFAULT_SYMPTOM_PRESETS as any);
@@ -748,9 +705,6 @@ export default function CounselAssistV2({ initialOpenGuides, openGuidesTrigger }
         }
         if (data.model_spec) {
           setCurrentModelSpec(data.model_spec);
-        }
-        if (data.special_guides && data.special_guides.length > 0) {
-          setSpecialGuides(data.special_guides);
         }
       } else {
         // 백엔드 비정상 응답 시 프론트엔드 프리셋 갱신
@@ -2453,115 +2407,6 @@ export default function CounselAssistV2({ initialOpenGuides, openGuidesTrigger }
             [우측 패널: 디테일 스튜디오] : 복수 증상 탭 바 + 실시간 진단 콘솔 + 통합 완결
         ════════════════════════════════════════════════════════════════════════ */}
         <div data-testid="detail-studio" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, height: '100%', overflow: 'hidden' }}>
-
-          {/* 매뉴얼 상황별 긴급/수칙 접이식 패널 (화면 상단 전역 배치 - 증상 세션 유무와 무관하게 즉시 열림) */}
-          {showGuidesModal && specialGuides.length > 0 && (
-            <div
-              data-special-guides-panel
-              style={{
-                background: '#f5f2eb',
-                border: '1px solid #bfdbfe',
-                borderRadius: 8,
-                padding: '8px 12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 6,
-                flexShrink: 0,
-                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.08)'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e8e2d8', paddingBottom: 4 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <BookOpen size={14} color="#2563eb" />
-                  <span style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>상황별 수칙</span>
-                </div>
-                <button
-                  onClick={() => setShowGuidesModal(false)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 0 }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-
-              {/* 4대 상황별 탭 */}
-              <div style={{ display: 'flex', gap: 4, overflowX: 'auto' }}>
-                {specialGuides.map(g => {
-                  const isCurrent = g.id === selectedGuideId;
-                  return (
-                    <button
-                      key={g.id}
-                      data-guide-tab={g.id}
-                      onClick={() => setSelectedGuideId(g.id)}
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: 4,
-                        fontSize: 13.5,
-                        fontWeight: isCurrent ? 800 : 600,
-                        background: isCurrent ? '#eff6ff' : '#f5f2eb',
-                        color: isCurrent ? '#1d4ed8' : '#475569',
-                        border: isCurrent ? '1px solid #1d4ed8' : '1px solid #dcd5c9',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        transition: 'all 0.1s ease'
-                      }}
-                    >
-                      {g.title}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* 선택된 수칙 상세 내용 */}
-              {(() => {
-                const activeG = specialGuides.find(g => g.id === selectedGuideId) || specialGuides[0];
-                if (!activeG) return null;
-                return (
-                  <div style={{ background: '#f5f2eb', borderRadius: 6, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5, border: '1px solid #dcd5c9' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5 }}>
-                      <span style={{ fontSize: 13.5, padding: '2px 7px', borderRadius: 3, background: '#eff6ff', color: '#1d4ed8', fontWeight: 800 }}>적용 조건</span>
-                      <span style={{ color: '#1e40af', fontWeight: 700 }}>{activeG.target_situation}</span>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13.5, color: '#334155' }}>
-                      {activeG.operation_steps.map((st, sidx) => (
-                        <div key={sidx} style={{ lineHeight: 1.4 }}>{st}</div>
-                      ))}
-                    </div>
-
-                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '6px 10px', display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 2 }}>
-                      <Sparkles size={13} color="#2563eb" style={{ flexShrink: 0, marginTop: 2 }} />
-                      <div style={{ fontSize: 13.5, color: '#1e40af', fontWeight: 600, lineHeight: 1.4, flex: 1 }}>
-                        {activeG.call_script}
-                      </div>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(activeG.call_script);
-                          showToast('안내 멘트가 복사되었습니다');
-                        }}
-                        style={{
-                          fontSize: 13.5,
-                          fontWeight: 700,
-                          padding: '3px 8px',
-                          borderRadius: 3,
-                          background: '#f5f2eb',
-                          border: '1px solid #bfdbfe',
-                          color: '#1d4ed8',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 3,
-                          flexShrink: 0
-                        }}
-                      >
-                        <Copy size={11} />
-                        <span>복사</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
 
           {/* 증상 미선택 시 대기 화면 (고밀도 전문 가이드) - 디테일 스튜디오 */}
           {sessionList.length === 0 && !isLoadingPlan && (

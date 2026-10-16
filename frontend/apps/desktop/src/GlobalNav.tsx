@@ -4,8 +4,6 @@ import {
   Cpu, 
   Calendar, 
   Mic, 
-  CheckCircle2,
-  BookOpen,
   Search
 } from 'lucide-react';
 
@@ -14,10 +12,9 @@ export type NavTab = 'counsel-v2' | 'counsel-v3' | 'counsel-compare' | 'schedule
 interface GlobalNavProps {
   currentTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
-  onOpenGuides?: () => void;
 }
 
-export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, onOpenGuides }) => {
+export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab }) => {
   const tabs: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [
     {
       id: 'stt-legacy' as NavTab,
@@ -137,43 +134,6 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({ currentTab, onSelectTab, o
           );
         })}
       </nav>
-
-      {/* 상황별 수칙 바로가기 버튼 */}
-      {onOpenGuides && (
-        <button
-          onClick={onOpenGuides}
-          data-uia="global-nav-special-guides"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 14px',
-            borderRadius: 6,
-            backgroundColor: '#1d4ed8',
-            color: '#ffffff',
-            border: '1px solid #2563eb',
-            fontSize: 13.5,
-            fontWeight: 800,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            transition: 'all 0.15s ease',
-            boxShadow: '0 2px 6px rgba(29, 78, 216, 0.3)'
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1e40af'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#1d4ed8'; }}
-        >
-          <BookOpen size={14} />
-          <span>상황별 수칙</span>
-        </button>
-      )}
-
-      {/* 우측 시스템 상태 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, fontSize: '10pt', color: '#64748b' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#10b981' }}>
-          <CheckCircle2 size={14} />
-          <span style={{ fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap' }}>포트 8000 연결</span>
-        </div>
-      </div>
     </header>
   );
 };

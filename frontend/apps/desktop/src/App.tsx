@@ -56,9 +56,6 @@ declare global {
 
 function getInitialTab(): NavTab {
   const path = window.location.pathname;
-  const search = window.location.search;
-  const hash = window.location.hash;
-  if (search.includes('guides') || hash.includes('guides')) return 'counsel-v2';
   if (path.startsWith('/counsel3') || path.startsWith('/v3')) return 'counsel-v3';
   if (path.startsWith('/schedule')) return 'schedule';
   if (path.startsWith('/counsel-compare')) return 'counsel-compare';
@@ -69,23 +66,10 @@ function getInitialTab(): NavTab {
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<NavTab>(getInitialTab);
-  const [openGuides, setOpenGuides] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const search = window.location.search || '';
-      const hash = window.location.hash || '';
-      return search.includes('guides') || hash.includes('guides');
-    }
-    return false;
-  });
 
   useEffect(() => {
     const handlePopState = () => {
       setCurrentTab(getInitialTab());
-      const search = window.location.search || '';
-      const hash = window.location.hash || '';
-      if (search.includes('guides') || hash.includes('guides')) {
-        setOpenGuides(true);
-      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -103,32 +87,21 @@ export default function App() {
     window.history.pushState(null, '', pathMap[tab]);
   };
 
-  const [openGuidesTrigger, setOpenGuidesTrigger] = useState<number>(0);
-
-  const handleOpenGuides = () => {
-    if (currentTab !== 'counsel-v2' && currentTab !== 'counsel-v3') {
-      setCurrentTab('counsel-v2');
-      window.history.pushState(null, '', '/?view=guides');
-    }
-    setOpenGuides(true);
-    setOpenGuidesTrigger(prev => prev + 1);
-  };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: 'var(--bg-app)', backgroundImage: 'var(--paper-texture)', backgroundRepeat: 'repeat' }}>
-      <GlobalNav currentTab={currentTab} onSelectTab={handleSelectTab} onOpenGuides={handleOpenGuides} />
+      <GlobalNav currentTab={currentTab} onSelectTab={handleSelectTab} />
       <main style={{ flex: 1, position: 'relative' }}>
-        {currentTab === 'counsel-v2' && <CounselAssistV2 initialOpenGuides={openGuides} openGuidesTrigger={openGuidesTrigger} />}
-        {currentTab === 'counsel-v3' && <CounselAssistV3 initialOpenGuides={openGuides} openGuidesTrigger={openGuidesTrigger} />}
+        {currentTab === 'counsel-v2' && <CounselAssistV2 />}
+        {currentTab === 'counsel-v3' && <CounselAssistV3 />}
         {currentTab === 'counsel-compare' && <CounselCompare />}
         {currentTab === 'schedule' && <SchedulePage />}
-        {currentTab === 'stt-legacy' && <LegacySttApp onOpenGuides={handleOpenGuides} />}
+        {currentTab === 'stt-legacy' && <LegacySttApp />}
       </main>
     </div>
   );
 }
 
-function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => void }) {
+function LegacySttApp() {
 
 
   const {
@@ -191,7 +164,6 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [isMicTestOpen, setIsMicTestOpen] = useState(false);
   const [showAllSymptoms, setShowAllSymptoms] = useState(false);
-  const [isWhisperLauncherModalOpen, setIsWhisperLauncherModalOpen] = useState(false);
   const [gpuServerOnline, setGpuServerOnline] = useState<boolean | null>(null);
   const [isAudioStreamingActive, setIsAudioStreamingActive] = useState(false);
   const [loopbackDevice] = useState<string>('');
@@ -339,94 +311,106 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     // 2. Customer & Address Multi-Dimensional Identification (Preset + Dynamic Spoken Customer/Manager/Phone/RoadAddress/DetailZone)
     const afterSymptomStore = useCounselStore.getState();
     const curCust = afterSymptomStore.selectedCustomer;
-    if (curCust) {
-      const extractedInfo = extractCustomerAndAddressEntities(text);
-      let activeCust: CustomerInfo = { ...curCust };
-      let presetSwitched = false;
-      const changedFields: string[] = [];
+    const extractedInfo = extractCustomerAndAddressEntities(text);
+    let activeCust: CustomerInfo = curCust
+      ? { ...curCust }
+      : {
+          id: 'live-dynamic-customer',
+          name: '',
+          manager: '',
+          phone: '',
+          address: '',
+          addressDetail: '',
+          assetModel: '',
+          serialNumber: '',
+          salesType: '미확인',
+          warrantyRemaining: '확인 대기',
+          historyTimeline: [],
+        };
+    let presetSwitched = false;
+    const changedFields: string[] = [];
 
-      // 2-A. Preset Customer Matching (by NAMED_ENTITY_REGISTRY rule, phone, customer core name, or manager name)
-      let matchedPreset: CustomerInfo | undefined;
-      for (const entRule of NAMED_ENTITY_REGISTRY) {
-        if (entRule.type === 'customer' && entRule.customerId && entRule.pattern.test(text)) {
-          matchedPreset = DEFAULT_CUSTOMERS.find(c => c.id === entRule.customerId);
-          if (matchedPreset) break;
-        }
+    // 2-A. Preset Customer Matching (by NAMED_ENTITY_REGISTRY rule, phone, customer core name, or manager name)
+    let matchedPreset: CustomerInfo | undefined;
+    for (const entRule of NAMED_ENTITY_REGISTRY) {
+      if (entRule.type === 'customer' && entRule.customerId && entRule.pattern.test(text)) {
+        matchedPreset = DEFAULT_CUSTOMERS.find(c => c.id === entRule.customerId);
+        if (matchedPreset) break;
       }
-      if (!matchedPreset) {
-        const textCompact = text.replace(/\s+/g, '');
-        matchedPreset = DEFAULT_CUSTOMERS.find(c => {
-          if (extractedInfo.phone && c.phone === extractedInfo.phone) return true;
-          const coreName = c.name
-            .replace(/(?:\(주\)|주식회사|아파트|관리사무소|관리지원센터|관리단|\s+)/g, '')
-            .trim();
-          if (coreName.length >= 3 && textCompact.includes(coreName)) return true;
-          const mgrCore = c.manager.split(' ')[0]?.trim();
-          if (mgrCore && mgrCore.length >= 2 && text.includes(mgrCore)) return true;
-          return false;
-        });
+    }
+    if (!matchedPreset) {
+      const textCompact = text.replace(/\s+/g, '');
+      matchedPreset = DEFAULT_CUSTOMERS.find(c => {
+        if (extractedInfo.phone && c.phone === extractedInfo.phone) return true;
+        const coreName = c.name
+          .replace(/(?:\(주\)|주식회사|아파트|관리사무소|관리지원센터|관리단|\s+)/g, '')
+          .trim();
+        if (coreName.length >= 3 && textCompact.includes(coreName)) return true;
+        const mgrCore = c.manager.split(' ')[0]?.trim();
+        if (mgrCore && mgrCore.length >= 2 && text.includes(mgrCore)) return true;
+        return false;
+      });
+    }
+
+    if (matchedPreset && curCust?.id !== matchedPreset.id) {
+      activeCust = { ...matchedPreset };
+      presetSwitched = true;
+    }
+
+    // 2-B. Dynamic Multi-Field Extraction & Override (Customer Name, Manager, Phone, Road/Lot Address, Detail Zone)
+    if (!matchedPreset && extractedInfo.customerName && !activeCust.name.includes(extractedInfo.customerName)) {
+      activeCust.name = extractedInfo.customerName;
+      changedFields.push(`고객사: ${extractedInfo.customerName}`);
+    }
+    if (extractedInfo.managerName && !activeCust.manager.includes(extractedInfo.managerName)) {
+      activeCust.manager = extractedInfo.managerName;
+      changedFields.push(`담당자: ${extractedInfo.managerName}`);
+    }
+    if (extractedInfo.phone && activeCust.phone !== extractedInfo.phone) {
+      activeCust.phone = extractedInfo.phone;
+      changedFields.push(`연락처: ${extractedInfo.phone}`);
+    }
+    if (extractedInfo.roadOrLotAddress && !activeCust.address.includes(extractedInfo.roadOrLotAddress)) {
+      activeCust.address = extractedInfo.roadOrLotAddress;
+      changedFields.push(`주소: ${extractedInfo.roadOrLotAddress}`);
+    }
+    if (extractedInfo.addressDetail || extractedInfo.useCompany) {
+      const detailParts: string[] = [];
+      if (extractedInfo.addressDetail) detailParts.push(extractedInfo.addressDetail);
+      if (extractedInfo.useCompany) detailParts.push(extractedInfo.useCompany);
+      const newDetail = detailParts.join(' / ');
+      if (newDetail && !activeCust.addressDetail.includes(newDetail)) {
+        activeCust.addressDetail = newDetail;
+        changedFields.push(`상세위치: ${newDetail}`);
+      }
+    }
+
+    if (presetSwitched || changedFields.length > 0) {
+      afterSymptomStore.selectCustomer(activeCust);
+      setConfirmedSlotFlags(prev => ({
+        customer: prev.customer || presetSwitched || Boolean(extractedInfo.customerName || extractedInfo.managerName),
+        phone: prev.phone || presetSwitched || Boolean(extractedInfo.phone),
+        address: prev.address || presetSwitched || Boolean(extractedInfo.roadOrLotAddress || extractedInfo.addressDetail),
+        model: prev.model || presetSwitched,
+      }));
+
+      // 지역 기반 관할 정비기사 자동 배정
+      const addrText = `${activeCust.address} ${activeCust.addressDetail}`;
+      if (/(?:서울|서초|강남|금천|송파|영등포|마포|인천|부천|광명|고양)/.test(addrText)) {
+        afterSymptomStore.setAssignedEngineer('박영호 정비기사 (인천/서울서부)');
+      } else if (/(?:화성|동탄|수원|용인|성남|안산|오산|시흥|안양)/.test(addrText)) {
+        afterSymptomStore.setAssignedEngineer('김철수 정비기사 (화성/경기남부)');
+      } else if (/(?:아산|천안|평택|충남|충북|대전|경남|양산|부산)/.test(addrText)) {
+        afterSymptomStore.setAssignedEngineer('이지훈 정비기사 (평택/충청북부)');
       }
 
-      if (matchedPreset && curCust.id !== matchedPreset.id) {
-        activeCust = { ...matchedPreset };
-        presetSwitched = true;
-      }
-
-      // 2-B. Dynamic Multi-Field Extraction & Override (Customer Name, Manager, Phone, Road/Lot Address, Detail Zone)
-      if (!matchedPreset && extractedInfo.customerName && !activeCust.name.includes(extractedInfo.customerName)) {
-        activeCust.name = extractedInfo.customerName;
-        changedFields.push(`고객사: ${extractedInfo.customerName}`);
-      }
-      if (extractedInfo.managerName && !activeCust.manager.includes(extractedInfo.managerName)) {
-        activeCust.manager = extractedInfo.managerName;
-        changedFields.push(`담당자: ${extractedInfo.managerName}`);
-      }
-      if (extractedInfo.phone && activeCust.phone !== extractedInfo.phone) {
-        activeCust.phone = extractedInfo.phone;
-        changedFields.push(`연락처: ${extractedInfo.phone}`);
-      }
-      if (extractedInfo.roadOrLotAddress && !activeCust.address.includes(extractedInfo.roadOrLotAddress)) {
-        activeCust.address = extractedInfo.roadOrLotAddress;
-        changedFields.push(`주소: ${extractedInfo.roadOrLotAddress}`);
-      }
-      if (extractedInfo.addressDetail || extractedInfo.useCompany) {
-        const detailParts: string[] = [];
-        if (extractedInfo.addressDetail) detailParts.push(extractedInfo.addressDetail);
-        if (extractedInfo.useCompany) detailParts.push(extractedInfo.useCompany);
-        const newDetail = detailParts.join(' / ');
-        if (newDetail && !activeCust.addressDetail.includes(newDetail)) {
-          activeCust.addressDetail = newDetail;
-          changedFields.push(`상세위치: ${newDetail}`);
-        }
-      }
-
-      if (presetSwitched || changedFields.length > 0) {
-        afterSymptomStore.selectCustomer(activeCust);
-        setConfirmedSlotFlags(prev => ({
-          customer: prev.customer || presetSwitched || Boolean(extractedInfo.customerName || extractedInfo.managerName),
-          phone: prev.phone || presetSwitched || Boolean(extractedInfo.phone),
-          address: prev.address || presetSwitched || Boolean(extractedInfo.roadOrLotAddress || extractedInfo.addressDetail),
-          model: prev.model || presetSwitched,
-        }));
-
-        // 지역 기반 관할 정비기사 자동 배정
-        const addrText = `${activeCust.address} ${activeCust.addressDetail}`;
-        if (/(?:서울|서초|강남|금천|송파|영등포|마포|인천|부천|광명|고양)/.test(addrText)) {
-          afterSymptomStore.setAssignedEngineer('박영호 정비기사 (인천/서울서부)');
-        } else if (/(?:화성|동탄|수원|용인|성남|안산|오산|시흥|안양)/.test(addrText)) {
-          afterSymptomStore.setAssignedEngineer('김철수 정비기사 (화성/경기남부)');
-        } else if (/(?:아산|천안|평택|충남|충북|대전|경남|양산|부산)/.test(addrText)) {
-          afterSymptomStore.setAssignedEngineer('이지훈 정비기사 (평택/충청북부)');
-        }
-
-        const toastMsg = presetSwitched && changedFields.length > 0
-          ? `[고객사 자동 선택: ${activeCust.name} · ${changedFields.join(' · ')}]`
-          : presetSwitched
-            ? `[고객사 감지: ${activeCust.name}] 자동 선택 완료`
-            : `[고객/주소 추출: ${changedFields.join(' · ')}] 고객 패널 실시간 반영`;
-        afterSymptomStore.showToast(toastMsg);
-        setTimeout(() => afterSymptomStore.clearToast(), 3000);
-      }
+      const toastMsg = presetSwitched && changedFields.length > 0
+        ? `[고객사 자동 선택: ${activeCust.name} · ${changedFields.join(' · ')}]`
+        : presetSwitched
+          ? `[고객사 감지: ${activeCust.name}] 자동 선택 완료`
+          : `[고객/주소 추출: ${changedFields.join(' · ')}] 고객 패널 실시간 반영`;
+      afterSymptomStore.showToast(toastMsg);
+      setTimeout(() => afterSymptomStore.clearToast(), 3000);
     }
 
     // 3. Model Identification
@@ -1573,6 +1557,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
 
   const handleCustomerSelect = (customer: CustomerInfo) => {
     selectCustomer(customer);
+    setConfirmedSlotFlags({ customer: true, phone: true, address: true, model: true });
     showToast(`고객사 [${customer.name}] 선택 완료`);
     setTimeout(() => clearToast(), 2500);
   };
@@ -1598,11 +1583,11 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
           "Authorization": `Bearer ${authToken}`
         },
         body: JSON.stringify({
-          customer_id: selectedCustomer.id,
-          customer_name: selectedCustomer.name,
-          manager: selectedCustomer.manager,
-          serial_number: selectedCustomer.serialNumber || "",
-          model_name: selectedCustomer.assetModel || "",
+          customer_id: selectedCustomer?.id || "live-dynamic-customer",
+          customer_name: selectedCustomer?.name || "미확인 고객사",
+          manager: selectedCustomer?.manager || "",
+          serial_number: selectedCustomer?.serialNumber || "",
+          model_name: selectedCustomer?.assetModel || cleanModelCode || "",
           keyword: activeKeywordEntity?.keyword || "1차 셀프조치 해결",
           part_code: activeKeywordEntity?.partCode || "",
           symptoms: rawParagraphs.join(" ") || "1차 상담 셀프 조치 완료",
@@ -1633,12 +1618,12 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customer_id: selectedCustomer.id,
-          customer_name: selectedCustomer.name,
-          manager: selectedCustomer.manager,
-          phone: selectedCustomer.phone,
-          address: selectedCustomer.address,
-          address_detail: selectedCustomer.addressDetail,
+          customer_id: selectedCustomer?.id || "live-dynamic-customer",
+          customer_name: selectedCustomer?.name || "미확인 고객사",
+          manager: selectedCustomer?.manager || "",
+          phone: selectedCustomer?.phone || "",
+          address: selectedCustomer?.address || "",
+          address_detail: selectedCustomer?.addressDetail || "",
           assigned_engineer: assignedEngineer,
           dispatch_date: dispatchDate,
           request_note: dispatchNote,
@@ -1649,7 +1634,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         throw new Error(`배차 등록 실패 (HTTP ${res.status}): ${res.statusText}`);
       }
       setDispatchDrawerOpen(false);
-      showToast(`[${selectedCustomer.name}] 출장 배차 접수가 정상 등록되었습니다.`);
+      showToast(`[${selectedCustomer?.name || '고객사'}] 출장 배차 접수가 정상 등록되었습니다.`);
     } catch (e) {
       console.error("배차 저장 실패:", e);
       showToast(`배차 접수 실패: ${e instanceof Error ? e.message : '서버 통신 실패'}`);
@@ -1669,9 +1654,9 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           inquiry_type: salesTransferType,
-          customer_name: selectedCustomer.name,
-          manager: selectedCustomer.manager,
-          manager_phone: selectedCustomer.phone,
+          customer_name: selectedCustomer?.name || "미확인 고객사",
+          manager: selectedCustomer?.manager || "",
+          manager_phone: selectedCustomer?.phone || "",
           request_note: salesTransferNote,
           client_type: "desktop"
         })
@@ -1695,19 +1680,22 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   const totalCount = actionChecklist.length;
   const nextUncheckedStep = useMemo(() => actionChecklist.find(c => !c.checked) || null, [actionChecklist]);
 
-  // 추출된 클린 장비 모델 코드 (J600T, S7P, S5 등)
+  // 추출된 클린 장비 모델 코드 (J600T, S7P, S5 등 - 미선택 시 빈 문자열)
   const cleanModelCode = useMemo(() => {
-    const raw = selectedCustomer.assetModel || '';
+    const raw = selectedCustomer?.assetModel || '';
     const m = raw.match(/\b(J600T?|J800|S12L?|S7P?|S5|S3|S2|S1|R3|XD80|XD60|S800|M100|Q45)\b/i);
-    return m ? m[1].toUpperCase() : 'J600T';
-  }, [selectedCustomer.assetModel]);
+    return m ? m[1].toUpperCase() : '';
+  }, [selectedCustomer?.assetModel]);
 
   // 5대 필수 정보 자동 확인 상태 판정
   const confirmedSlots = useMemo(() => {
-    const customerOk = confirmedSlotFlags.customer || (!selectedCustomer.name.includes('식별 대기') && Boolean(selectedCustomer.name.trim()));
-    const phoneOk = confirmedSlotFlags.phone || /0\d{1,2}-\d{3,4}-\d{4}/.test(selectedCustomer.phone);
-    const addressOk = confirmedSlotFlags.address || (!selectedCustomer.address.includes('자동 식별') && Boolean(selectedCustomer.address.trim()));
-    const modelOk = confirmedSlotFlags.model || (!selectedCustomer.assetModel.includes('자동 식별') && Boolean(selectedCustomer.assetModel.trim()));
+    const customerOk = confirmedSlotFlags.customer || Boolean(selectedCustomer?.name && !selectedCustomer.name.includes('식별 대기') && selectedCustomer.name.trim());
+    const phoneOk = confirmedSlotFlags.phone || Boolean(selectedCustomer?.phone && /0\d{1,2}-\d{3,4}-\d{4}/.test(selectedCustomer.phone));
+    const addressOk = confirmedSlotFlags.address || Boolean(
+      (selectedCustomer?.address && !selectedCustomer.address.includes('자동 식별') && selectedCustomer.address.trim()) ||
+      (selectedCustomer?.addressDetail && selectedCustomer.addressDetail.trim())
+    );
+    const modelOk = confirmedSlotFlags.model || Boolean(cleanModelCode);
     const symptomOk = detectedKeywordEntities.length > 0 || Boolean(matchedDiagnosis);
     return {
       customer: customerOk,
@@ -1717,22 +1705,24 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       symptom: symptomOk,
       confirmedCount: [customerOk, phoneOk, addressOk, modelOk, symptomOk].filter(Boolean).length,
     };
-  }, [confirmedSlotFlags, selectedCustomer, detectedKeywordEntities, matchedDiagnosis]);
+  }, [confirmedSlotFlags, selectedCustomer, cleanModelCode, detectedKeywordEntities, matchedDiagnosis]);
 
   // 상담 진행에 따른 배차 메모 및 영업 이관 메모 실시간 자동 합성
   useEffect(() => {
+    const modelLabel = cleanModelCode || '모델 미확인';
+    const custLabel = selectedCustomer?.name || '고객사 미확인';
     const symptomTitle = activeKeywordEntity?.keyword || matchedDiagnosis?.category || '증상 확인중';
     const partTitle = matchedDiagnosis ? `${matchedDiagnosis.partName} (${matchedDiagnosis.partCode})` : '현장 점검 요망';
     const checkedItems = actionChecklist.filter(c => c.checked).map(c => `${c.id}단계(${c.text.slice(0, 14)})`);
     const checkSummary = checkedItems.length > 0 ? `${checkedItems.join(', ')} 점검 완료` : '1차 유선 점검 진행';
 
     setDispatchNote(
-      `[자동요약] 장비: ${cleanModelCode} | 증상: ${symptomTitle} | 점검내역: ${checkSummary} | 지참부품: ${partTitle}`
+      `[자동요약] 장비: ${modelLabel} | 증상: ${symptomTitle} | 점검내역: ${checkSummary} | 지참부품: ${partTitle}`
     );
     setSalesTransferNote(
-      `[상담이관] ${selectedCustomer.name} (${cleanModelCode}) | ${symptomTitle} 관련 ${partTitle} 견적·교체 요청`
+      `[상담이관] ${custLabel} (${modelLabel}) | ${symptomTitle} 관련 ${partTitle} 견적·교체 요청`
     );
-  }, [cleanModelCode, activeKeywordEntity, matchedDiagnosis, actionChecklist, selectedCustomer.name, setDispatchNote]);
+  }, [cleanModelCode, activeKeywordEntity, matchedDiagnosis, actionChecklist, selectedCustomer?.name, setDispatchNote]);
 
   // 다음 안내 멘트 (Next Script Teleprompter) 동적 생성 엔진
   const nextLeadGuidance = useMemo(() => {
@@ -1744,6 +1734,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     const symptomName = activeKeywordEntity?.keyword || matchedDiagnosis?.category || '';
     const partName = matchedDiagnosis?.partName || '관련 소모품';
     const engShort = assignedEngineer.split(' ')[0] || '담당 기사';
+    const modelDisplay = cleanModelCode || '해당 장비';
 
     if (!confirmedSlots.symptom) {
       return {
@@ -1773,8 +1764,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         accentColor: '#d97706',
         bgTint: '#fffbeb',
         borderTint: '#fcd34d',
-        script: `"말씀하신 증상은 [${partName}] 마모·손상으로 확인됩니다. ${cleanModelCode} 전용 사진 견적서와 자가교체 가이드를 문자로 바로 발송해 드리겠습니다."`,
-        subPrompt: `권장 조치: [소모품 견적] 버튼을 눌러 ${cleanModelCode} 부품 견적서를 즉시 발송하세요.`,
+        script: `"말씀하신 증상은 [${partName}] 마모·손상으로 확인됩니다. ${modelDisplay} 전용 사진 견적서와 자가교체 가이드를 문자로 바로 발송해 드리겠습니다."`,
+        subPrompt: `권장 조치: [소모품 견적] 버튼을 눌러 ${modelDisplay} 부품 견적서를 즉시 발송하세요.`,
       };
     }
 
@@ -1910,10 +1901,10 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
           </span>
 
           {[
-            { key: 'customer', label: '고객사', value: selectedCustomer.name.replace(/\s*\(.*?\)/g, ''), ok: confirmedSlots.customer },
-            { key: 'phone', label: '연락처', value: selectedCustomer.phone, ok: confirmedSlots.phone },
-            { key: 'address', label: '현장위치', value: selectedCustomer.addressDetail.split('/')[0]?.trim() || selectedCustomer.address, ok: confirmedSlots.address },
-            { key: 'model', label: '모델', value: cleanModelCode, ok: confirmedSlots.model },
+            { key: 'customer', label: '고객사', value: selectedCustomer?.name ? selectedCustomer.name.replace(/\s*\(.*?\)/g, '') : '대기', ok: confirmedSlots.customer },
+            { key: 'phone', label: '연락처', value: selectedCustomer?.phone || '대기', ok: confirmedSlots.phone },
+            { key: 'address', label: '현장위치', value: (selectedCustomer?.addressDetail?.split('/')[0]?.trim() || selectedCustomer?.address) || '대기', ok: confirmedSlots.address },
+            { key: 'model', label: '모델', value: cleanModelCode || '대기', ok: confirmedSlots.model },
             { key: 'symptom', label: '증상', value: activeKeywordEntity?.keyword || matchedDiagnosis?.category || '대기', ok: confirmedSlots.symptom },
           ].map((slot) => (
             <div
@@ -2220,46 +2211,57 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
           <div style={{ flex: 1, minHeight: 0, padding: '10px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ backgroundColor: 'var(--surface-2)', padding: '10px', borderRadius: '6px', border: '1px solid var(--hairline)', display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {selectedCustomer.name}
+                <span style={{ fontWeight: 800, fontSize: '14px', color: selectedCustomer?.name ? 'var(--ink)' : 'var(--ink-subtle)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {selectedCustomer?.name || '고객사 미선택'}
                 </span>
-                <span style={{ fontSize: '11.5px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--badge-bg)', color: 'var(--badge-text)', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                  {selectedCustomer.salesType}
-                </span>
+                {selectedCustomer?.salesType && selectedCustomer.salesType !== '미확인' && (
+                  <span style={{ fontSize: '11.5px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--badge-bg)', color: 'var(--badge-text)', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    {selectedCustomer.salesType}
+                  </span>
+                )}
               </div>
 
               <div style={{ fontSize: '12.5px', color: 'var(--ink-muted)', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   <span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>담당자</span>
-                  <strong style={{ color: 'var(--ink)' }}>{selectedCustomer.manager}</strong> ({selectedCustomer.phone})
+                  <strong style={{ color: selectedCustomer?.manager ? 'var(--ink)' : 'var(--ink-subtle)' }}>
+                    {selectedCustomer?.manager || '-'}
+                  </strong>
+                  {selectedCustomer?.phone ? ` (${selectedCustomer.phone})` : ''}
                 </div>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   <span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>도로명</span>
-                  <span style={{ color: 'var(--ink)' }}>{selectedCustomer.address}</span>
+                  <span style={{ color: selectedCustomer?.address ? 'var(--ink)' : 'var(--ink-subtle)' }}>
+                    {selectedCustomer?.address || '-'}
+                  </span>
                 </div>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   <span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>상세위치</span>
-                  <strong style={{ color: '#b45309' }}>{selectedCustomer.addressDetail}</strong>
+                  <strong style={{ color: selectedCustomer?.addressDetail ? '#b45309' : 'var(--ink-subtle)' }}>
+                    {selectedCustomer?.addressDetail || '-'}
+                  </strong>
                 </div>
               </div>
 
               <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: '6px', marginTop: '2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
                   <span style={{ fontSize: '11px', color: 'var(--ink-subtle)', fontWeight: 600 }}>보유 장비 · 보증</span>
-                  <strong style={{ fontSize: '13px', color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {selectedCustomer.assetModel}
+                  <strong style={{ fontSize: '13px', color: selectedCustomer?.assetModel ? 'var(--ink)' : 'var(--ink-subtle)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {selectedCustomer?.assetModel || '장비 미선택'}
                   </strong>
-                  <span style={{ fontSize: '11.5px', color: 'var(--accent-warning)', fontWeight: 700 }}>
-                    {selectedCustomer.warrantyRemaining} · {selectedCustomer.serialNumber}
-                  </span>
+                  {selectedCustomer?.serialNumber && (
+                    <span style={{ fontSize: '11.5px', color: 'var(--accent-warning)', fontWeight: 700 }}>
+                      {selectedCustomer.warrantyRemaining} · {selectedCustomer.serialNumber}
+                    </span>
+                  )}
                 </div>
                 <select
                   value={cleanModelCode}
                   onChange={(e) => {
                     setSelectedCustomerModel(e.target.value);
-                    setConfirmedSlotFlags(prev => ({ ...prev, model: true }));
+                    setConfirmedSlotFlags(prev => ({ ...prev, model: Boolean(e.target.value) }));
                   }}
-                  title="장비 모델 변경"
+                  title="장비 모델 선택"
                   style={{
                     padding: '4px 6px',
                     fontSize: '12px',
@@ -2272,6 +2274,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                     flexShrink: 0
                   }}
                 >
+                  <option value="">모델 선택</option>
                   {['J600T', 'J800', 'S7P', 'S7', 'S5', 'S12L', 'XD80', 'XD60', 'S800', 'M100', 'Q45'].map(m => (
                     <option key={m} value={m}>{m}</option>
                   ))}
@@ -2283,7 +2286,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flexShrink: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--ink-muted)', whiteSpace: 'nowrap' }}>
-                  모델 맞춤 사진 문서 발송 ({cleanModelCode})
+                  모델 맞춤 사진 문서 발송{cleanModelCode ? ` (${cleanModelCode})` : ''}
                 </label>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
@@ -2379,25 +2382,31 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                 <Clock size={12} /> 최근 정비·상담 이력
               </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                {selectedCustomer.historyTimeline.map((item, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      padding: '6px 8px',
-                      borderRadius: '5px',
-                      backgroundColor: item.isWarning ? 'rgba(245, 158, 11, 0.12)' : 'var(--surface-2)',
-                      border: item.isWarning ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid var(--hairline)',
-                      fontSize: '12px'
-                    }}
-                  >
-                    <div style={{ color: item.isWarning ? 'var(--accent-warning)' : 'var(--ink-muted)', fontWeight: 700, fontSize: '11px' }}>
-                      {item.date}
+                {selectedCustomer && selectedCustomer.historyTimeline.length > 0 ? (
+                  selectedCustomer.historyTimeline.map((item, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '6px 8px',
+                        borderRadius: '5px',
+                        backgroundColor: item.isWarning ? 'rgba(245, 158, 11, 0.12)' : 'var(--surface-2)',
+                        border: item.isWarning ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid var(--hairline)',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <div style={{ color: item.isWarning ? 'var(--accent-warning)' : 'var(--ink-muted)', fontWeight: 700, fontSize: '11px' }}>
+                        {item.date}
+                      </div>
+                      <div style={{ color: item.isWarning ? 'var(--accent-warning)' : 'var(--ink)', fontWeight: item.isWarning ? 700 : 500, marginTop: '1px' }}>
+                        {item.title}
+                      </div>
                     </div>
-                    <div style={{ color: item.isWarning ? 'var(--accent-warning)' : 'var(--ink)', fontWeight: item.isWarning ? 700 : 500, marginTop: '1px' }}>
-                      {item.title}
-                    </div>
+                  ))
+                ) : (
+                  <div style={{ padding: '12px 8px', fontSize: '12px', color: 'var(--ink-subtle)' }}>
+                    고객사 선택 시 이력 표시
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -3190,10 +3199,10 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
 
             <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ backgroundColor: 'var(--surface-2)', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--hairline)', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>고객사</span><strong style={{ color: 'var(--ink)' }}>{selectedCustomer.name}</strong></div>
-                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>방문지</span>{selectedCustomer.address} ({selectedCustomer.addressDetail})</div>
-                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>연락처</span>{selectedCustomer.manager} · {selectedCustomer.phone}</div>
-                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>장비모델</span>{selectedCustomer.assetModel} ({selectedCustomer.serialNumber})</div>
+                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>고객사</span><strong style={{ color: 'var(--ink)' }}>{selectedCustomer?.name || '미확인'}</strong></div>
+                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>방문지</span>{selectedCustomer?.address || '-'} {selectedCustomer?.addressDetail ? `(${selectedCustomer.addressDetail})` : ''}</div>
+                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>연락처</span>{selectedCustomer?.manager || '-'} · {selectedCustomer?.phone || '-'}</div>
+                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>장비모델</span>{selectedCustomer?.assetModel || cleanModelCode || '미확인'} {selectedCustomer?.serialNumber ? `(${selectedCustomer.serialNumber})` : ''}</div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -3349,11 +3358,11 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         <EquipmentManualModal
           isOpen={isManualModalOpen}
           onClose={() => setIsManualModalOpen(false)}
-          equipmentModel={cleanModelCode}
-          serialNumber={selectedCustomer.serialNumber}
-          customerName={selectedCustomer.name}
-          manager={selectedCustomer.manager}
-          phone={selectedCustomer.phone}
+          equipmentModel={cleanModelCode || 'J600T'}
+          serialNumber={selectedCustomer?.serialNumber || ''}
+          customerName={selectedCustomer?.name || ''}
+          manager={selectedCustomer?.manager || ''}
+          phone={selectedCustomer?.phone || ''}
           symptoms={detectedKeywordEntities.map(e => e.keyword)}
           onToast={(msg) => {
             showToast(msg);
@@ -3364,11 +3373,11 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
 
       {isPartsQuoteModalOpen && (
         <PartsOrderQuotationModal
-          equipmentModel={cleanModelCode}
-          customerName={selectedCustomer.name}
-          manager={selectedCustomer.manager}
-          phone={selectedCustomer.phone}
-          serialNumber={selectedCustomer.serialNumber}
+          equipmentModel={cleanModelCode || 'J600T'}
+          customerName={selectedCustomer?.name || ''}
+          manager={selectedCustomer?.manager || ''}
+          phone={selectedCustomer?.phone || ''}
+          serialNumber={selectedCustomer?.serialNumber || ''}
           symptoms={detectedKeywordEntities.map(e => e.keyword)}
           onClose={() => setIsPartsQuoteModalOpen(false)}
           onToast={(msg) => {
@@ -3380,11 +3389,11 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
 
       {isSelfGuideModalOpen && (
         <SelfActionGuideModal
-          equipmentModel={cleanModelCode}
-          customerName={selectedCustomer.name}
-          manager={selectedCustomer.manager}
-          phone={selectedCustomer.phone}
-          serialNumber={selectedCustomer.serialNumber}
+          equipmentModel={cleanModelCode || 'J600T'}
+          customerName={selectedCustomer?.name || ''}
+          manager={selectedCustomer?.manager || ''}
+          phone={selectedCustomer?.phone || ''}
+          serialNumber={selectedCustomer?.serialNumber || ''}
           symptomTitle={activeKeywordEntity?.keyword || matchedDiagnosis?.category || '기본 자가점검'}
           symptomSteps={actionChecklist.map((c) => ({
             step_no: c.id,
@@ -3414,26 +3423,26 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       {isDispatchDocModalOpen && (
         <DispatchDocPackageModal
           initialDoc1st={{
-            recipientCompany: selectedCustomer.name,
-            recipientManager: selectedCustomer.manager,
-            recipientPhone: selectedCustomer.phone,
-            siteCompany: `${selectedCustomer.address} ${selectedCustomer.addressDetail}`,
-            siteWorkerName: selectedCustomer.manager,
-            siteWorkerPhone: selectedCustomer.phone,
-            equipmentModel: cleanModelCode,
-            serialNumber: selectedCustomer.serialNumber,
-            salesType: selectedCustomer.salesType,
+            recipientCompany: selectedCustomer?.name || '',
+            recipientManager: selectedCustomer?.manager || '',
+            recipientPhone: selectedCustomer?.phone || '',
+            siteCompany: `${selectedCustomer?.address || ''} ${selectedCustomer?.addressDetail || ''}`.trim(),
+            siteWorkerName: selectedCustomer?.manager || '',
+            siteWorkerPhone: selectedCustomer?.phone || '',
+            equipmentModel: cleanModelCode || 'J600T',
+            serialNumber: selectedCustomer?.serialNumber || '',
+            salesType: selectedCustomer?.salesType || '',
             symptoms: detectedKeywordEntities.map(e => e.keyword),
             assignedEngineer: assignedEngineer.split(' ')[0] || '김철수',
             plannedVisitAt: dispatchDate,
           }}
           initialDoc2nd={{
-            recipientCompany: selectedCustomer.name,
-            recipientManager: selectedCustomer.manager,
-            recipientPhone: selectedCustomer.phone,
-            siteCompany: `${selectedCustomer.address} ${selectedCustomer.addressDetail}`,
-            equipmentModel: cleanModelCode,
-            serialNumber: selectedCustomer.serialNumber,
+            recipientCompany: selectedCustomer?.name || '',
+            recipientManager: selectedCustomer?.manager || '',
+            recipientPhone: selectedCustomer?.phone || '',
+            siteCompany: `${selectedCustomer?.address || ''} ${selectedCustomer?.addressDetail || ''}`.trim(),
+            equipmentModel: cleanModelCode || 'J600T',
+            serialNumber: selectedCustomer?.serialNumber || '',
             engineerName: assignedEngineer.split(' ')[0] || '김철수',
             visitedAt: dispatchDate,
           }}
@@ -3470,39 +3479,6 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       )}
 
       <MicTestModal isOpen={isMicTestOpen} onClose={() => setIsMicTestOpen(false)} />
-
-      {isWhisperLauncherModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.75)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 160
-        }}>
-          <div style={{
-            width: '480px',
-            backgroundColor: 'var(--surface-1)',
-            border: '1px solid var(--accent-primary)',
-            borderRadius: '8px',
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>로컬 GPU 에이전트 상태</span>
-              <button onClick={() => setIsWhisperLauncherModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
-            </div>
-            <div style={{ fontSize: '13px', color: 'var(--ink)' }}>
-              {gpuServerOnline ? '포트 8000 백엔드 서버 정상 연결됨' : '백엔드 서버 연결 대기 중'}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

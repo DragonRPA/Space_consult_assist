@@ -71,7 +71,7 @@ interface CounselWorkstationState {
   // Panel A: Customer & Asset
   searchQuery: string;
   customerList: CustomerInfo[];
-  selectedCustomer: CustomerInfo;
+  selectedCustomer: CustomerInfo | null;
 
   // Panel B: STT & Live Streaming (Clean initial state)
   rawParagraphs: string[];
@@ -94,7 +94,7 @@ interface CounselWorkstationState {
   incrementCallTimer: () => void;
   resetCallTimer: () => void;
   setSearchQuery: (query: string) => void;
-  selectCustomer: (customer: CustomerInfo) => void;
+  selectCustomer: (customer: CustomerInfo | null) => void;
   setSelectedCustomerModel: (modelName: string) => void;
   appendFinalParagraph: (rawText: string, correctedText: string, corrections: CorrectionEvent[]) => void;
   setInterimSttText: (text: string) => void;
@@ -295,6 +295,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
     interimSttText: '',
     correctionHistory: [],
     callSeconds: 0,
+    selectedCustomer: null,
     activeKeywordEntity: null,
     detectedKeywordEntities: [],
     detectedKeywords: [],
@@ -333,7 +334,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
 
   searchQuery: '',
   customerList: DEFAULT_CUSTOMERS,
-  selectedCustomer: DEFAULT_CUSTOMERS[0],
+  selectedCustomer: null,
 
   // Clean initial state
   rawParagraphs: [],
@@ -368,13 +369,29 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
     set({ searchQuery: query, customerList: filtered.length > 0 ? filtered : DEFAULT_CUSTOMERS });
   },
   selectCustomer: (customer) => set({ selectedCustomer: customer }),
-  setSelectedCustomerModel: (modelName) => set((state) => ({
-    selectedCustomer: {
-      ...state.selectedCustomer,
-      assetModel: `${modelName} (실시간 발화 자동 식별)`,
-      serialNumber: `SN-2025-${modelName.replace(/[^A-Za-z0-9]/g, '')}-AUTO`
-    }
-  })),
+  setSelectedCustomerModel: (modelName) => set((state) => {
+    const cleanCode = modelName.replace(/[^A-Za-z0-9]/g, '');
+    const baseCustomer: CustomerInfo = state.selectedCustomer || {
+      id: 'live-dynamic-customer',
+      name: '',
+      manager: '',
+      phone: '',
+      address: '',
+      addressDetail: '',
+      assetModel: '',
+      serialNumber: '',
+      salesType: '미확인',
+      warrantyRemaining: '확인 대기',
+      historyTimeline: []
+    };
+    return {
+      selectedCustomer: {
+        ...baseCustomer,
+        assetModel: modelName ? `${modelName} (실시간 발화 자동 식별)` : '',
+        serialNumber: cleanCode ? `SN-2025-${cleanCode}-AUTO` : ''
+      }
+    };
+  }),
   appendFinalParagraph: (rawText, correctedText, newCorrections) => set((state) => {
     const trimmed = (correctedText || rawText || '').trim();
     if (!trimmed) return state;

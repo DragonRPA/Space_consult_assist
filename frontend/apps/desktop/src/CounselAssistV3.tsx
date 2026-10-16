@@ -7,12 +7,10 @@ import {
 } from 'lucide-react';
 import {
   DEFAULT_MODEL_SPECS,
-  DEFAULT_SPECIAL_GUIDES,
   DEFAULT_SYMPTOM_PRESETS,
   getModelErrorCodes,
   getModelErrorCodePanelTitle,
-  type ModelSpec,
-  type SpecialGuide
+  type ModelSpec
 } from './manualKnowledgeData';
 import {
   DEFAULT_B2B_CUSTOMERS,
@@ -78,12 +76,7 @@ interface OmniParsedResult {
   } | null;
 }
 
-export interface CounselAssistV3Props {
-  initialOpenGuides?: boolean;
-  openGuidesTrigger?: number;
-}
-
-export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }: CounselAssistV3Props = {}) {
+export default function CounselAssistV3() {
   // ── 1. 단일 옴니 검색창 상태 ──────────────────────────────────────────────────
   const [omniQuery, setOmniQuery] = useState<string>('');
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
@@ -105,15 +98,6 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
 
   // ── 4. 부가 패널 및 모달 상태 (필요 시점에만 호출) ───────────────────────────
   const [showModelSpec, setShowModelSpec] = useState<boolean>(false);
-  const [showGuidesModal, setShowGuidesModal] = useState<boolean>(Boolean(initialOpenGuides));
-  const [selectedGuideId, setSelectedGuideId] = useState<string>('GUIDE_BRUSH_AUTO');
-  const [specialGuides] = useState<SpecialGuide[]>(DEFAULT_SPECIAL_GUIDES);
-
-  useEffect(() => {
-    if (openGuidesTrigger && openGuidesTrigger > 0) {
-      setShowGuidesModal(prev => !prev);
-    }
-  }, [openGuidesTrigger]);
 
   const [showSelfActionGuideModal, setShowSelfActionGuideModal] = useState<boolean>(false);
   const [showPhotoManagerModal, setShowPhotoManagerModal] = useState<boolean>(false);
@@ -2266,101 +2250,6 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
             setShowHistoryModal(false);
           }}
         />
-      )}
-
-      {/* 상황별 수칙 모달 */}
-      {showGuidesModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.55)',
-            zIndex: 9500,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 24
-          }}
-          onClick={() => setShowGuidesModal(false)}
-        >
-          <div
-            style={{
-              background: '#f5f2eb',
-              borderRadius: 12,
-              width: '100%',
-              maxWidth: 820,
-              maxHeight: '80vh',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              border: '1px solid #cbd5e1'
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div
-              style={{
-                padding: '14px 20px',
-                background: '#0f172a',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <span style={{ fontSize: 16, fontWeight: 800 }}>상황별 수칙</span>
-              <button
-                type="button"
-                onClick={() => setShowGuidesModal(false)}
-                style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {specialGuides.map(g => (
-                  <button
-                    key={g.id}
-                    type="button"
-                    onClick={() => setSelectedGuideId(g.id)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: 6,
-                      border: selectedGuideId === g.id ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                      background: selectedGuideId === g.id ? '#eff6ff' : '#ffffff',
-                      color: selectedGuideId === g.id ? '#1d4ed8' : '#334155',
-                      fontSize: 13.5,
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {g.title}
-                  </button>
-                ))}
-              </div>
-              {specialGuides
-                .filter(g => g.id === selectedGuideId)
-                .map(g => (
-                  <div
-                    key={g.id}
-                    style={{ background: '#ffffff', padding: 16, borderRadius: 8, border: '1px solid #dcd5c9' }}
-                  >
-                    <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
-                      {g.target_situation}
-                    </div>
-                    <div style={{ fontSize: 14, color: '#1d4ed8', fontWeight: 700, marginBottom: 10 }}>
-                      "{g.call_script}"
-                    </div>
-                    <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13.5, color: '#334155', lineHeight: 1.7 }}>
-                      {g.operation_steps.map((st: string, idx: number) => (
-                        <li key={idx}>{st}</li>
-                      ))}
-                    </ol>
-                  </div>
-                ))}
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
