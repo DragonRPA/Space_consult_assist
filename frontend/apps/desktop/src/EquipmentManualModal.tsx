@@ -1,1303 +1,1264 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  X, BookOpen, Search, Check, Send, Download, Eye,
-  FileText, Smartphone, Mail, MessageSquare, Paperclip, ExternalLink, CheckCircle2
+  X, Check, Send, Copy, ExternalLink, ArrowUp, ArrowDown,
+  ZoomIn, Layers, Package, FileText
 } from 'lucide-react';
 import {
-  fetchEquipmentManuals,
-  saveManualDispatchRecord,
-  findRecommendedManualsForModel,
-  type EquipmentManualItem,
-  type ManualDispatchRecord
-} from './equipmentManualsApi';
+  MODEL_KEYS,
+  resolveModelKey,
+  getModelCatalogBundle,
+} from './modelCatalogVisuals';
+import { saveManualDispatchRecord } from './equipmentManualsApi';
 
 export interface EquipmentManualModalProps {
-  equipmentModel: string;
-  serialNumber: string;
-  customerName: string;
-  manager: string;
-  phone: string;
+  isOpen?: boolean;
+  onClose: () => void;
+  equipmentModel?: string;
+  serialNumber?: string;
+  customerName?: string;
+  manager?: string;
+  phone?: string;
   email?: string;
   siteCompany?: string;
   siteWorkerName?: string;
   siteWorkerPhone?: string;
-  symptoms: string[];
-  onClose: () => void;
+  symptoms?: string[];
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  primeCompanyName?: string;
+  primeContactName?: string;
+  primeContactPhone?: string;
+  primeContactEmail?: string;
+  counselSessionId?: string;
   onToast?: (msg: string) => void;
+  onSentSuccess?: (summaryText: string) => void;
 }
 
-const CATEGORIES = ['전체', '사용설명서(매뉴얼)', '종합/장비 카탈로그', '로봇 카탈로그'];
-const MODEL_FILTERS = [
-  '전체', 'J600', 'J600T', 'J700', 'J800', 'J900', 'J1300', 'J1900', 'J1900CAR',
-  'S2', 'S3mini', 'S3', 'S5', 'S7P', 'The New S7P', 'S12', 'W12', 'W15',
-  '플로어닥터', '닥터오비트', 'R3 SCP', 'R3 VAC', 'Sparky', 'Phantas'
-];
-
-export function EquipmentManualModal({
-  equipmentModel,
-  serialNumber,
-  customerName,
-  manager,
-  phone,
-  email = 'facility@client.co.kr',
-  siteCompany = '',
-  siteWorkerName = '현장 담당자',
-  siteWorkerPhone = '',
-  symptoms,
+export const EquipmentManualModal: React.FC<EquipmentManualModalProps> = ({
+  isOpen = true,
   onClose,
-  onToast
-}: EquipmentManualModalProps) {
-  const [manuals, setManuals] = useState<EquipmentManualItem[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [previewManual, setPreviewManual] = useState<EquipmentManualItem | null>(null);
-  const [activeTab, setActiveTab] = useState<'SELECT' | 'PREVIEW_PDF' | 'MOBILE_PREVIEW'>('SELECT');
+  equipmentModel = '',
+  serialNumber = '',
+  customerName = '',
+  manager = '',
+  phone = '',
+  email = '',
+  siteCompany = '',
+  siteWorkerName = '',
+  siteWorkerPhone = '',
+  symptoms = [],
+  contactName = '',
+  contactPhone = '',
+  contactEmail = '',
+  primeCompanyName = '',
+  primeContactName = '',
+  primeContactPhone = '',
+  primeContactEmail = '',
+  onToast,
+  onSentSuccess,
+}) => {
+  const [selectedModel, setSelectedModel] = useState<string>(() => resolveModelKey(equipmentModel));
+  const [activeTab, setActiveTab] = useState<'visual' | 'parts' | 'pdf'>('visual');
 
-  // 필터 상태
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('전체');
-  const [selectedModelFilter, setSelectedModelFilter] = useState<string>(
-    MODEL_FILTERS.includes(equipmentModel) ? equipmentModel : '전체'
-  );
+  // Assembled items (ordered IDs)
+  const [selectedVisualIds, setSelectedVisualIds] = useState<string[]>([]);
+  const [selectedPartIds, setSelectedPartIds] = useState<string[]>([]);
+  const [selectedPdfIds, setSelectedPdfIds] = useState<string[]>([]);
 
-  // 발송 설정 상태
-  const [primaryRecipient, setPrimaryRecipient] = useState<'WORKER' | 'MANAGER' | 'BOTH'>('WORKER');
-  const [dispatchChannel, setDispatchChannel] = useState<'KAKAO' | 'SMS' | 'EMAIL'>('KAKAO');
-  const [recipientEmail, setRecipientEmail] = useState(email);
-  const [customNote, setCustomNote] = useState(
-    `[${equipmentModel}] 장비 운전 조작법, 일일 점검 및 소모품 관리 표준 매뉴얼(PDF)을 첨부하여 발송드립니다.`
-  );
-  const [isDispatched, setIsDispatched] = useState(false);
+  // Zoomed image modal
+  const [zoomImage, setZoomImage] = useState<{ title: string; url: string } | null>(null);
 
+  // Recipient & Channel
+  const [recipientTarget, setRecipientTarget] = useState<'SITE' | 'PRIME'>('SITE');
+  const [channel, setChannel] = useState<'KAKAO' | 'SMS' | 'EMAIL'>('KAKAO');
+  const [receiverName, setReceiverName] = useState('');
+  const [receiverPhone, setReceiverPhone] = useState('');
+  const [receiverEmail, setReceiverEmail] = useState('');
+  const [customNote, setCustomNote] = useState('');
+  const [sending, setSending] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Sync model when modal opens or equipmentModel changes
   useEffect(() => {
-    let mounted = true;
-    fetchEquipmentManuals().then(data => {
-      if (!mounted) return;
-      setManuals(data);
+    if (!isOpen) return;
+    const resolved = resolveModelKey(equipmentModel);
+    setSelectedModel(resolved);
+  }, [isOpen, equipmentModel]);
 
-      // 현재 상담 기종에 맞는 공식 매뉴얼 자동 첨부 선택
-      const recommended = findRecommendedManualsForModel(data, equipmentModel);
-      if (recommended.length > 0) {
-        setSelectedIds(recommended.map(m => m.id));
-        setPreviewManual(recommended[0]);
-      } else if (data.length > 0) {
-        setSelectedIds([data[0].id]);
-        setPreviewManual(data[0]);
-      }
-    });
-    return () => {
-      mounted = false;
-    };
-  }, [equipmentModel]);
+  const bundle = useMemo(() => getModelCatalogBundle(selectedModel), [selectedModel]);
 
-  const filteredManuals = useMemo(() => {
-    return manuals.filter(m => {
-      if (selectedCategory !== '전체' && m.category !== selectedCategory) return false;
-      if (selectedModelFilter !== '전체') {
-        const matchModel = m.applicable_models.some(
-          am =>
-            am === '전 기종 공용' ||
-            am.toLowerCase() === selectedModelFilter.toLowerCase() ||
-            selectedModelFilter.toLowerCase().includes(am.toLowerCase())
-        );
-        if (!matchModel) return false;
-      }
-      if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        const hay = `${m.title} ${m.file_name} ${m.manual_code} ${m.description} ${m.applicable_models.join(' ')}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [manuals, selectedCategory, selectedModelFilter, searchQuery]);
+  // Auto-assemble default visual cards, top 4 matched parts, and primary manual when model changes
+  useEffect(() => {
+    const defaultVis = bundle.visualCards.filter(v => v.defaultSelected).map(v => v.id);
+    setSelectedVisualIds(defaultVis.length > 0 ? defaultVis : bundle.visualCards.slice(0, 2).map(v => v.id));
 
-  const selectedManuals = useMemo(
-    () => manuals.filter(m => selectedIds.includes(m.id)),
-    [manuals, selectedIds]
-  );
+    const defaultParts = bundle.parts
+      .filter(p => !p.applicable_models.includes('전 기종 공용'))
+      .slice(0, 4)
+      .map(p => p.id);
+    setSelectedPartIds(defaultParts);
 
-  const toggleManual = (id: string) => {
-    setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+    const primaryPdf = bundle.manuals.slice(0, 1).map(m => m.id);
+    setSelectedPdfIds(primaryPdf);
+  }, [bundle]);
+
+  // Sync recipient fields
+  useEffect(() => {
+    if (!isOpen) return;
+    if (recipientTarget === 'PRIME') {
+      setReceiverName(primeContactName || manager || primeCompanyName || customerName || '');
+      setReceiverPhone(primeContactPhone || phone || contactPhone || '');
+      setReceiverEmail(primeContactEmail || email || contactEmail || '');
+    } else {
+      setReceiverName(siteWorkerName || contactName || siteCompany || manager || customerName || '');
+      setReceiverPhone(siteWorkerPhone || contactPhone || phone || '');
+      setReceiverEmail(contactEmail || email || '');
+    }
+  }, [
+    isOpen,
+    recipientTarget,
+    customerName,
+    manager,
+    phone,
+    email,
+    siteCompany,
+    siteWorkerName,
+    siteWorkerPhone,
+    contactName,
+    contactPhone,
+    contactEmail,
+    primeCompanyName,
+    primeContactName,
+    primeContactPhone,
+    primeContactEmail,
+  ]);
+
+  const toggleVisual = (id: string) => {
+    setSelectedVisualIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
   };
 
-  const activeRecipientLabel = useMemo(() => {
-    if (primaryRecipient === 'WORKER') {
-      return `${siteWorkerName || '현장 담당자'} (${siteWorkerPhone || phone})`;
+  const moveVisual = (id: string, dir: -1 | 1) => {
+    setSelectedVisualIds(prev => {
+      const idx = prev.indexOf(id);
+      if (idx < 0) return prev;
+      const nextIdx = idx + dir;
+      if (nextIdx < 0 || nextIdx >= prev.length) return prev;
+      const copy = [...prev];
+      const [item] = copy.splice(idx, 1);
+      copy.splice(nextIdx, 0, item);
+      return copy;
+    });
+  };
+
+  const togglePart = (id: string) => {
+    setSelectedPartIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
+
+  const togglePdf = (id: string) => {
+    setSelectedPdfIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
+
+  const assembledVisuals = useMemo(
+    () =>
+      selectedVisualIds
+        .map(id => bundle.visualCards.find(v => v.id === id))
+        .filter((v): v is NonNullable<typeof v> => Boolean(v)),
+    [selectedVisualIds, bundle.visualCards]
+  );
+
+  const assembledParts = useMemo(
+    () =>
+      selectedPartIds
+        .map(id => bundle.parts.find(p => p.id === id))
+        .filter((p): p is NonNullable<typeof p> => Boolean(p)),
+    [selectedPartIds, bundle.parts]
+  );
+
+  const assembledPdfs = useMemo(
+    () =>
+      selectedPdfIds
+        .map(id => bundle.manuals.find(m => m.id === id))
+        .filter((m): m is NonNullable<typeof m> => Boolean(m)),
+    [selectedPdfIds, bundle.manuals]
+  );
+
+  const totalSelectedCount = assembledVisuals.length + assembledParts.length + assembledPdfs.length;
+
+  const messagePreview = useMemo(() => {
+    const lines: string[] = [];
+    lines.push(`[스페이스] ${bundle.label} 맞춤 카탈로그`);
+    if (receiverName) lines.push(`수신: ${receiverName}`);
+    lines.push('');
+
+    if (assembledVisuals.length > 0) {
+      lines.push(`■ 도해·제원 (${assembledVisuals.length}건)`);
+      assembledVisuals.forEach((v, i) => {
+        lines.push(`${i + 1}. ${v.title}`);
+      });
+      lines.push('');
     }
-    if (primaryRecipient === 'MANAGER') {
-      return `${manager} (${phone})`;
-    }
-    return `현장(${siteWorkerName || '담당자'}) + 원청(${manager}) 동시 발송`;
-  }, [primaryRecipient, siteWorkerName, siteWorkerPhone, manager, phone]);
 
-  const handleDispatchManuals = async () => {
-    if (selectedManuals.length === 0) {
-      onToast?.('첨부 발송할 매뉴얼 파일을 1개 이상 선택해 주십시오.');
-      return;
+    if (assembledParts.length > 0) {
+      lines.push(`■ 전용 소모품 (${assembledParts.length}건)`);
+      assembledParts.forEach(p => {
+        lines.push(`- ${p.part_name}: ${p.unit_price.toLocaleString()}원`);
+      });
+      lines.push('');
     }
 
-    const docNo = `MAN-DOC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
-    const record: ManualDispatchRecord = {
-      dispatch_id: `mdisp_${Date.now()}`,
-      doc_no: docNo,
-      customer_name: customerName,
-      manager,
-      phone,
-      email: recipientEmail,
-      site_company: siteCompany,
-      site_worker_name: siteWorkerName,
-      site_worker_phone: siteWorkerPhone || phone,
-      primary_recipient: primaryRecipient,
-      dispatch_channel: dispatchChannel,
-      recipient_contact:
-        dispatchChannel === 'EMAIL'
-          ? recipientEmail
-          : primaryRecipient === 'WORKER'
-          ? siteWorkerPhone || phone
-          : phone,
-      equipment_model: equipmentModel,
-      serial_number: serialNumber,
-      symptoms,
-      attached_manuals: selectedManuals.map(m => ({
-        id: m.id,
-        manual_code: m.manual_code,
-        title: m.title,
-        file_name: m.file_name,
-        file_size_label: m.file_size_label,
-        file_url: m.file_url
-      })),
-      message_note: customNote,
-      created_at: new Date().toISOString()
-    };
+    if (assembledPdfs.length > 0) {
+      lines.push(`■ 첨부 문서 (${assembledPdfs.length}건)`);
+      assembledPdfs.forEach(m => {
+        lines.push(`- ${m.title}: ${m.file_url}`);
+      });
+      lines.push('');
+    }
 
-    await saveManualDispatchRecord(record);
-    setIsDispatched(true);
+    if (customNote.trim()) {
+      lines.push(`메모: ${customNote.trim()}`);
+    }
+    return lines.join('\n').trim();
+  }, [bundle.label, receiverName, assembledVisuals, assembledParts, assembledPdfs, customNote]);
 
-    const channelName =
-      dispatchChannel === 'KAKAO' ? '카카오 알림톡' : dispatchChannel === 'SMS' ? '문자(LMS)' : '이메일';
-    onToast?.(
-      `[${channelName}] ${selectedManuals.map(m => m.file_name).join(', ')} (${selectedManuals.length}건) 매뉴얼 첨부 발송 완료`
-    );
+  if (!isOpen) return null;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(messagePreview);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSend = async () => {
+    if (totalSelectedCount === 0) return;
+    setSending(true);
+    try {
+      const nowStr = new Date().toISOString();
+      await saveManualDispatchRecord({
+        dispatch_id: `MD-${Date.now()}`,
+        doc_no: `MAN-${nowStr.slice(2, 10).replace(/-/g, '')}`,
+        customer_name: customerName || receiverName,
+        manager: receiverName,
+        phone: receiverPhone,
+        email: receiverEmail,
+        site_company: siteCompany,
+        site_worker_name: siteWorkerName,
+        site_worker_phone: siteWorkerPhone,
+        primary_recipient: recipientTarget === 'PRIME' ? 'MANAGER' : 'WORKER',
+        dispatch_channel: channel,
+        recipient_contact: channel === 'EMAIL' ? receiverEmail : receiverPhone,
+        equipment_model: bundle.label,
+        serial_number: serialNumber,
+        symptoms,
+        attached_manuals: assembledPdfs.map(m => ({
+          id: m.id,
+          manual_code: m.manual_code,
+          title: m.title,
+          file_name: m.file_name,
+          file_size_label: m.file_size_label,
+          file_url: m.file_url,
+        })),
+        message_note: messagePreview,
+        created_at: nowStr,
+      });
+      const chLabel = channel === 'KAKAO' ? '카톡' : channel === 'SMS' ? '문자' : '이메일';
+      const summary = `[카탈로그 발송] ${bundle.label} (도해 ${assembledVisuals.length}·부품 ${assembledParts.length}·PDF ${assembledPdfs.length}) → ${receiverName || '고객'} (${chLabel})`;
+      onToast?.(summary);
+      onSentSuccess?.(summary);
+      onClose();
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
     <div
-      data-uia="equipment-manual-modal"
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(15, 23, 42, 0.65)',
-        zIndex: 9800,
+        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+        zIndex: 9999,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 20,
-        backdropFilter: 'blur(3px)'
+        padding: '16px',
       }}
       onClick={onClose}
     >
       <div
         style={{
-          width: '100%',
-          maxWidth: 1320,
-          height: '90vh',
-          background: '#f5f2eb',
-          borderRadius: 12,
+          backgroundColor: '#ffffff',
+          width: '1140px',
+          maxWidth: '98vw',
+          height: '86vh',
+          borderRadius: '10px',
           border: '1px solid #cbd5e1',
-          boxShadow: '0 24px 48px rgba(15, 23, 42, 0.32)',
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          boxShadow: '0 16px 36px rgba(15, 23, 42, 0.22)',
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* ── 상단 헤더 ── */}
+        {/* ① 상단 바 (헌장 3.1 건조 명사, 3.2 nowrap, 3.5 좌상단 Scope) */}
         <div
           style={{
-            background: '#0f172a',
-            color: '#ffffff',
-            padding: '12px 20px',
+            height: '50px',
+            padding: '0 16px',
+            borderBottom: '1px solid #e2e8f0',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            flexShrink: 0
+             justifyContent: 'space-between',
+            backgroundColor: '#f8fafc',
+            flexShrink: 0,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <img
-              src="/SPACE_logo_white.png"
-              alt="(주)스페이스"
-              style={{ height: 22, width: 'auto', objectFit: 'contain' }}
-            />
-            <div style={{ width: 1, height: 18, background: '#334155' }} />
-            <BookOpen size={18} color="#38bdf8" />
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 16, fontWeight: 900, letterSpacing: '-0.02em' }}>
-                  공식 제품 매뉴얼·카탈로그 DB 및 첨부 발송
-                </span>
-                <span
-                  style={{
-                    fontSize: 13.5,
-                    fontWeight: 800,
-                    background: '#1e293b',
-                    color: '#38bdf8',
-                    border: '1px solid #0284c7',
-                    padding: '2px 8px',
-                    borderRadius: 4,
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  space-dust.com 공식 PDF {manuals.length}종 동기화 완료
-                </span>
-              </div>
-              <div style={{ fontSize: 13.5, color: '#94a3b8', marginTop: 2 }}>
-                상담 대상: <strong style={{ color: '#f8fafc' }}>{customerName}</strong> · 기종:{' '}
-                <strong style={{ color: '#38bdf8' }}>{equipmentModel}</strong> ({serialNumber})
-              </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
+              카탈로그 조립 발송
+            </span>
+
+            <div style={{ width: '1px', height: '16px', backgroundColor: '#cbd5e1' }} />
+
+            {/* 상담 모델 선택 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>
+                상담 모델
+              </span>
+              <select
+                value={selectedModel}
+                onChange={e => setSelectedModel(e.target.value)}
+                style={{
+                  height: '30px',
+                  padding: '0 10px',
+                  borderRadius: '6px',
+                  border: '1px solid #94a3b8',
+                  backgroundColor: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  color: '#0f172a',
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                {MODEL_KEYS.map(m => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 소스 탭 (도해·제원 / 소모품 사진 / PDF 원본) */}
+            <div style={{ display: 'flex', gap: '4px', marginLeft: '6px' }}>
+              {[
+                { key: 'visual' as const, label: `도해·제원 (${bundle.visualCards.length})`, icon: Layers },
+                { key: 'parts' as const, label: `소모품 사진 (${bundle.parts.length})`, icon: Package },
+                { key: 'pdf' as const, label: `PDF 문서 (${bundle.manuals.length})`, icon: FileText },
+              ].map(tab => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    style={{
+                      height: '30px',
+                      padding: '0 10px',
+                      borderRadius: '6px',
+                      border: active ? '1px solid #0f172a' : '1px solid #cbd5e1',
+                      backgroundColor: active ? '#0f172a' : '#ffffff',
+                      color: active ? '#ffffff' : '#475569',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Icon size={13} />
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* 상단 뷰 전환 탭 + 닫기 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              type="button"
-              data-uia="tab-manual-select"
-              onClick={() => setActiveTab('SELECT')}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 6,
-                border: activeTab === 'SELECT' ? '1.5px solid #38bdf8' : '1px solid #334155',
-                background: activeTab === 'SELECT' ? '#0284c7' : '#1e293b',
-                color: '#ffffff',
-                fontSize: 13.5,
-                fontWeight: 800,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              1. 매뉴얼 DB 선택·첨부 ({selectedManuals.length}건)
-            </button>
-            <button
-              type="button"
-              data-uia="tab-manual-pdf-preview"
-              onClick={() => setActiveTab('PREVIEW_PDF')}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 6,
-                border: activeTab === 'PREVIEW_PDF' ? '1.5px solid #38bdf8' : '1px solid #334155',
-                background: activeTab === 'PREVIEW_PDF' ? '#0284c7' : '#1e293b',
-                color: '#ffffff',
-                fontSize: 13.5,
-                fontWeight: 800,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              2. 매뉴얼 PDF 원본 열람
-            </button>
-            <button
-              type="button"
-              data-uia="tab-manual-mobile-preview"
-              onClick={() => setActiveTab('MOBILE_PREVIEW')}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 6,
-                border: activeTab === 'MOBILE_PREVIEW' ? '1.5px solid #38bdf8' : '1px solid #334155',
-                background: activeTab === 'MOBILE_PREVIEW' ? '#0284c7' : '#1e293b',
-                color: '#ffffff',
-                fontSize: 13.5,
-                fontWeight: 800,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              3. 고객 모바일 수신 화면 미리보기
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                background: 'transparent',
-                border: '1px solid #475569',
-                color: '#cbd5e1',
-                borderRadius: 6,
-                padding: '6px 10px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-            >
-              <X size={16} />
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#64748b',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+            }}
+          >
+            <X size={18} />
+          </button>
         </div>
 
-        {/* ── 본문 영역: 좌측(매뉴얼 DB / 미리보기) + 우측(첨부함 & 발송 컨트롤 패널) ── */}
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 410px', overflow: 'hidden' }}>
-          {/* 좌측 패널 */}
-          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: '1px solid #dcd5c9' }}>
-            {activeTab === 'SELECT' && (
-              <>
-                {/* 검색 및 기종·분류 필터 바 */}
-                <div
-                  style={{
-                    padding: '12px 16px',
-                    background: '#ece7de',
-                    borderBottom: '1px solid #dcd5c9',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 10,
-                    flexShrink: 0
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* ② 본문 2단 영역: 좌측 사진 블록 선택 팔레트 (58%) | 우측 조립 미리보기 및 발송 (42%) */}
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          {/* 좌측: 추출 사진 팔레트 */}
+          <div
+            style={{
+              width: '58%',
+              borderRight: '1px solid #e2e8f0',
+              backgroundColor: '#f8fafc',
+              padding: '12px',
+              overflowY: 'auto',
+            }}
+          >
+            {activeTab === 'visual' && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: '10px',
+                }}
+              >
+                {bundle.visualCards.map(card => {
+                  const isSelected = selectedVisualIds.includes(card.id);
+                  const orderIdx = selectedVisualIds.indexOf(card.id);
+                  return (
                     <div
+                      key={card.id}
+                      onClick={() => toggleVisual(card.id)}
                       style={{
-                        flex: 1,
+                        borderRadius: '8px',
+                        border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                        backgroundColor: '#ffffff',
+                        overflow: 'hidden',
+                        cursor: 'pointer',
                         display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        background: '#ffffff',
-                        border: '1px solid #cbd5e1',
-                        borderRadius: 6,
-                        padding: '6px 12px'
+                        flexDirection: 'column',
                       }}
                     >
-                      <Search size={15} color="#64748b" />
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        placeholder="기종명(J600, S7P, W15, 플로어닥터) 또는 매뉴얼 파일명 검색..."
-                        style={{
-                          border: 'none',
-                          outline: 'none',
-                          width: '100%',
-                          fontSize: 13.5,
-                          fontWeight: 600,
-                          color: '#0f172a'
-                        }}
-                      />
-                      {searchQuery && (
-                        <button
-                          type="button"
-                          onClick={() => setSearchQuery('')}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* 문서 분류 필터 */}
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {CATEGORIES.map(cat => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setSelectedCategory(cat)}
-                          style={{
-                            padding: '6px 11px',
-                            borderRadius: 6,
-                            border: selectedCategory === cat ? '1.5px solid #0284c7' : '1px solid #cbd5c9',
-                            background: selectedCategory === cat ? '#e0f2fe' : '#ffffff',
-                            color: selectedCategory === cat ? '#0369a1' : '#334155',
-                            fontSize: 13.5,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          {cat}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 장비 모델 필터 칩 */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13.5, fontWeight: 800, color: '#475569', marginRight: 4, whiteSpace: 'nowrap' }}>
-                      기종 필터:
-                    </span>
-                    {MODEL_FILTERS.map(m => {
-                      const isCurrentConsultModel = m.toLowerCase() === equipmentModel.toLowerCase();
-                      const isActive = selectedModelFilter === m;
-                      return (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => setSelectedModelFilter(m)}
-                          style={{
-                            padding: '3px 9px',
-                            borderRadius: 5,
-                            border: isActive
-                              ? '1.5px solid #0f172a'
-                              : isCurrentConsultModel
-                              ? '1.5px solid #2563eb'
-                              : '1px solid #cbd5e1',
-                            background: isActive ? '#0f172a' : isCurrentConsultModel ? '#eff6ff' : '#ffffff',
-                            color: isActive ? '#ffffff' : isCurrentConsultModel ? '#1d4ed8' : '#334155',
-                            fontSize: 13.5,
-                            fontWeight: isActive || isCurrentConsultModel ? 800 : 600,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          {m}
-                          {isCurrentConsultModel ? ' (상담기종)' : ''}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 매뉴얼 그리드 목록 */}
-                <div
-                  style={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    padding: 16,
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
-                    gap: 12,
-                    alignContent: 'start'
-                  }}
-                >
-                  {filteredManuals.map(manual => {
-                    const isChecked = selectedIds.includes(manual.id);
-                    const isConsultModelMatch = manual.applicable_models.some(
-                      am =>
-                        am !== '전 기종 공용' &&
-                        (am.toLowerCase() === equipmentModel.toLowerCase() ||
-                          equipmentModel.toLowerCase().includes(am.toLowerCase()))
-                    );
-
-                    return (
                       <div
-                        key={manual.id}
-                        data-manual-card={manual.manual_code}
-                        onClick={() => toggleManual(manual.id)}
                         style={{
-                          background: isChecked ? '#f0f9ff' : '#ffffff',
-                          border: isChecked ? '2px solid #0284c7' : '1px solid #dcd5c9',
-                          borderRadius: 10,
-                          padding: 14,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'space-between',
-                          gap: 10,
-                          boxShadow: isChecked
-                            ? '0 4px 12px rgba(2, 132, 199, 0.12)'
-                            : '0 1px 3px rgba(15, 23, 42, 0.05)'
-                        }}
-                      >
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                              <span
-                                style={{
-                                  fontSize: 13.5,
-                                  fontWeight: 800,
-                                  padding: '2px 7px',
-                                  borderRadius: 4,
-                                  background: manual.category === '사용설명서(매뉴얼)' ? '#eff6ff' : '#fef3c7',
-                                  color: manual.category === '사용설명서(매뉴얼)' ? '#1d4ed8' : '#b45309',
-                                  border:
-                                    manual.category === '사용설명서(매뉴얼)'
-                                      ? '1px solid #bfdbfe'
-                                      : '1px solid #fde68a',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                {manual.category}
-                              </span>
-                              {isConsultModelMatch && (
-                                <span
-                                  style={{
-                                    fontSize: 13.5,
-                                    fontWeight: 800,
-                                    padding: '2px 7px',
-                                    borderRadius: 4,
-                                    background: '#dcfce7',
-                                    color: '#15803d',
-                                    border: '1px solid #86efac',
-                                    whiteSpace: 'nowrap'
-                                  }}
-                                >
-                                  현재 기종 매칭
-                                </span>
-                              )}
-                            </div>
-
-                            <div
-                              style={{
-                                width: 22,
-                                height: 22,
-                                borderRadius: 6,
-                                background: isChecked ? '#0284c7' : '#f1f5f9',
-                                border: isChecked ? '1px solid #0284c7' : '1px solid #94a3b8',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#ffffff',
-                                flexShrink: 0
-                              }}
-                            >
-                              {isChecked && <Check size={14} />}
-                            </div>
-                          </div>
-
-                          <div style={{ fontSize: 15, fontWeight: 900, color: '#0f172a' }}>{manual.title}</div>
-
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              fontSize: 13.5,
-                              color: '#334155',
-                              fontWeight: 700,
-                              background: '#f8fafc',
-                              padding: '5px 8px',
-                              borderRadius: 6,
-                              border: '1px solid #e2e8f0'
-                            }}
-                          >
-                            <FileText size={14} color="#dc2626" style={{ flexShrink: 0 }} />
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                              {manual.file_name}
-                            </span>
-                            <span style={{ color: '#64748b', fontWeight: 800, whiteSpace: 'nowrap' }}>
-                              ({manual.file_size_label})
-                            </span>
-                          </div>
-
-                          <div style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.4 }}>{manual.description}</div>
-                        </div>
-
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            paddingTop: 8,
-                            borderTop: '1px dashed #e2e8f0',
-                            gap: 6
-                          }}
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                            {manual.applicable_models.slice(0, 4).map(am => (
-                              <span
-                                key={am}
-                                style={{
-                                  fontSize: 13.5,
-                                  fontWeight: 700,
-                                  background: '#f1f5f9',
-                                  color: '#334155',
-                                  padding: '1px 6px',
-                                  borderRadius: 4,
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                {am}
-                              </span>
-                            ))}
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPreviewManual(manual);
-                                setActiveTab('PREVIEW_PDF');
-                              }}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                padding: '4px 8px',
-                                borderRadius: 5,
-                                border: '1px solid #cbd5e1',
-                                background: '#ffffff',
-                                color: '#0f172a',
-                                fontSize: 13.5,
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              <Eye size={13} />
-                              <span>열람</span>
-                            </button>
-                            <a
-                              href={manual.file_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              download={manual.file_name}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                padding: '4px 8px',
-                                borderRadius: 5,
-                                border: '1px solid #0284c7',
-                                background: '#e0f2fe',
-                                color: '#0369a1',
-                                fontSize: 13.5,
-                                fontWeight: 800,
-                                textDecoration: 'none',
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              <Download size={13} />
-                              <span>PDF</span>
-                            </a>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-
-            {activeTab === 'PREVIEW_PDF' && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#1e293b' }}>
-                <div
-                  style={{
-                    padding: '10px 16px',
-                    background: '#0f172a',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    borderBottom: '1px solid #334155',
-                    flexShrink: 0
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
-                    <span style={{ fontSize: 13.5, fontWeight: 800, color: '#38bdf8', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                      열람 문서:
-                    </span>
-                    <select
-                      value={previewManual?.id || ''}
-                      onChange={e => {
-                        const found = manuals.find(m => m.id === e.target.value);
-                        if (found) setPreviewManual(found);
-                      }}
-                      style={{
-                        padding: '6px 10px',
-                        borderRadius: 6,
-                        background: '#1e293b',
-                        color: '#ffffff',
-                        border: '1px solid #475569',
-                        fontSize: 13.5,
-                        fontWeight: 700,
-                        maxWidth: 420
-                      }}
-                    >
-                      {manuals.map(m => (
-                        <option key={m.id} value={m.id}>
-                          [{m.category}] {m.title} — {m.file_name} ({m.file_size_label})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {previewManual && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                      <a
-                        href={`/manuals/space_manual_${String(previewManual.wr_id).padStart(2, '0')}.pdf`}
-                        target="_blank"
-                        rel="noreferrer"
-                        download={previewManual.file_name}
-                        style={{
+                          position: 'relative',
+                          height: '220px',
+                          backgroundColor: '#f1f5f9',
+                          borderBottom: '1px solid #e2e8f0',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 6,
-                          padding: '6px 12px',
-                          borderRadius: 6,
-                          background: '#0284c7',
-                          color: '#ffffff',
-                          fontSize: 13.5,
-                          fontWeight: 800,
-                          textDecoration: 'none',
-                          whiteSpace: 'nowrap'
+                          justifyContent: 'center',
+                          overflow: 'hidden',
                         }}
                       >
-                        <ExternalLink size={14} />
-                        <span>새 창 원본 PDF 다운로드 ({previewManual.file_size_label})</span>
-                      </a>
-                    </div>
-                  )}
-                </div>
-
-                {previewManual ? (
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f8fafc' }}>
-                    {/* 상단 공식 매뉴얼 메타데이터 요약 배너 */}
-                    <div
-                      style={{
-                        padding: '12px 18px',
-                        background: '#ffffff',
-                        borderBottom: '1px solid #cbd5e1',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 12,
-                        flexShrink: 0
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <FileText size={20} color="#dc2626" />
-                        <div>
-                          <div style={{ fontSize: 15, fontWeight: 900, color: '#0f172a' }}>
-                            {previewManual.title} — <span style={{ color: '#0284c7' }}>{previewManual.file_name}</span> ({previewManual.file_size_label})
-                          </div>
-                          <div style={{ fontSize: 13.5, color: '#475569', marginTop: 2 }}>
-                            {previewManual.description} · 적용기종: {previewManual.applicable_models.join(', ')}
-                          </div>
+                        <img
+                          src={card.imageUrl}
+                          alt={card.title}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'contain',
+                            backgroundColor: '#ffffff',
+                          }}
+                        />
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '8px',
+                            left: '8px',
+                            width: '22px',
+                            height: '22px',
+                            borderRadius: '5px',
+                            backgroundColor: isSelected ? '#2563eb' : 'rgba(15,23,42,0.55)',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                          }}
+                        >
+                          {isSelected ? orderIdx + 1 : <Check size={12} />}
                         </div>
+                        <button
+                          type="button"
+                          onClick={e => {
+                            e.stopPropagation();
+                            setZoomImage({ title: card.title, url: card.imageUrl });
+                          }}
+                          style={{
+                            position: 'absolute',
+                            top: '8px',
+                            right: '8px',
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '5px',
+                            border: '1px solid #cbd5e1',
+                            backgroundColor: 'rgba(255,255,255,0.92)',
+                            color: '#0f172a',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                          }}
+                          title="확대"
+                        >
+                          <ZoomIn size={13} />
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!selectedIds.includes(previewManual.id)) {
-                            toggleManual(previewManual.id);
-                          }
-                        }}
+                      <div
                         style={{
-                          padding: '6px 12px',
-                          borderRadius: 6,
-                          background: selectedIds.includes(previewManual.id) ? '#dcfce7' : '#e0f2fe',
-                          color: selectedIds.includes(previewManual.id) ? '#15803d' : '#0369a1',
-                          border: selectedIds.includes(previewManual.id) ? '1px solid #86efac' : '1px solid #7dd3fc',
-                          fontSize: 13.5,
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap'
+                          padding: '8px 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '6px',
                         }}
                       >
-                        {selectedIds.includes(previewManual.id) ? '✓ 발송 목록에 첨부됨' : '+ 발송 목록에 첨부'}
-                      </button>
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: 800,
+                            color: '#0f172a',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {card.title}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            backgroundColor: isSelected ? '#dbeafe' : '#f1f5f9',
+                            color: isSelected ? '#1d4ed8' : '#64748b',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {card.section}
+                        </span>
+                      </div>
                     </div>
-                    <iframe
-                      title={previewManual.title}
-                      src={`/manuals/space_manual_${String(previewManual.wr_id).padStart(2, '0')}.pdf`}
-                      style={{ width: '100%', flex: 1, border: 'none', background: '#e2e8f0' }}
-                    />
-                  </div>
-                ) : (
-                  <div style={{ padding: 40, textAlign: 'center', color: '#cbd5e1', fontSize: 14 }}>
-                    열람할 매뉴얼을 선택해 주십시오.
-                  </div>
-                )}
+                  );
+                })}
               </div>
             )}
 
-            {activeTab === 'MOBILE_PREVIEW' && (
+            {activeTab === 'parts' && (
               <div
                 style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  padding: 24,
-                  background: '#e2e8f0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '8px',
                 }}
               >
-                {/* 모바일 매뉴얼 수신 카드 프리뷰 */}
-                <div
-                  data-uia="mobile-manual-preview-card"
+                {bundle.parts.map(part => {
+                  const isSelected = selectedPartIds.includes(part.id);
+                  return (
+                    <div
+                      key={part.id}
+                      onClick={() => togglePart(part.id)}
+                      style={{
+                        borderRadius: '8px',
+                        border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                        backgroundColor: '#ffffff',
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: 'relative',
+                          height: '118px',
+                          backgroundColor: '#ffffff',
+                          borderBottom: '1px solid #f1f5f9',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <img
+                          src={part.image_url}
+                          alt={part.part_name}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'contain',
+                            padding: '6px',
+                          }}
+                        />
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '6px',
+                            left: '6px',
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '4px',
+                            backgroundColor: isSelected ? '#2563eb' : '#e2e8f0',
+                            color: isSelected ? '#ffffff' : '#64748b',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Check size={12} />
+                        </div>
+                      </div>
+                      <div style={{ padding: '7px 8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            color: '#0f172a',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                          title={part.part_name}
+                        >
+                          {part.part_name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            color: '#2563eb',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          ₩{part.unit_price.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {activeTab === 'pdf' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {bundle.manuals.map(man => {
+                  const isSelected = selectedPdfIds.includes(man.id);
+                  return (
+                    <div
+                      key={man.id}
+                      onClick={() => togglePdf(man.id)}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                        backgroundColor: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '10px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                        <div
+                          style={{
+                            width: '18px',
+                            height: '18px',
+                            borderRadius: '4px',
+                            backgroundColor: isSelected ? '#2563eb' : '#e2e8f0',
+                            color: isSelected ? '#ffffff' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Check size={12} />
+                        </div>
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: 800,
+                            color: '#0f172a',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {man.title}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            color: '#64748b',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {man.file_size_label}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          window.open(man.file_url, '_blank', 'noopener,noreferrer');
+                        }}
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: '5px',
+                          border: '1px solid #cbd5e1',
+                          backgroundColor: '#f8fafc',
+                          color: '#334155',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <ExternalLink size={11} /> 열기
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 우측: 모델 조립 시트 & 발송 패널 */}
+          <div
+            style={{
+              width: '42%',
+              display: 'flex',
+              flexDirection: 'column',
+              backgroundColor: '#ffffff',
+              overflow: 'hidden',
+            }}
+          >
+            {/* 조립 시트 헤더 */}
+            <div
+              style={{
+                padding: '10px 14px',
+                borderBottom: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: '#f8fafc',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                  [{bundle.label}] 조립 시트
+                </span>
+                <span
                   style={{
-                    width: 410,
-                    background: '#ffffff',
-                    borderRadius: 24,
-                    border: '6px solid #0f172a',
-                    boxShadow: '0 20px 40px rgba(15, 23, 42, 0.25)',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    backgroundColor: '#dbeafe',
+                    color: '#1d4ed8',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {totalSelectedCount}건
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedVisualIds([]);
+                  setSelectedPartIds([]);
+                  setSelectedPdfIds([]);
+                }}
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: '#64748b',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                비우기
+              </button>
+            </div>
+
+            {/* 조립된 사진·부품 미리보기 스트립 */}
+            <div
+              style={{
+                flex: 1,
+                padding: '12px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                backgroundColor: '#f1f5f9',
+              }}
+            >
+              {/* 1) 조립된 도해·제원 사진 카드 */}
+              {assembledVisuals.map((v, idx) => (
+                <div
+                  key={v.id}
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
                     overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column'
                   }}
                 >
                   <div
                     style={{
-                      background: '#0f172a',
-                      color: '#ffffff',
-                      padding: '16px 18px',
+                      padding: '6px 10px',
+                      borderBottom: '1px solid #f1f5f9',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between'
+                      justifyContent: 'space-between',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <img
-                        src="/SPACE_logo_white.png"
-                        alt="(주)스페이스"
-                        style={{ height: 20, width: 'auto', objectFit: 'contain' }}
-                      />
-                      <span style={{ fontSize: 14, fontWeight: 800 }}>공식 기술지원 매뉴얼 안내</span>
-                    </div>
-                    <span
-                      style={{
-                        fontSize: 13.5,
-                        fontWeight: 800,
-                        background: '#0284c7',
-                        padding: '2px 8px',
-                        borderRadius: 4
-                      }}
-                    >
-                      {equipmentModel}
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                      {idx + 1}. {v.title}
                     </span>
-                  </div>
-
-                  <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    <div
-                      style={{
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: 10,
-                        padding: 12,
-                        fontSize: 13.5,
-                        color: '#334155',
-                        lineHeight: 1.5
-                      }}
-                    >
-                      <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>
-                        수신: {customerName} ({activeRecipientLabel})
-                      </div>
-                      <div>{customNote}</div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 900, color: '#0f172a' }}>
-                        첨부된 공식 매뉴얼 파일 ({selectedManuals.length}건)
-                      </div>
-                      {selectedManuals.map(m => (
-                        <div
-                          key={m.id}
-                          style={{
-                            background: '#f0f9ff',
-                            border: '1px solid #bae6fd',
-                            borderRadius: 10,
-                            padding: '10px 12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 8
-                          }}
-                        >
-                          <div style={{ minWidth: 0, flex: 1 }}>
-                            <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{m.title}</div>
-                            <div
-                              style={{
-                                fontSize: 13.5,
-                                color: '#0369a1',
-                                fontWeight: 700,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              {m.file_name} ({m.file_size_label})
-                            </div>
-                          </div>
-                          <a
-                            href={m.file_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{
-                              background: '#0284c7',
-                              color: '#ffffff',
-                              padding: '6px 10px',
-                              borderRadius: 6,
-                              fontSize: 13.5,
-                              fontWeight: 800,
-                              textDecoration: 'none',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            PDF 열기
-                          </a>
-                        </div>
-                      ))}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <button
+                        type="button"
+                        onClick={() => moveVisual(v.id, -1)}
+                        disabled={idx === 0}
+                        style={{
+                          border: '1px solid #e2e8f0',
+                          background: '#f8fafc',
+                          borderRadius: '4px',
+                          padding: '2px',
+                          cursor: idx === 0 ? 'default' : 'pointer',
+                          opacity: idx === 0 ? 0.35 : 1,
+                        }}
+                      >
+                        <ArrowUp size={11} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveVisual(v.id, 1)}
+                        disabled={idx === assembledVisuals.length - 1}
+                        style={{
+                          border: '1px solid #e2e8f0',
+                          background: '#f8fafc',
+                          borderRadius: '4px',
+                          padding: '2px',
+                          cursor: idx === assembledVisuals.length - 1 ? 'default' : 'pointer',
+                          opacity: idx === assembledVisuals.length - 1 ? 0.35 : 1,
+                        }}
+                      >
+                        <ArrowDown size={11} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleVisual(v.id)}
+                        style={{
+                          border: '1px solid #fecaca',
+                          background: '#fef2f2',
+                          color: '#dc2626',
+                          borderRadius: '4px',
+                          padding: '2px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <X size={11} />
+                      </button>
                     </div>
                   </div>
+                  <img
+                    src={v.imageUrl}
+                    alt={v.title}
+                    onClick={() => setZoomImage({ title: v.title, url: v.imageUrl })}
+                    style={{
+                      width: '100%',
+                      maxHeight: '190px',
+                      objectFit: 'contain',
+                      backgroundColor: '#ffffff',
+                      cursor: 'zoom-in',
+                      display: 'block',
+                    }}
+                  />
                 </div>
-              </div>
-            )}
-          </div>
+              ))}
 
-          {/* ── 우측 패널: 첨부파일 바구니 + 수신인/채널 선택 + 즉시 발송 ── */}
-          <div
-            style={{
-              background: '#f5f2eb',
-              padding: 16,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              gap: 12,
-              overflowY: 'auto'
-            }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* 1. 첨부된 매뉴얼 파일 목록 */}
-              <div
-                style={{
-                  background: '#ffffff',
-                  border: '1px solid #dcd5c9',
-                  borderRadius: 8,
-                  padding: 12,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Paperclip size={15} color="#0284c7" />
-                    <span style={{ fontSize: 14, fontWeight: 900, color: '#0f172a' }}>
-                      첨부 매뉴얼 파일 ({selectedManuals.length}건)
-                    </span>
+              {/* 2) 조립된 소모품 사진 그리드 */}
+              {assembledParts.length > 0 && (
+                <div
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    padding: '8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      color: '#0f172a',
+                      marginBottom: '6px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    전용 소모품 ({assembledParts.length})
                   </div>
-                  {selectedManuals.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedIds([])}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#64748b',
-                        fontSize: 13.5,
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      전체 해제
-                    </button>
-                  )}
-                </div>
-
-                {selectedManuals.length === 0 ? (
-                  <div style={{ padding: 14, textAlign: 'center', color: '#64748b', fontSize: 13.5 }}>
-                    좌측 목록에서 발송할 매뉴얼을 선택해 주십시오.
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 195, overflowY: 'auto' }}>
-                    {selectedManuals.map(m => (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+                    {assembledParts.map(p => (
                       <div
-                        key={m.id}
+                        key={p.id}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: 8,
-                          padding: '7px 10px',
-                          background: '#f0f9ff',
-                          border: '1px solid #bae6fd',
-                          borderRadius: 6
+                          gap: '6px',
+                          padding: '5px',
+                          borderRadius: '6px',
+                          border: '1px solid #e2e8f0',
                         }}
                       >
+                        <img
+                          src={p.image_url}
+                          alt={p.part_name}
+                          style={{
+                            width: '38px',
+                            height: '38px',
+                            objectFit: 'contain',
+                            borderRadius: '4px',
+                            flexShrink: 0,
+                          }}
+                        />
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <div
                             style={{
-                              fontSize: 13.5,
-                              fontWeight: 800,
+                              fontSize: '11px',
+                              fontWeight: 700,
                               color: '#0f172a',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
-                              textOverflow: 'ellipsis'
+                              textOverflow: 'ellipsis',
                             }}
                           >
-                            {m.title}
+                            {p.part_name}
                           </div>
-                          <div
-                            style={{
-                              fontSize: 13.5,
-                              color: '#0369a1',
-                              fontWeight: 700,
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis'
-                            }}
-                          >
-                            {m.file_name} ({m.file_size_label})
+                          <div style={{ fontSize: '10px', fontWeight: 800, color: '#2563eb' }}>
+                            ₩{p.unit_price.toLocaleString()}
                           </div>
                         </div>
                         <button
                           type="button"
-                          onClick={() => toggleManual(m.id)}
+                          onClick={() => togglePart(p.id)}
                           style={{
-                            background: 'none',
                             border: 'none',
-                            color: '#64748b',
+                            background: 'none',
+                            color: '#94a3b8',
                             cursor: 'pointer',
-                            padding: 2
+                            padding: '2px',
                           }}
                         >
-                          <X size={14} />
+                          <X size={12} />
                         </button>
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
-
-              {/* 2. 수신인 지정 (현장 통화자 / 원청 담당자 / 동시 발송) */}
-              <div
-                style={{
-                  background: '#ffffff',
-                  border: '1px solid #dcd5c9',
-                  borderRadius: 8,
-                  padding: 12,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 6
-                }}
-              >
-                <label style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a' }}>1차 매뉴얼 수신인 지정</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => setPrimaryRecipient('WORKER')}
-                    style={{
-                      padding: '7px 6px',
-                      borderRadius: 6,
-                      border: primaryRecipient === 'WORKER' ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
-                      background: primaryRecipient === 'WORKER' ? '#e0f2fe' : '#f8fafc',
-                      color: primaryRecipient === 'WORKER' ? '#0369a1' : '#334155',
-                      fontSize: 13.5,
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    현장 통화자
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPrimaryRecipient('MANAGER')}
-                    style={{
-                      padding: '7px 6px',
-                      borderRadius: 6,
-                      border: primaryRecipient === 'MANAGER' ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
-                      background: primaryRecipient === 'MANAGER' ? '#e0f2fe' : '#f8fafc',
-                      color: primaryRecipient === 'MANAGER' ? '#0369a1' : '#334155',
-                      fontSize: 13.5,
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    원청 결재권자
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPrimaryRecipient('BOTH')}
-                    style={{
-                      padding: '7px 6px',
-                      borderRadius: 6,
-                      border: primaryRecipient === 'BOTH' ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
-                      background: primaryRecipient === 'BOTH' ? '#e0f2fe' : '#f8fafc',
-                      color: primaryRecipient === 'BOTH' ? '#0369a1' : '#334155',
-                      fontSize: 13.5,
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    양측 동시 발송
-                  </button>
-                </div>
-                <div style={{ fontSize: 13.5, color: '#475569', fontWeight: 600 }}>수신처: {activeRecipientLabel}</div>
-              </div>
-
-              {/* 3. 수신 수단 선택 (카카오톡 / 문자 / 이메일) */}
-              <div
-                style={{
-                  background: '#ffffff',
-                  border: '1px solid #dcd5c9',
-                  borderRadius: 8,
-                  padding: 12,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 6
-                }}
-              >
-                <label style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a' }}>발송 수단 선택</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => setDispatchChannel('KAKAO')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 5,
-                      padding: '8px 6px',
-                      borderRadius: 6,
-                      border: dispatchChannel === 'KAKAO' ? '2px solid #f59e0b' : '1px solid #cbd5e1',
-                      background: dispatchChannel === 'KAKAO' ? '#fef3c7' : '#f8fafc',
-                      color: '#0f172a',
-                      fontSize: 13.5,
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <MessageSquare size={14} />
-                    <span>카카오톡</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDispatchChannel('SMS')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 5,
-                      padding: '8px 6px',
-                      borderRadius: 6,
-                      border: dispatchChannel === 'SMS' ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                      background: dispatchChannel === 'SMS' ? '#eff6ff' : '#f8fafc',
-                      color: '#0f172a',
-                      fontSize: 13.5,
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <Smartphone size={14} />
-                    <span>문자메시지</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDispatchChannel('EMAIL')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 5,
-                      padding: '8px 6px',
-                      borderRadius: 6,
-                      border: dispatchChannel === 'EMAIL' ? '2px solid #059669' : '1px solid #cbd5e1',
-                      background: dispatchChannel === 'EMAIL' ? '#ecfdf5' : '#f8fafc',
-                      color: '#0f172a',
-                      fontSize: 13.5,
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <Mail size={14} />
-                    <span>이메일</span>
-                  </button>
-                </div>
-
-                {dispatchChannel === 'EMAIL' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
-                    <label style={{ fontSize: 13.5, fontWeight: 700, color: '#475569' }}>수신 이메일 주소</label>
-                    <input
-                      type="email"
-                      value={recipientEmail}
-                      onChange={e => setRecipientEmail(e.target.value)}
-                      style={{
-                        padding: '6px 10px',
-                        borderRadius: 6,
-                        border: '1px solid #cbd5e1',
-                        fontSize: 13.5
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* 4. 발송 안내 문구 */}
-              <div
-                style={{
-                  background: '#ffffff',
-                  border: '1px solid #dcd5c9',
-                  borderRadius: 8,
-                  padding: 12,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 4
-                }}
-              >
-                <label style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a' }}>동봉 안내 메시지</label>
-                <textarea
-                  value={customNote}
-                  onChange={e => setCustomNote(e.target.value)}
-                  rows={3}
-                  style={{
-                    width: '100%',
-                    borderRadius: 6,
-                    border: '1px solid #cbd5e1',
-                    padding: 8,
-                    fontSize: 13.5,
-                    resize: 'none',
-                    fontFamily: 'inherit',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* 우하단 최종 액션 버튼 (Z-Pattern Terminal Action) */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {isDispatched && (
-                <div
-                  data-uia="manual-dispatch-success-banner"
-                  style={{
-                    background: '#ecfdf5',
-                    border: '1px solid #10b981',
-                    borderRadius: 8,
-                    padding: '8px 12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    color: '#047857',
-                    fontSize: 13.5,
-                    fontWeight: 800
-                  }}
-                >
-                  <CheckCircle2 size={16} />
-                  <span>매뉴얼 PDF ({selectedManuals.length}건) 첨부 발송이 완료되었습니다.</span>
                 </div>
               )}
 
-              <button
-                type="button"
-                data-uia="btn-dispatch-manuals-submit"
-                onClick={handleDispatchManuals}
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  borderRadius: 8,
-                  background: '#0284c7',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: 15,
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.28)'
-                }}
-              >
-                <Send size={16} />
-                <span>선택 매뉴얼 PDF 첨부 발송 ({selectedManuals.length}건)</span>
-              </button>
+              {/* 3) 첨부 PDF */}
+              {assembledPdfs.length > 0 && (
+                <div
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    padding: '8px 10px',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '6px',
+                  }}
+                >
+                  {assembledPdfs.map(m => (
+                    <span
+                      key={m.id}
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: '#f1f5f9',
+                        color: '#334155',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      PDF · {m.title}
+                      <X
+                        size={11}
+                        style={{ cursor: 'pointer', color: '#94a3b8' }}
+                        onClick={() => togglePdf(m.id)}
+                      />
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ④ 우하단 발송 제어부 (헌장 3.4 상하 스택, 3.5 Terminal Action) */}
+            <div
+              style={{
+                padding: '10px 14px',
+                borderTop: '1px solid #e2e8f0',
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
+              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', gap: '8px', alignItems: 'end' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
+                    대상
+                  </label>
+                  <div style={{ display: 'flex', gap: '3px' }}>
+                    {(['SITE', 'PRIME'] as const).map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setRecipientTarget(t)}
+                        style={{
+                          height: '30px',
+                          padding: '0 8px',
+                          borderRadius: '5px',
+                          border: recipientTarget === t ? '1px solid #0f172a' : '1px solid #cbd5e1',
+                          backgroundColor: recipientTarget === t ? '#0f172a' : '#ffffff',
+                          color: recipientTarget === t ? '#ffffff' : '#475569',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {t === 'SITE' ? '현장' : '원청'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
+                    수신인
+                  </label>
+                  <input
+                    type="text"
+                    value={receiverName}
+                    onChange={e => setReceiverName(e.target.value)}
+                    placeholder="담당자명"
+                    style={{
+                      height: '30px',
+                      padding: '0 8px',
+                      borderRadius: '5px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '12px',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
+                    {channel === 'EMAIL' ? '이메일' : '연락처'}
+                  </label>
+                  <input
+                    type="text"
+                    value={channel === 'EMAIL' ? receiverEmail : receiverPhone}
+                    onChange={e =>
+                      channel === 'EMAIL'
+                        ? setReceiverEmail(e.target.value)
+                        : setReceiverPhone(e.target.value)
+                    }
+                    placeholder={channel === 'EMAIL' ? 'email@domain.com' : '010-0000-0000'}
+                    style={{
+                      height: '30px',
+                      padding: '0 8px',
+                      borderRadius: '5px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '12px',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
+                  메모
+                </label>
+                <input
+                  type="text"
+                  value={customNote}
+                  onChange={e => setCustomNote(e.target.value)}
+                  placeholder="발송 메모"
+                  style={{
+                    height: '28px',
+                    padding: '0 8px',
+                    borderRadius: '5px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '12px',
+                  }}
+                />
+              </div>
+
+              {/* 발송 수단 & 최종 발송 버튼 */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {[
+                    { key: 'KAKAO' as const, label: '카톡' },
+                    { key: 'SMS' as const, label: '문자' },
+                    { key: 'EMAIL' as const, label: '이메일' },
+                  ].map(ch => (
+                    <button
+                      key={ch.key}
+                      type="button"
+                      onClick={() => setChannel(ch.key)}
+                      style={{
+                        height: '32px',
+                        padding: '0 10px',
+                        borderRadius: '6px',
+                        border: channel === ch.key ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                        backgroundColor: channel === ch.key ? '#eff6ff' : '#ffffff',
+                        color: channel === ch.key ? '#1d4ed8' : '#475569',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {ch.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    style={{
+                      height: '32px',
+                      padding: '0 10px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: '#334155',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Copy size={13} />
+                    {copied ? '복사됨' : '복사'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSend}
+                    disabled={sending || totalSelectedCount === 0}
+                    style={{
+                      height: '32px',
+                      padding: '0 16px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: totalSelectedCount === 0 ? '#94a3b8' : '#2563eb',
+                      color: '#ffffff',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      cursor: totalSelectedCount === 0 ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Send size={13} />
+                    {sending ? '발송중' : '조립본 발송'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* 확대 보기 모달 */}
+      {zoomImage && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.8)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+          }}
+          onClick={() => setZoomImage(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '10px',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: '10px 14px',
+                borderBottom: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
+                {zoomImage.title}
+              </span>
+              <button
+                type="button"
+                onClick={() => setZoomImage(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <img
+              src={zoomImage.url}
+              alt={zoomImage.title}
+              style={{
+                maxWidth: '88vw',
+                maxHeight: '82vh',
+                objectFit: 'contain',
+                backgroundColor: '#ffffff',
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+};
+export default EquipmentManualModal;

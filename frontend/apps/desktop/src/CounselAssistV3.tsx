@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Search, Wrench, AlertTriangle,
   RotateCcw, Clock, History, FileText, BookOpen,
-  Smartphone, Image as ImageIcon, Package, Building2,
+  Smartphone, Package, Building2,
   Cpu, X, Check, ArrowRight, ChevronDown, ChevronUp
 } from 'lucide-react';
 import {
@@ -1806,52 +1806,8 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
 
                     {/* 후속 문서 발송 & 상담 완결 액션 바 */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                      {/* 좌측: 고객 지원 가이드 / 소모품 카탈로그 / 원청 결재 문서 */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          onClick={() => setShowSelfActionGuideModal(true)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            background: '#eff6ff',
-                            color: '#1d4ed8',
-                            border: '1px solid #93c5fd',
-                            borderRadius: 6,
-                            padding: '7px 12px',
-                            fontSize: 13.5,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          <Smartphone size={14} />
-                          <span>자가조치 가이드 (사진/영상)</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setShowPhotoManagerModal(true)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            background: '#ecfdf5',
-                            color: '#047857',
-                            border: '1px solid #6ee7b7',
-                            borderRadius: 6,
-                            padding: '7px 12px',
-                            fontSize: 13.5,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          <ImageIcon size={14} />
-                          <span>사진 순서 관리</span>
-                        </button>
-
+                      {/* 좌측: 문서 발송 버튼군 */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <button
                           type="button"
                           data-uia="btn-open-equipment-manual-modal"
@@ -1859,20 +1815,42 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 6,
-                            background: '#e0f2fe',
-                            color: '#0369a1',
-                            border: '1px solid #7dd3fc',
+                            gap: 5,
+                            background: '#ffffff',
+                            color: '#1e293b',
+                            border: '1px solid #cbd5e1',
                             borderRadius: 6,
-                            padding: '7px 12px',
-                            fontSize: 13.5,
-                            fontWeight: 800,
+                            padding: '6px 10px',
+                            fontSize: 12.5,
+                            fontWeight: 700,
                             cursor: 'pointer',
                             whiteSpace: 'nowrap'
                           }}
                         >
-                          <BookOpen size={14} />
-                          <span>매뉴얼 PDF 첨부·발송 (25종)</span>
+                          <BookOpen size={13} color="#2563eb" />
+                          <span>카탈로그·매뉴얼</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowSelfActionGuideModal(true)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            background: '#ffffff',
+                            color: '#1e293b',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: 6,
+                            padding: '6px 10px',
+                            fontSize: 12.5,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <Smartphone size={13} color="#475569" />
+                          <span>자가조치 가이드</span>
                         </button>
 
                         <button
@@ -1881,20 +1859,20 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 6,
-                            background: '#fffbeb',
-                            color: '#b45309',
-                            border: '1px solid #fcd34d',
+                            gap: 5,
+                            background: '#ffffff',
+                            color: '#1e293b',
+                            border: '1px solid #cbd5e1',
                             borderRadius: 6,
-                            padding: '7px 12px',
-                            fontSize: 13.5,
-                            fontWeight: 800,
+                            padding: '6px 10px',
+                            fontSize: 12.5,
+                            fontWeight: 700,
                             cursor: 'pointer',
                             whiteSpace: 'nowrap'
                           }}
                         >
-                          <Package size={14} />
-                          <span>소모품 카탈로그·견적서</span>
+                          <Package size={13} color="#475569" />
+                          <span>소모품 견적</span>
                         </button>
 
                         <button
@@ -1903,20 +1881,20 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 6,
-                            background: '#fef2f2',
-                            color: '#b91c1c',
-                            border: '1px solid #fca5a5',
+                            gap: 5,
+                            background: '#ffffff',
+                            color: '#1e293b',
+                            border: '1px solid #cbd5e1',
                             borderRadius: 6,
-                            padding: '7px 12px',
-                            fontSize: 13.5,
-                            fontWeight: 800,
+                            padding: '6px 10px',
+                            fontSize: 12.5,
+                            fontWeight: 700,
                             cursor: 'pointer',
                             whiteSpace: 'nowrap'
                           }}
                         >
-                          <FileText size={14} />
-                          <span>원청 결재 연계 (1차·2차)</span>
+                          <FileText size={13} color="#475569" />
+                          <span>출장 문서</span>
                         </button>
                       </div>
 
@@ -2078,20 +2056,20 @@ export default function CounselAssistV3({ initialOpenGuides, openGuidesTrigger }
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 6,
-                          padding: '8px 14px',
+                          gap: 5,
+                          padding: '7px 12px',
                           borderRadius: 6,
-                          background: '#e0f2fe',
-                          border: '1px solid #7dd3fc',
-                          color: '#0369a1',
-                          fontSize: 13.5,
-                          fontWeight: 800,
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          color: '#1e293b',
+                          fontSize: 12.5,
+                          fontWeight: 700,
                           cursor: 'pointer',
                           whiteSpace: 'nowrap'
                         }}
                       >
-                        <BookOpen size={14} />
-                        <span>매뉴얼 PDF 첨부·발송</span>
+                        <BookOpen size={13} color="#2563eb" />
+                        <span>카탈로그·매뉴얼</span>
                       </button>
                       <button
                         type="button"

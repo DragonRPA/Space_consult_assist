@@ -406,6 +406,12 @@ const CANONICAL_DOMAIN_TERMS: { term: string; category: string; minSyllables: nu
 // 어절 끝 조사 분리 정규식
 const KOREAN_PARTICLE_REGEX = /^([가-힣]{3,7}?)(이|가|은|는|을|를|에|에서|으로|로|도|만|과|와|이나|나|부터|까지|요|네요|군요|인가요|인데|인데요|이라서|라서)?$/;
 
+// 자모 퍼지 교정에서 제외할 정상 표준 어간 목록 (예: '스위치'가 '스퀴지'로 오교정되는 현상 원천 차단)
+const PROTECTED_EXACT_STEMS = new Set([
+  '스위치', '키스위치', '전원스위치', '급수스위치', '메인스위치',
+  '스페이스', '서비스', '사이즈', '시리즈', '스펀지', '스탠드', '스피커', '스튜디오'
+]);
+
 export function applyContextualCorrection(rawText: string): { correctedText: string; corrections: CorrectionEvent[] } {
   if (!rawText) return { correctedText: '', corrections: [] };
   let text = rawText;
@@ -448,8 +454,8 @@ export function applyContextualCorrection(rawText: string): { correctedText: str
     const particle = m[2] || '';
     if (stem.length < 3) continue;
 
-    // 이미 표준 용어와 정확히 일치하면 스킵
-    if (CANONICAL_DOMAIN_TERMS.some(d => d.term === stem)) continue;
+    // 이미 표준 용어이거나 보호 대상 정상 단어('스위치' 등)이면 스킵
+    if (PROTECTED_EXACT_STEMS.has(stem) || CANONICAL_DOMAIN_TERMS.some(d => d.term === stem)) continue;
 
     const stemJamo = decomposeHangulToJamo(stem);
     if (stemJamo.length === 0) continue;

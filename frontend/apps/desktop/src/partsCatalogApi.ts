@@ -65,8 +65,9 @@ import { SPACE_DUST_OFFICIAL_CATALOG } from './spaceDustCatalogSeed';
 const LOCAL_CATALOG_KEY = 'space_parts_catalog_cache_v2';
 const LOCAL_ORDERS_KEY = 'space_parts_orders_cache';
 
-// ── 1. 부품 카탈로그 전체 목록 조회 (Supabase DB + 캐시) ──
+// ── 1. 부품 카탈로그 전체 목록 조회 (Supabase DB + 공식 72종 시드 병합) ──
 export async function getAllPartsCatalog(): Promise<CatalogPartItem[]> {
+  const seedList = getFallbackCatalog();
   try {
     const { data, error } = await supabase
       .from('parts_catalog')
@@ -75,23 +76,30 @@ export async function getAllPartsCatalog(): Promise<CatalogPartItem[]> {
       .order('category', { ascending: true });
 
     if (!error && data && data.length > 0) {
-      localStorage.setItem(LOCAL_CATALOG_KEY, JSON.stringify(data));
-      return data as CatalogPartItem[];
+      const dbList = data as CatalogPartItem[];
+      const byCode = new Map<string, CatalogPartItem>();
+      seedList.forEach(item => byCode.set(item.part_code, item));
+      dbList.forEach(item => {
+        const existing = byCode.get(item.part_code);
+        byCode.set(item.part_code, {
+          ...existing,
+          ...item,
+          image_url: item.image_url || existing?.image_url || '',
+          applicable_models:
+            Array.isArray(item.applicable_models) && item.applicable_models.length > 0
+              ? item.applicable_models
+              : existing?.applicable_models || ['전 기종 공용'],
+        });
+      });
+      const merged = Array.from(byCode.values());
+      localStorage.setItem(LOCAL_CATALOG_KEY, JSON.stringify(merged));
+      return merged;
     }
   } catch (err) {
-    console.warn('[partsCatalogApi] Supabase fetch error, fallback to cache:', err);
+    console.warn('[partsCatalogApi] Supabase fetch error, fallback to seed:', err);
   }
 
-  // 2. 로컬 스토리지 캐시 폴백
-  try {
-    const raw = localStorage.getItem(LOCAL_CATALOG_KEY);
-    if (raw) {
-      return JSON.parse(raw) as CatalogPartItem[];
-    }
-  } catch {}
-
-  // 3. 비상 시 공식 홈페이지(space-dust.com) 72종 내장 시드 반환
-  return getFallbackCatalog();
+  return seedList;
 }
 
 // ── 1-1. 부품 카탈로그 필터 조회 (모델 및 카테고리 필터링) ──

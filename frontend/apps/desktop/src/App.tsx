@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { 
   PhoneCall, 
   Mic, 
@@ -10,19 +10,24 @@ import {
   CheckSquare, 
   Square, 
   Volume2, 
-  Radio, 
   Zap, 
-  HelpCircle, 
-  Play, 
-  Pause, 
   Upload, 
   FileAudio, 
-  Loader2,
   MicOff,
-  X
+  X,
+  FileText,
+  Package,
+  Copy,
+  RotateCcw,
+  ChevronRight,
+  Check
 } from 'lucide-react';
 import { useCounselStore, DEFAULT_CUSTOMERS } from './store';
 import { MicTestModal } from './MicTestModal';
+import { EquipmentManualModal } from './EquipmentManualModal';
+import { PartsOrderQuotationModal } from './PartsOrderQuotationModal';
+import { SelfActionGuideModal } from './SelfActionGuideModal';
+import { DispatchDocPackageModal } from './DispatchDocPackageModal';
 import { applyContextualCorrection } from './contextCorrector';
 import { 
   DOMAIN_KEYWORD_REGISTRY, 
@@ -129,7 +134,6 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   const {
     isRecording,
     callSeconds,
-    counselorName,
     toastMessage,
     activeAudioFile,
     activeAudioUrl,
@@ -191,12 +195,26 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   const [gpuServerOnline, setGpuServerOnline] = useState<boolean | null>(null);
   const [isAudioStreamingActive, setIsAudioStreamingActive] = useState(false);
   const [loopbackDevice] = useState<string>('');
-  const [micAudioLevel, setMicAudioLevel] = useState(0);
+  const [, setMicAudioLevel] = useState(0);
   const [justTriggeredKeyword, setJustTriggeredKeyword] = useState<string | null>(null);
   const [isDragOverDropzone, setIsDragOverDropzone] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
+
+  // Co-Pilot Visual Document Modals & Automatic Closing Recommendation State
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [isPartsQuoteModalOpen, setIsPartsQuoteModalOpen] = useState(false);
+  const [isSelfGuideModalOpen, setIsSelfGuideModalOpen] = useState(false);
+  const [isDispatchDocModalOpen, setIsDispatchDocModalOpen] = useState(false);
+  const [recommendedClosingAction, setRecommendedClosingAction] = useState<'NONE' | 'PARTS_QUOTE' | 'DISPATCH' | 'RESOLVED'>('NONE');
+  const [confirmedSlotFlags, setConfirmedSlotFlags] = useState<{
+    customer: boolean;
+    phone: boolean;
+    address: boolean;
+    model: boolean;
+  }>({ customer: false, phone: false, address: false, model: false });
+
   const audioSegmentsRef = useRef<{
     start: number;
     end: number;
@@ -299,18 +317,22 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     ];
 
     for (const entity of combinedMatches) {
-      const alreadyDetected = liveStore.detectedKeywordEntities.some(e => e.id === entity.id);
-      liveStore.addDetectedKeywordEntity(entity);
-      if (!alreadyDetected || !liveStore.activeKeywordEntity) {
-        liveStore.setActiveKeywordEntity(entity);
+      const curState = useCounselStore.getState();
+      const alreadyDetected = curState.detectedKeywordEntities.some(e => e.id === entity.id);
+      curState.addDetectedKeywordEntity(entity);
+      if (!curState.activeKeywordEntity) {
+        curState.setActiveKeywordEntity(entity);
         setJustTriggeredKeyword(entity.keyword);
         setTimeout(() => setJustTriggeredKeyword(null), 3000);
         const matchedNeg = extractedNegStates.find(s => s.mappedKeywordId === entity.id);
         const toastLabel = matchedNeg
           ? `[부정상태 추출: ${matchedNeg.stateSummary} ➔ ${entity.keyword}] 진단 가이드 자동 표출`
           : `[구어체/유사어 감지: ${entity.keyword}] 진단 및 조치 가이드 자동 표출`;
-        liveStore.showToast(toastLabel);
-        setTimeout(() => liveStore.clearToast(), 3000);
+        curState.showToast(toastLabel);
+        setTimeout(() => curState.clearToast(), 3000);
+      } else if (!alreadyDetected) {
+        setJustTriggeredKeyword(entity.keyword);
+        setTimeout(() => setJustTriggeredKeyword(null), 3000);
       }
     }
 
@@ -380,6 +402,23 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
 
       if (presetSwitched || changedFields.length > 0) {
         afterSymptomStore.selectCustomer(activeCust);
+        setConfirmedSlotFlags(prev => ({
+          customer: prev.customer || presetSwitched || Boolean(extractedInfo.customerName || extractedInfo.managerName),
+          phone: prev.phone || presetSwitched || Boolean(extractedInfo.phone),
+          address: prev.address || presetSwitched || Boolean(extractedInfo.roadOrLotAddress || extractedInfo.addressDetail),
+          model: prev.model || presetSwitched,
+        }));
+
+        // 지역 기반 관할 정비기사 자동 배정
+        const addrText = `${activeCust.address} ${activeCust.addressDetail}`;
+        if (/(?:서울|서초|강남|금천|송파|영등포|마포|인천|부천|광명|고양)/.test(addrText)) {
+          afterSymptomStore.setAssignedEngineer('박영호 정비기사 (인천/서울서부)');
+        } else if (/(?:화성|동탄|수원|용인|성남|안산|오산|시흥|안양)/.test(addrText)) {
+          afterSymptomStore.setAssignedEngineer('김철수 정비기사 (화성/경기남부)');
+        } else if (/(?:아산|천안|평택|충남|충북|대전|경남|양산|부산)/.test(addrText)) {
+          afterSymptomStore.setAssignedEngineer('이지훈 정비기사 (평택/충청북부)');
+        }
+
         const toastMsg = presetSwitched && changedFields.length > 0
           ? `[고객사 자동 선택: ${activeCust.name} · ${changedFields.join(' · ')}]`
           : presetSwitched
@@ -396,6 +435,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         const matchedModel = entRule.modelId || text.match(entRule.pattern)?.[0]?.toUpperCase();
         if (matchedModel) {
           useCounselStore.getState().setSelectedCustomerModel(matchedModel);
+          setConfirmedSlotFlags(prev => ({ ...prev, model: true }));
           useCounselStore.getState().showToast(`[장비 모델 감지: ${matchedModel}] 고객 장비 매핑 완료`);
           setTimeout(() => useCounselStore.getState().clearToast(), 3000);
         }
@@ -405,16 +445,36 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
 
     // 4. Action SOP Auto-Check (Reads fresh checklist after symptom trigger)
     const latestChecklist = useCounselStore.getState().actionChecklist;
+    let stepMatchedByRule = false;
     for (const entRule of NAMED_ENTITY_REGISTRY) {
       if (entRule.type === 'action' && entRule.pattern.test(text)) {
         const targetIdx = entRule.actionIndex ? Math.min(entRule.actionIndex, latestChecklist.length) : 0;
         if (targetIdx > 0 && latestChecklist[targetIdx - 1] && !latestChecklist[targetIdx - 1].checked) {
           useCounselStore.getState().toggleChecklist(targetIdx);
+          stepMatchedByRule = true;
           useCounselStore.getState().showToast(`[조치 발화 감지: ${latestChecklist[targetIdx - 1].text.slice(0, 18)}...] 자동 체크 완료`);
           setTimeout(() => useCounselStore.getState().clearToast(), 3000);
         }
         break;
       }
+    }
+
+    // 5. 대화 문맥 기반 점검 응답·소모품 마모·출장 요청·해결 여부 자동 판정
+    if (!stepMatchedByRule && latestChecklist.length > 0) {
+      const nextUnchecked = latestChecklist.find(item => !item.checked);
+      if (nextUnchecked && /(?:깨끗해요|깨끗합|이상\s*없|안\s*끊어|정상이에요|정상입|열려\s*있|체결\s*돼|청소\s*했|비웠어요|확인했는데\s*괜찮)/.test(text)) {
+        useCounselStore.getState().toggleChecklist(nextUnchecked.id);
+        useCounselStore.getState().showToast(`[점검 확인 응답 감지] ${nextUnchecked.id}단계 자동 완료 ➔ 다음 안내 멘트 전환`);
+        setTimeout(() => useCounselStore.getState().clearToast(), 2800);
+      }
+    }
+
+    if (/(?:닳았|찢어졌|마모됐|마모되|갈라졌|삭았|고무\s*교체|스퀴지\s*교체|브러시\s*교체|패드\s*교체|부품\s*보내|택배로?\s*보내|견적서?\s*보내|견적\s*주세)/.test(text)) {
+      setRecommendedClosingAction('PARTS_QUOTE');
+    } else if (/(?:해\s*봤는데도?\s*안|그래도\s*안|여전히\s*안|똑같아요|그대로예요|안\s*고쳐|기사님?|출장\s*접수|방문\s*해|수리\s*불러|와\s*주세|타는\s*냄새|연기가?\s*나)/.test(text)) {
+      setRecommendedClosingAction('DISPATCH');
+    } else if (/(?:어\s*이제\s*되네|잘\s*나오네|작동\s*잘\s*됩|작동\s*되네|해결\s*됐|고쳐졌|잘\s*돌아갑)/.test(text)) {
+      setRecommendedClosingAction('RESOLVED');
     }
   }, []);
 
@@ -1121,33 +1181,6 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     }
   };
 
-  const stopAudioPlayback = () => {
-    audioSessionIdRef.current += 1;
-    if (globalAudioRef.current) {
-      globalAudioRef.current.pause();
-      globalAudioRef.current.currentTime = 0;
-    }
-    realtimeVadRef.current = {
-      cursorFrame: 0,
-      inSpeech: false,
-      speechStartFrame: 0,
-      silenceFrames: 0,
-      noiseFloor: 220,
-      inflightCount: 0,
-      lastChunkLabel: '',
-    };
-    if (loopbackWsRef.current && loopbackWsRef.current.readyState === WebSocket.OPEN) {
-      try { loopbackWsRef.current.send(JSON.stringify({ action: 'clear_buffer' })); } catch (_) {}
-    }
-    stopSttStreaming();
-    setInterimSttText('');
-    setIsAudioPlaying(false);
-    setRecording(false);
-    setAudioTime(0, 0);
-    showToast("음성 재생 및 STT 수신이 즉시 중지되었습니다.");
-    setTimeout(() => clearToast(), 2000);
-  };
-
   const handleClearAudioFile = () => {
     audioSessionIdRef.current += 1;
     if (globalAudioRef.current) {
@@ -1660,11 +1693,181 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
   const activeParagraphs = isContextCorrectionEnabled ? finalParagraphs : rawParagraphs;
   const checkedCount = actionChecklist.filter(c => c.checked).length;
   const totalCount = actionChecklist.length;
+  const nextUncheckedStep = useMemo(() => actionChecklist.find(c => !c.checked) || null, [actionChecklist]);
+
+  // 추출된 클린 장비 모델 코드 (J600T, S7P, S5 등)
+  const cleanModelCode = useMemo(() => {
+    const raw = selectedCustomer.assetModel || '';
+    const m = raw.match(/\b(J600T?|J800|S12L?|S7P?|S5|S3|S2|S1|R3|XD80|XD60|S800|M100|Q45)\b/i);
+    return m ? m[1].toUpperCase() : 'J600T';
+  }, [selectedCustomer.assetModel]);
+
+  // 5대 필수 정보 자동 확인 상태 판정
+  const confirmedSlots = useMemo(() => {
+    const customerOk = confirmedSlotFlags.customer || (!selectedCustomer.name.includes('식별 대기') && Boolean(selectedCustomer.name.trim()));
+    const phoneOk = confirmedSlotFlags.phone || /0\d{1,2}-\d{3,4}-\d{4}/.test(selectedCustomer.phone);
+    const addressOk = confirmedSlotFlags.address || (!selectedCustomer.address.includes('자동 식별') && Boolean(selectedCustomer.address.trim()));
+    const modelOk = confirmedSlotFlags.model || (!selectedCustomer.assetModel.includes('자동 식별') && Boolean(selectedCustomer.assetModel.trim()));
+    const symptomOk = detectedKeywordEntities.length > 0 || Boolean(matchedDiagnosis);
+    return {
+      customer: customerOk,
+      phone: phoneOk,
+      address: addressOk,
+      model: modelOk,
+      symptom: symptomOk,
+      confirmedCount: [customerOk, phoneOk, addressOk, modelOk, symptomOk].filter(Boolean).length,
+    };
+  }, [confirmedSlotFlags, selectedCustomer, detectedKeywordEntities, matchedDiagnosis]);
+
+  // 상담 진행에 따른 배차 메모 및 영업 이관 메모 실시간 자동 합성
+  useEffect(() => {
+    const symptomTitle = activeKeywordEntity?.keyword || matchedDiagnosis?.category || '증상 확인중';
+    const partTitle = matchedDiagnosis ? `${matchedDiagnosis.partName} (${matchedDiagnosis.partCode})` : '현장 점검 요망';
+    const checkedItems = actionChecklist.filter(c => c.checked).map(c => `${c.id}단계(${c.text.slice(0, 14)})`);
+    const checkSummary = checkedItems.length > 0 ? `${checkedItems.join(', ')} 점검 완료` : '1차 유선 점검 진행';
+
+    setDispatchNote(
+      `[자동요약] 장비: ${cleanModelCode} | 증상: ${symptomTitle} | 점검내역: ${checkSummary} | 지참부품: ${partTitle}`
+    );
+    setSalesTransferNote(
+      `[상담이관] ${selectedCustomer.name} (${cleanModelCode}) | ${symptomTitle} 관련 ${partTitle} 견적·교체 요청`
+    );
+  }, [cleanModelCode, activeKeywordEntity, matchedDiagnosis, actionChecklist, selectedCustomer.name, setDispatchNote]);
+
+  // 다음 안내 멘트 (Next Script Teleprompter) 동적 생성 엔진
+  const nextLeadGuidance = useMemo(() => {
+    const missingNames: string[] = [];
+    if (!confirmedSlots.model) missingNames.push('장비 모델명');
+    if (!confirmedSlots.address) missingNames.push('현장 위치');
+    if (!confirmedSlots.phone) missingNames.push('담당자 연락처');
+
+    const symptomName = activeKeywordEntity?.keyword || matchedDiagnosis?.category || '';
+    const partName = matchedDiagnosis?.partName || '관련 소모품';
+    const engShort = assignedEngineer.split(' ')[0] || '담당 기사';
+
+    if (!confirmedSlots.symptom) {
+      return {
+        stageBadge: '1단계 · 접수 및 증상 확인',
+        accentColor: '#2563eb',
+        bgTint: '#eff6ff',
+        borderTint: '#93c5fd',
+        script: `"안녕하세요, 스페이스 고객지원실입니다. 사용 중인 장비 모델명과 어떤 불편 증상이 있으신지 말씀해 주시겠습니까?"`,
+        subPrompt: '고객 발화 또는 시뮬레이션 시 고객사·장비·증상이 자동 추출되고 1차 점검 멘트가 즉시 제안됩니다.',
+      };
+    }
+
+    if (recommendedClosingAction === 'RESOLVED') {
+      return {
+        stageBadge: '3단계 · 자가조치 해결 마무리',
+        accentColor: '#059669',
+        bgTint: '#ecfdf5',
+        borderTint: '#6ee7b7',
+        script: `"정상 작동을 확인해 주셔서 다행입니다! 오늘 조치하신 [${symptomName}] 예방 점검 가이드를 문자로 발송해 드리고 상담을 마무리하겠습니다."`,
+        subPrompt: '권장 조치: [자가조치 가이드] 발송 후 [자가조치 완료]로 종결하세요.',
+      };
+    }
+
+    if (recommendedClosingAction === 'PARTS_QUOTE') {
+      return {
+        stageBadge: '3단계 · 소모품 견적 및 교체 안내',
+        accentColor: '#d97706',
+        bgTint: '#fffbeb',
+        borderTint: '#fcd34d',
+        script: `"말씀하신 증상은 [${partName}] 마모·손상으로 확인됩니다. ${cleanModelCode} 전용 사진 견적서와 자가교체 가이드를 문자로 바로 발송해 드리겠습니다."`,
+        subPrompt: `권장 조치: [소모품 견적] 버튼을 눌러 ${cleanModelCode} 부품 견적서를 즉시 발송하세요.`,
+      };
+    }
+
+    if (recommendedClosingAction === 'DISPATCH' || (totalCount > 0 && checkedCount === totalCount)) {
+      return {
+        stageBadge: '3단계 · 출장 기사 배정 안내',
+        accentColor: '#dc2626',
+        bgTint: '#fef2f2',
+        borderTint: '#fca5a5',
+        script: `"1차 점검 후에도 증상이 동일하여 현장 정밀 수리가 필요합니다. 관할 [${engShort}] 기사님 방문 일정을 접수하고 출장 안내 문서를 발송해 드리겠습니다."`,
+        subPrompt: missingNames.length > 0
+          ? `방문 전 추가 확인 질문: "정확한 기사님 방문을 위해 ${missingNames.join(', ')}를 확인 부탁드립니다."`
+          : `권장 조치: [출장 배차 접수] 확정 또는 [출장 패키지] 문서를 발송하세요.`,
+      };
+    }
+
+    if (nextUncheckedStep) {
+      const stepNum = nextUncheckedStep.id;
+      const cleanStepText = nextUncheckedStep.text.replace(/^\d+단계:\s*/, '').trim();
+      const leadSentence = checkedCount === 0
+        ? `"고객님, [${symptomName}] 증상이시군요. 현장 즉시 조치를 위해 먼저 1단계로「${cleanStepText}」상태를 확인해 주시겠습니까?"`
+        : `"네, 확인 감사합니다. 이어서 ${stepNum}단계로「${cleanStepText}」부분을 한 번 확인 부탁드립니다."`;
+
+      return {
+        stageBadge: `2단계 · ${stepNum}차 점검 유도 (${checkedCount}/${totalCount})`,
+        accentColor: '#1d4ed8',
+        bgTint: '#eff6ff',
+        borderTint: '#60a5fa',
+        script: leadSentence,
+        subPrompt: missingNames.length > 0
+          ? `함께 확인할 정보: "${missingNames.join(', ')}도 함께 말씀해 주시겠습니까?"`
+          : `고객 응답에 따라 아래 [현 단계 정상 ➔ 다음 안내], [부품 마모 ➔ 견적], [조치 불가 ➔ 출장]을 선택하세요.`,
+      };
+    }
+
+    return {
+      stageBadge: '2단계 · 증상 진단 안내',
+      accentColor: '#2563eb',
+      bgTint: '#eff6ff',
+      borderTint: '#93c5fd',
+      script: `"${matchedDiagnosis?.selfActionGuide || '전원 차단 후 기본 점검 항목을 순서대로 안내해 드리겠습니다.'}"`,
+      subPrompt: '점검 결과에 따라 자가조치 완료 또는 출장 배차를 선택하세요.',
+    };
+  }, [
+    confirmedSlots,
+    activeKeywordEntity,
+    matchedDiagnosis,
+    assignedEngineer,
+    recommendedClosingAction,
+    cleanModelCode,
+    totalCount,
+    checkedCount,
+    nextUncheckedStep,
+  ]);
+
+  // 원클릭 실시간 상담 시뮬레이션 실행기 (단계별 자동 추출 및 다음 멘트 변화 즉시 검증용)
+  const runQuickScenarioSimulation = useCallback((scenarioKey: 'dispatch' | 'quote' | 'resolve') => {
+    resetSessionForNewAudio();
+    clearAudioFile();
+    setRecommendedClosingAction('NONE');
+    setConfirmedSlotFlags({ customer: false, phone: false, address: false, model: false });
+
+    const turnsByScenario: Record<'dispatch' | 'quote' | 'resolve', string[]> = {
+      dispatch: [
+        '[00:02] 여보세요 거기 반포자이 아파트 지하 1층 방재실 박시설 과장인데요 010-9876-5432입니다',
+        '[00:07] 지금 J600T 청소기 물이 전혀 안 나오고 급수가 안 돼요',
+        '[00:14] 네 하단 급수 필터망 분리해서 봤는데 필터는 깨끗해요 이상 없습니다',
+        '[00:21] 스위치 켜봤는데 솔레노이드 딸깍 소리도 안 나고 해봤는데도 안 돼요 출장 접수해 주세요',
+      ],
+      quote: [
+        '[00:02] 안녕하세요 도곡렉슬아파트 최기술 팀장입니다 연락처는 010-7654-3210이에요',
+        '[00:08] S7 장비 쓰는데 바닥에 물기가 안 빨리고 잔수가 심하게 남아요',
+        '[00:15] 뒤쪽 스퀴지 내려서 보니까 고무가 다 닳았고 끝이 찢어졌어요 부품 견적서 보내주세요',
+      ],
+      resolve: [
+        '[00:02] 가산디지털엠타워 지하 1층 하역장 강센터 실장입니다 S5 장비 문의드립니다',
+        '[00:08] 열쇠 돌렸는데 전원이 아예 안 켜지고 먹통이에요',
+        '[00:14] 아 빨간색 비상정지 버튼이 눌려 있었네요 오른쪽으로 돌리니까 어 이제 작동 잘 됩니다 감사합니다',
+      ],
+    };
+
+    const lines = turnsByScenario[scenarioKey];
+    lines.forEach((line, idx) => {
+      setTimeout(() => {
+        processIncomingSpeechUtterance(line);
+      }, idx * 250);
+    });
+  }, [resetSessionForNewAudio, clearAudioFile, processIncomingSpeechUtterance]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: 'var(--canvas)', color: 'var(--ink)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)', width: '100%', backgroundColor: 'var(--canvas)', color: 'var(--ink)', overflow: 'hidden' }}>
       
-      {/* Permanent Background Audio Element (Real Hardware Speaker Output & Digital Stream Sync) */}
+      {/* Permanent Background Audio Element */}
       <audio
         ref={globalAudioRef}
         src={activeAudioUrl || undefined}
@@ -1694,8 +1897,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
           }
           setIsAudioPlaying(false);
           setRecording(false);
-          showToast("⏹️ 음성 파일 재생 완료 (STT 수신이 자동으로 종료되었습니다)");
-          setTimeout(() => clearToast(), 3500);
+          showToast("음성 파일 재생 완료");
+          setTimeout(() => clearToast(), 3000);
         }}
         onError={(e) => {
           console.error("Audio Load Error:", e);
@@ -1711,156 +1914,259 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         style={{ display: 'none' }}
       />
 
-
-      
       {/* ========================================================= */}
-      {/* 1. TOP GLOBAL NAVIGATION (Linear High-Density Bar)        */}
+      {/* 1. SLIM AUTO-CONFIRMED SLOTS & STT CONTROL STRIP (42px)   */}
       {/* ========================================================= */}
-      <header style={{ 
-        height: '50px', 
-        borderBottom: '1px solid var(--hairline)', 
-        backgroundColor: 'var(--surface-1)', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        padding: '0 16px',
-        flexShrink: 0
+      <div style={{
+        height: '44px',
+        borderBottom: '1px solid var(--hairline)',
+        backgroundColor: 'var(--surface-1)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 12px',
+        gap: '10px',
+        flexShrink: 0,
+        overflowX: 'auto'
       }}>
-        {/* Brand & Counselor */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
-            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)', boxShadow: '0 0 8px var(--glow-color)', flexShrink: 0 }} />
-            <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.3px', color: 'var(--ink)', whiteSpace: 'nowrap' }}>
-              Space Advisor <span style={{ fontWeight: 400, color: 'var(--ink-muted)', fontSize: '13.5px' }}>상담지원1</span>
-            </span>
-          </div>
-
-          <div style={{ height: '16px', width: '1px', backgroundColor: 'var(--hairline)', flexShrink: 0 }} />
-
-          <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-            상담원: <strong style={{ color: 'var(--ink)', fontWeight: 600 }}>{counselorName}</strong>
-          </span>
-        </div>
-
-        {/* Live Audio & STT Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-          {/* Real-time Streaming Status Badge */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '4px 9px',
+        {/* Left: 5 Auto-Confirmed Information Slots */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          <span style={{
+            fontSize: '12px',
+            fontWeight: 800,
+            color: confirmedSlots.confirmedCount === 5 ? '#047857' : '#1d4ed8',
+            backgroundColor: confirmedSlots.confirmedCount === 5 ? '#d1fae5' : '#dbeafe',
+            padding: '3px 8px',
             borderRadius: '4px',
-            backgroundColor: isCallActive ? 'rgba(239, 68, 68, 0.12)' : 'var(--surface-2)',
-            border: `1px solid ${isCallActive ? 'var(--accent-danger)' : 'var(--hairline)'}`,
-            fontSize: '13.5px',
-            color: isCallActive ? 'var(--accent-danger)' : 'var(--ink-muted)',
             whiteSpace: 'nowrap'
           }}>
-            <Radio size={12} className={isCallActive ? "animate-pulse" : ""} />
-            <span>상태: <strong>{isCallActive ? "음성 스트리밍 수신 중" : "대기"}</strong></span>
-          </div>
+            자동확인 {confirmedSlots.confirmedCount}/5
+          </span>
 
-          {/* Dedicated Mic Test Button */}
-          <button
-            onClick={() => setIsMicTestOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '5px 12px',
-              borderRadius: '6px',
-              backgroundColor: 'var(--surface-2)',
-              border: '1px solid var(--hairline)',
-              color: 'var(--ink)',
-              fontSize: '13.5px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            <Volume2 size={14} style={{ color: 'var(--accent-primary)' }} />
-            <span className="nowrap">마이크 테스트</span>
-          </button>
+          {[
+            { key: 'customer', label: '고객사', value: selectedCustomer.name.replace(/\s*\(.*?\)/g, ''), ok: confirmedSlots.customer },
+            { key: 'phone', label: '연락처', value: selectedCustomer.phone, ok: confirmedSlots.phone },
+            { key: 'address', label: '현장위치', value: selectedCustomer.addressDetail.split('/')[0]?.trim() || selectedCustomer.address, ok: confirmedSlots.address },
+            { key: 'model', label: '모델', value: cleanModelCode, ok: confirmedSlots.model },
+            { key: 'symptom', label: '증상', value: activeKeywordEntity?.keyword || matchedDiagnosis?.category || '대기', ok: confirmedSlots.symptom },
+          ].map((slot) => (
+            <div
+              key={slot.key}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '3px 8px',
+                borderRadius: '4px',
+                backgroundColor: slot.ok ? '#f0fdf4' : 'var(--surface-2)',
+                border: `1px solid ${slot.ok ? '#86efac' : 'var(--hairline)'}`,
+                fontSize: '12px',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <span style={{
+                width: '14px',
+                height: '14px',
+                borderRadius: '50%',
+                backgroundColor: slot.ok ? '#10b981' : '#cbd5e1',
+                color: '#fff',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '9px',
+                fontWeight: 800,
+                flexShrink: 0
+              }}>
+                {slot.ok ? '✓' : '·'}
+              </span>
+              <span style={{ color: 'var(--ink-muted)', fontWeight: 600 }}>{slot.label}</span>
+              <strong style={{
+                color: slot.ok ? '#065f46' : 'var(--ink-subtle)',
+                fontWeight: 700,
+                maxWidth: '125px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                {slot.value}
+              </strong>
+            </div>
+          ))}
+        </div>
 
-          {/* Live Call Duration */}
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px', 
-            padding: '4px 10px', 
-            borderRadius: '6px', 
-            backgroundColor: isCallActive ? 'rgba(239, 68, 68, 0.15)' : callSeconds > 0 ? 'rgba(59, 130, 246, 0.12)' : 'var(--surface-2)', 
-            border: `1px solid ${isCallActive ? 'rgba(239, 68, 68, 0.4)' : callSeconds > 0 ? 'rgba(59, 130, 246, 0.3)' : 'var(--hairline)'}`,
-            color: isCallActive ? 'var(--accent-danger)' : callSeconds > 0 ? '#93c5fd' : 'var(--ink-muted)',
-            fontSize: '13.5px',
-            fontWeight: 600
+        {/* Right: Unified Audio / STT / Timer Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          {/* Call Timer */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            padding: '4px 9px',
+            borderRadius: '5px',
+            backgroundColor: isCallActive ? '#fef2f2' : 'var(--surface-2)',
+            border: `1px solid ${isCallActive ? '#fca5a5' : 'var(--hairline)'}`,
+            color: isCallActive ? '#dc2626' : 'var(--ink-muted)',
+            fontSize: '12.5px',
+            fontWeight: 700,
+            whiteSpace: 'nowrap'
           }}>
-            <PhoneCall size={14} className={isCallActive ? "animate-pulse" : ""} />
-            <span className="nowrap">{isCallActive ? "통화중" : callSeconds > 0 ? "통화종료" : "대기"}</span>
+            <PhoneCall size={12} className={isCallActive ? "animate-pulse" : ""} />
             <span className="font-mono">{formatTimer(callSeconds)}</span>
           </div>
 
-
-          {/* Always-On Live Visualizer Indicator */}
+          {/* Engine Selector */}
           <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '5px 12px',
-            borderRadius: '6px',
-            backgroundColor: 'var(--surface-2)',
-            border: '1px solid var(--hairline)',
-            fontSize: '13.5px',
-            color: 'var(--ink)'
+            display: 'inline-flex',
+            backgroundColor: '#e2e8f0',
+            padding: '2px',
+            borderRadius: '5px',
+            border: '1px solid #cbd5e1',
+            gap: '2px'
           }}>
-            <Mic size={14} style={{ color: 'var(--accent-success)' }} />
-            <span className="nowrap" style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--accent-success)' }}>
-              상시 수신 대기
-            </span>
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'flex-end',
-              gap: '2px',
-              height: '12px',
-              marginLeft: '4px'
-            }}>
-              <span style={{ width: '3px', height: `${Math.max(20, micAudioLevel)}%`, backgroundColor: 'var(--accent-success)', borderRadius: '1px' }} />
-              <span style={{ width: '3px', height: `${Math.max(40, micAudioLevel * 1.2)}%`, backgroundColor: 'var(--accent-success)', borderRadius: '1px' }} />
-              <span style={{ width: '3px', height: `${Math.max(10, micAudioLevel * 0.8)}%`, backgroundColor: 'var(--accent-success)', borderRadius: '1px' }} />
-            </span>
+            <button
+              onClick={() => {
+                if (recognitionRef.current) {
+                  try { recognitionRef.current.stop(); } catch (_) {}
+                }
+                const curSec = globalAudioRef.current ? globalAudioRef.current.currentTime : 0;
+                realtimeVadRef.current.cursorFrame = curSec > 2.0 ? Math.floor(curSec * 10) : 0;
+                realtimeVadRef.current.inSpeech = false;
+                realtimeVadRef.current.silenceFrames = 0;
+                setSttEngine('naver_clova');
+              }}
+              style={{
+                padding: '3px 8px',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                color: sttEngine === 'naver_clova' ? '#fff' : '#334155',
+                backgroundColor: sttEngine === 'naver_clova' ? '#059669' : 'transparent',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              클로바 STT
+            </button>
+            <button
+              onClick={() => {
+                setSttEngine('web_speech');
+                setInterimSttText('');
+                if (isAudioPlaying && recognitionRef.current) {
+                  try { recognitionRef.current.start(); } catch (_) {}
+                }
+              }}
+              style={{
+                padding: '3px 8px',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                color: sttEngine === 'web_speech' ? '#fff' : '#334155',
+                backgroundColor: sttEngine === 'web_speech' ? '#1d4ed8' : 'transparent',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              웹 음성 STT
+            </button>
           </div>
 
+          {/* STT Toggle */}
+          <button
+            onClick={toggleManualStt}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '4px 10px',
+              borderRadius: '5px',
+              border: 'none',
+              backgroundColor: isRecording ? '#dc2626' : '#059669',
+              color: '#fff',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {isRecording ? <MicOff size={12} /> : <Mic size={12} />}
+            <span>{isRecording ? 'STT 중지' : 'STT 시작'}</span>
+          </button>
+
+          {/* Open Audio File */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '4px 10px',
+              borderRadius: '5px',
+              border: '1px solid var(--hairline)',
+              backgroundColor: 'var(--surface-2)',
+              color: 'var(--ink)',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <Upload size={12} />
+            <span>음성파일 열기</span>
+          </button>
+
+          {/* Mic Check */}
+          <button
+            onClick={() => setIsMicTestOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '4px 8px',
+              borderRadius: '5px',
+              border: '1px solid var(--hairline)',
+              backgroundColor: 'var(--surface-2)',
+              color: 'var(--ink-muted)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <Volume2 size={12} />
+            <span>마이크</span>
+          </button>
         </div>
-      </header>
+      </div>
 
       {/* ========================================================= */}
-      {/* 2. THREE-PANE TRIAGE WORKSTATION LAYOUT (Intercom/Linear) */}
+      {/* 2. THREE-PANE LOW-COGNITIVE-LOAD WORKSPACE                */}
       {/* ========================================================= */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', padding: '8px', gap: '8px' }}>
         
         {/* ------------------------------------------------------- */}
-        {/* PANEL A: 고객 & 장비 & 이력 패널 (28% 폭)               */}
+        {/* PANEL A: 고객·장비·시각 문서 조립 발송 (25% 폭)          */}
         {/* ------------------------------------------------------- */}
-        <section style={{ 
-          width: '28%', 
+        <section style={{
+          width: '25%',
           minHeight: 0,
-          backgroundColor: 'var(--surface-1)', 
-          border: '1px solid var(--hairline)', 
-          borderRadius: '8px', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          overflow: 'hidden' 
+          backgroundColor: 'var(--surface-1)',
+          border: '1px solid var(--hairline)',
+          borderRadius: '8px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}>
-          {/* Panel Header & Customer Search */}
-          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
-            <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', display: 'block' }}>
-              고객사 실시간 식별 및 검색
+          {/* Customer Search */}
+          <div style={{ padding: '10px', borderBottom: '1px solid var(--hairline)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--ink-muted)', whiteSpace: 'nowrap' }}>
+              고객사·현장 검색
             </label>
             <div style={{ position: 'relative' }}>
-              <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--ink-subtle)' }} />
+              <Search size={13} style={{ position: 'absolute', left: '9px', top: '9px', color: 'var(--ink-subtle)' }} />
               <input
                 type="text"
-                placeholder="고객사명, 담당자, 연락처, 도로명/상세위치 검색... (↑/↓ 탐색)"
+                placeholder="고객사, 담당자, 연락처, 주소 검색"
                 value={searchQuery}
                 onFocus={() => {
                   setSearchDropdownOpen(true);
@@ -1879,6 +2185,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                     const targetCust = selectedSearchIndex >= 0 ? customerList[selectedSearchIndex] : customerList[0];
                     if (targetCust) {
                       selectCustomer(targetCust);
+                      setConfirmedSlotFlags({ customer: true, phone: true, address: true, model: true });
                       setSearchDropdownOpen(false);
                       setSelectedSearchIndex(-1);
                     }
@@ -1893,27 +2200,27 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                 }}
                 style={{
                   width: '100%',
-                  padding: '8px 8px 8px 32px',
+                  padding: '6px 8px 6px 28px',
                   backgroundColor: 'var(--surface-2)',
                   border: '1px solid var(--hairline)',
-                  borderRadius: '6px',
+                  borderRadius: '5px',
                   color: 'var(--ink)',
-                  fontSize: '14px',
+                  fontSize: '13px',
                   outline: 'none'
                 }}
               />
               {searchDropdownOpen && (
                 <div style={{
                   position: 'absolute',
-                  top: '40px',
+                  top: '36px',
                   left: 0,
                   right: 0,
-                  backgroundColor: 'var(--surface-2)',
+                  backgroundColor: 'var(--surface-1)',
                   border: '1px solid var(--hairline)',
                   borderRadius: '6px',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
                   zIndex: 50,
-                  maxHeight: '220px',
+                  maxHeight: '210px',
                   overflowY: 'auto'
                 }}>
                   {customerList.map((cust, idx) => (
@@ -1921,21 +2228,21 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                       key={cust.id}
                       onClick={() => {
                         selectCustomer(cust);
+                        setConfirmedSlotFlags({ customer: true, phone: true, address: true, model: true });
                         setSearchDropdownOpen(false);
                         setSelectedSearchIndex(-1);
                       }}
                       style={{
-                        padding: '8px 12px',
+                        padding: '7px 10px',
                         borderBottom: '1px solid var(--hairline)',
                         cursor: 'pointer',
-                        fontSize: '13.5px',
+                        fontSize: '12.5px',
                         backgroundColor: idx === selectedSearchIndex ? 'var(--surface-hover)' : 'transparent'
                       }}
                       onMouseEnter={() => setSelectedSearchIndex(idx)}
                     >
-                      <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{cust.name}</div>
-                      <div style={{ color: 'var(--ink-muted)', fontSize: '12.5px' }}>{cust.manager} · {cust.phone}</div>
-                      <div style={{ color: 'var(--ink-subtle)', fontSize: '12px', marginTop: 2 }}>{cust.address} ({cust.addressDetail})</div>
+                      <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{cust.name}</div>
+                      <div style={{ color: 'var(--ink-muted)', fontSize: '11.5px' }}>{cust.manager} · {cust.phone} · {cust.assetModel.split(' ')[0]}</div>
                     </div>
                   ))}
                 </div>
@@ -1943,416 +2250,341 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
             </div>
           </div>
 
-          {/* Panel Body: Scrollable Customer & Asset Specs */}
-          <div style={{ flex: 1, minHeight: 0, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            
-            {/* Customer Info Card */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', flexShrink: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--ink)' }}>{selectedCustomer.name}</span>
-                <span style={{ fontSize: '13.5px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--badge-bg)', color: 'var(--badge-text)', fontWeight: 600 }}>
+          {/* Customer + Equipment Consolidated Dossier */}
+          <div style={{ flex: 1, minHeight: 0, padding: '10px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ backgroundColor: 'var(--surface-2)', padding: '10px', borderRadius: '6px', border: '1px solid var(--hairline)', display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {selectedCustomer.name}
+                </span>
+                <span style={{ fontSize: '11.5px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--badge-bg)', color: 'var(--badge-text)', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
                   {selectedCustomer.salesType}
                 </span>
               </div>
-              <div style={{ fontSize: '13.5px', color: 'var(--ink-muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>담당자</span><strong style={{ color: 'var(--ink)' }}>{selectedCustomer.manager}</strong> ({selectedCustomer.phone})</div>
-                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>주소</span><span style={{ color: 'var(--ink)' }}>{selectedCustomer.address}</span></div>
-                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>상세위치</span><span style={{ color: '#fdba74', fontWeight: 600 }}>{selectedCustomer.addressDetail}</span></div>
+
+              <div style={{ fontSize: '12.5px', color: 'var(--ink-muted)', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>담당자</span>
+                  <strong style={{ color: 'var(--ink)' }}>{selectedCustomer.manager}</strong> ({selectedCustomer.phone})
+                </div>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>도로명</span>
+                  <span style={{ color: 'var(--ink)' }}>{selectedCustomer.address}</span>
+                </div>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>상세위치</span>
+                  <strong style={{ color: '#b45309' }}>{selectedCustomer.addressDetail}</strong>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: '6px', marginTop: '2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                  <span style={{ fontSize: '11px', color: 'var(--ink-subtle)', fontWeight: 600 }}>보유 장비 · 보증</span>
+                  <strong style={{ fontSize: '13px', color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {selectedCustomer.assetModel}
+                  </strong>
+                  <span style={{ fontSize: '11.5px', color: 'var(--accent-warning)', fontWeight: 700 }}>
+                    {selectedCustomer.warrantyRemaining} · {selectedCustomer.serialNumber}
+                  </span>
+                </div>
+                <select
+                  value={cleanModelCode}
+                  onChange={(e) => {
+                    setSelectedCustomerModel(e.target.value);
+                    setConfirmedSlotFlags(prev => ({ ...prev, model: true }));
+                  }}
+                  title="장비 모델 변경"
+                  style={{
+                    padding: '4px 6px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    borderRadius: '4px',
+                    border: '1px solid var(--hairline)',
+                    backgroundColor: 'var(--surface-1)',
+                    color: 'var(--ink)',
+                    cursor: 'pointer',
+                    flexShrink: 0
+                  }}
+                >
+                  {['J600T', 'J800', 'S7P', 'S7', 'S5', 'S12L', 'XD80', 'XD60', 'S800', 'M100', 'Q45'].map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            {/* Asset Info Card */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', flexShrink: 0 }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--ink-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '6px' }}>
-                보유 장비 및 보증 상태
+            {/* 1-Click Model-Matched Visual Document Assembly Bar */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--ink-muted)', whiteSpace: 'nowrap' }}>
+                  모델 맞춤 사진 문서 발송 ({cleanModelCode})
+                </label>
               </div>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)', marginBottom: '4px' }}>
-                {selectedCustomer.assetModel}
-              </div>
-              <div style={{ fontSize: '13.5px', display: 'flex', justifyContent: 'space-between', color: 'var(--ink-muted)' }}>
-                <span>시리얼: <span className="font-mono" style={{ color: 'var(--ink)' }}>{selectedCustomer.serialNumber}</span></span>
-                <span style={{ color: 'var(--accent-warning)', fontWeight: 600 }}>{selectedCustomer.warrantyRemaining}</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                <button
+                  onClick={() => setIsManualModalOpen(true)}
+                  style={{
+                    padding: '8px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--hairline)',
+                    backgroundColor: 'var(--surface-2)',
+                    color: 'var(--ink)',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <FileText size={13} style={{ color: '#2563eb', flexShrink: 0 }} />
+                  <span>카탈로그·매뉴얼</span>
+                </button>
+
+                <button
+                  onClick={() => setIsSelfGuideModalOpen(true)}
+                  style={{
+                    padding: '8px 8px',
+                    borderRadius: '6px',
+                    border: recommendedClosingAction === 'RESOLVED' ? '1.5px solid #10b981' : '1px solid var(--hairline)',
+                    backgroundColor: recommendedClosingAction === 'RESOLVED' ? '#ecfdf5' : 'var(--surface-2)',
+                    color: 'var(--ink)',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <CheckCircle2 size={13} style={{ color: '#059669', flexShrink: 0 }} />
+                  <span>자가조치 사진</span>
+                </button>
+
+                <button
+                  onClick={() => setIsPartsQuoteModalOpen(true)}
+                  style={{
+                    padding: '8px 8px',
+                    borderRadius: '6px',
+                    border: recommendedClosingAction === 'PARTS_QUOTE' ? '1.5px solid #f59e0b' : '1px solid var(--hairline)',
+                    backgroundColor: recommendedClosingAction === 'PARTS_QUOTE' ? '#fffbeb' : 'var(--surface-2)',
+                    color: 'var(--ink)',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <Package size={13} style={{ color: '#d97706', flexShrink: 0 }} />
+                  <span>소모품 견적서</span>
+                </button>
+
+                <button
+                  onClick={() => setIsDispatchDocModalOpen(true)}
+                  style={{
+                    padding: '8px 8px',
+                    borderRadius: '6px',
+                    border: recommendedClosingAction === 'DISPATCH' ? '1.5px solid #ef4444' : '1px solid var(--hairline)',
+                    backgroundColor: recommendedClosingAction === 'DISPATCH' ? '#fef2f2' : 'var(--surface-2)',
+                    color: 'var(--ink)',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <Wrench size={13} style={{ color: '#dc2626', flexShrink: 0 }} />
+                  <span>출장 문서 패키지</span>
+                </button>
               </div>
             </div>
 
-            {/* 30-Day History & Warning Timeline */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', flex: 1, minHeight: '120px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                <Clock size={13} style={{ color: 'var(--ink-muted)' }} />
-                <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--ink-muted)', textTransform: 'uppercase' }}>
-                  최근 30일 상담/정비 이력 타임라인
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {/* Compact History Timeline */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 1, minHeight: '90px' }}>
+              <label style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--ink-muted)', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                <Clock size={12} /> 최근 정비·상담 이력
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 {selectedCustomer.historyTimeline.map((item, idx) => (
-                  <div 
+                  <div
                     key={idx}
                     style={{
-                      padding: '8px',
-                      borderRadius: '4px',
-                      backgroundColor: item.isWarning ? 'rgba(245, 158, 11, 0.12)' : 'var(--surface-1)',
+                      padding: '6px 8px',
+                      borderRadius: '5px',
+                      backgroundColor: item.isWarning ? 'rgba(245, 158, 11, 0.12)' : 'var(--surface-2)',
                       border: item.isWarning ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid var(--hairline)',
-                      fontSize: '13.5px'
+                      fontSize: '12px'
                     }}
                   >
-                    <div style={{ fontSize: '13.5px', color: item.isWarning ? 'var(--accent-warning)' : 'var(--ink-muted)', fontWeight: 600 }}>
+                    <div style={{ color: item.isWarning ? 'var(--accent-warning)' : 'var(--ink-muted)', fontWeight: 700, fontSize: '11px' }}>
                       {item.date}
                     </div>
-                    <div style={{ color: item.isWarning ? 'var(--accent-warning)' : 'var(--ink)', fontWeight: item.isWarning ? 600 : 400, marginTop: '2px' }}>
+                    <div style={{ color: item.isWarning ? 'var(--accent-warning)' : 'var(--ink)', fontWeight: item.isWarning ? 700 : 500, marginTop: '1px' }}>
                       {item.title}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-
           </div>
         </section>
 
         {/* ------------------------------------------------------- */}
-        {/* PANEL B: 실시간 STT 음성 & AI 진단 패널 (38% 폭)       */}
+        {/* PANEL B: 실시간 대화 자막 & 자동 감지 증상 (37% 폭)     */}
         {/* ------------------------------------------------------- */}
-        <section style={{ 
-          width: '38%', 
+        <section style={{
+          width: '37%',
           minHeight: 0,
-          backgroundColor: 'var(--surface-1)', 
-          border: '1px solid var(--hairline)', 
-          borderRadius: '8px', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          overflow: 'hidden' 
+          backgroundColor: 'var(--surface-1)',
+          border: '1px solid var(--hairline)',
+          borderRadius: '8px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}>
-          {/* Panel Header & Live Activity */}
-          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', gap: '8px', flexWrap: 'nowrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
-                  전사 자막 및 개체 감지
-                </span>
-                
-                {/* STT 엔진 선택 세그먼트 버튼 */}
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  backgroundColor: '#e2e8f0',
-                  padding: '3px',
-                  borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
-                  gap: '3px',
-                  flexShrink: 0
-                }}>
-                  <button
-                    onClick={() => {
-                      if (recognitionRef.current) {
-                        try { recognitionRef.current.stop(); } catch (_) {}
-                      }
-                      const curSec = globalAudioRef.current ? globalAudioRef.current.currentTime : 0;
-                      realtimeVadRef.current.cursorFrame = curSec > 2.0 ? Math.floor(curSec * 10) : 0;
-                      realtimeVadRef.current.inSpeech = false;
-                      realtimeVadRef.current.silenceFrames = 0;
-                      setSttEngine('naver_clova');
-                      showToast('STT 엔진: NAVER CLOVA Speech 전환');
-                      setTimeout(() => clearToast(), 2500);
-                    }}
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: '12.5px',
-                      fontWeight: 700,
-                      color: sttEngine === 'naver_clova' ? '#ffffff' : '#334155',
-                      backgroundColor: sttEngine === 'naver_clova' ? '#059669' : 'transparent',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      boxShadow: sttEngine === 'naver_clova' ? '0 1px 3px rgba(0,0,0,0.18)' : 'none',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    네이버 클로바 STT
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setSttEngine('web_speech');
-                      setInterimSttText('');
-                      if (isAudioPlaying && recognitionRef.current) {
-                        try { recognitionRef.current.start(); } catch (_) {}
-                      }
-                      showToast('STT 엔진: 브라우저 Web Speech 전환');
-                      setTimeout(() => clearToast(), 2500);
-                    }}
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: '12.5px',
-                      fontWeight: 700,
-                      color: sttEngine === 'web_speech' ? '#ffffff' : '#334155',
-                      backgroundColor: sttEngine === 'web_speech' ? '#1d4ed8' : 'transparent',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      boxShadow: sttEngine === 'web_speech' ? '0 1px 3px rgba(0,0,0,0.18)' : 'none',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    브라우저 내장 STT
-                  </button>
-                </div>
-              </div>
-              
-              {/* Dynamic Mic Activity Indicator & Manual STT Toggle Button */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                {isRecording && (
-                  <span style={{ fontSize: '12.5px', color: '#047857', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                    <Volume2 size={13} className="animate-pulse" /> 듣는중
-                  </span>
-                )}
-                <button
-                  onClick={toggleManualStt}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    padding: '4px 11px',
-                    borderRadius: '6px',
-                    border: isRecording ? '1px solid #b91c1c' : '1px solid #047857',
-                    backgroundColor: isRecording ? '#dc2626' : '#059669',
-                    color: '#ffffff',
-                    fontSize: '12.5px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {isRecording ? <MicOff size={13} /> : <Mic size={13} />}
-                  <span>{isRecording ? 'STT 끄기' : 'STT 켜기'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* 5-Entity Color Scheme Legend Bar */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              flexWrap: 'wrap',
-              gap: '6px', 
-              fontSize: '12.5px', 
-              backgroundColor: '#f1f5f9', 
-              padding: '6px 10px', 
-              borderRadius: '6px', 
-              border: '1px solid #cbd5e1',
-              marginBottom: '8px'
-            }}>
-              <span style={{ color: '#334155', fontWeight: 700 }}>식별 범례:</span>
-              <span style={{ color: '#1e3a8a', backgroundColor: '#bfdbfe', border: '1px solid #60a5fa', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
-                고객사/담당자 (청색)
-              </span>
-              <span style={{ color: '#78350f', backgroundColor: '#fde68a', border: '1px solid #f59e0b', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
-                현장/위치 (황색)
-              </span>
-              <span style={{ color: '#581c87', backgroundColor: '#e9d5ff', border: '1px solid #c084fc', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
-                장비모델 (보라)
-              </span>
-              <span style={{ color: '#7f1d1d', backgroundColor: '#fecaca', border: '1px solid #f87171', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
-                고장증상 (적색)
-              </span>
-              <span style={{ color: '#064e3b', backgroundColor: '#a7f3d0', border: '1px solid #34d399', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
-                조치사항 (녹색)
-              </span>
-            </div>
-
-            <div style={{ 
-              backgroundColor: '#eff6ff', 
-              border: '1px solid #93c5fd', 
-              borderRadius: '6px', 
-              padding: '6px 10px', 
-              fontSize: '13px', 
-              color: '#1e40af',
-              fontWeight: 600,
-              lineHeight: 1.4 
-            }}>
-              [ARS 고지 필수] "본 통화는 품질 향상 및 AI 상담 지원을 위해 녹음/분석됩니다."
-            </div>
-          </div>
-
-          {/* STT Header Bar & PLAY/STOP BUTTONS DIRECTLY ABOVE TEXT BOX */}
-          <div style={{ 
-            padding: '8px 12px', 
-            borderBottom: '1px solid var(--hairline)', 
-            backgroundColor: activeAudioFile ? '#e0f2fe' : isRecording ? '#ecfdf5' : '#f8fafc',
-            display: 'flex', 
-            justifyContent: 'space-between', 
+          {/* Slim Transcript Header + Subtle Entity Legend + Audio Player */}
+          <div style={{
+            padding: '8px 12px',
+            borderBottom: '1px solid var(--hairline)',
+            backgroundColor: activeAudioFile ? '#e0f2fe' : isRecording ? '#ecfdf5' : 'var(--surface-1)',
+            display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
-            flexShrink: 0,
-            transition: 'background-color 0.2s ease'
+            gap: '8px',
+            flexShrink: 0
           }}>
-            {/* Left: Transcript title or Active Audio Info */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
+                실시간 대화 자막
+              </span>
               {activeAudioFile ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                  <FileAudio size={16} style={{ color: '#0284c7', flexShrink: 0 }} />
-                  <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                  <FileAudio size={13} style={{ color: '#0284c7', flexShrink: 0 }} />
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>
                     {activeAudioFile.name}
                   </span>
-                  <span className="font-mono" style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>
-                    ({formatAudioTime(audioCurrentTime)} / {formatAudioTime(audioDuration)})
+                  <span className="font-mono" style={{ fontSize: '11.5px', color: '#475569', fontWeight: 600 }}>
+                    {formatAudioTime(audioCurrentTime)}/{formatAudioTime(audioDuration)}
                   </span>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
-                  <span style={{ fontSize: '13.5px', color: isRecording ? '#065f46' : '#475569', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {isRecording
-                      ? '듣는중'
-                      : '음성 파일(.m4a) 열기 또는 [STT 켜기]로 실시간 음성 테스트를 시작하세요'}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Right: PLAY / PAUSE / STOP / STT ON-OFF BUTTONS (DIRECTLY ABOVE TEXT BOX) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-              {activeAudioFile ? (
-                <>
                   <button
                     onClick={toggleAudioPlayback}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: '4px 10px',
-                      backgroundColor: isAudioPlaying ? 'var(--accent-danger)' : 'var(--accent-primary)',
-                      color: '#fff',
+                      padding: '2px 7px',
+                      borderRadius: '4px',
                       border: 'none',
-                      borderRadius: '4px',
-                      fontSize: '13.5px',
+                      backgroundColor: isAudioPlaying ? '#dc2626' : '#2563eb',
+                      color: '#fff',
+                      fontSize: '11px',
                       fontWeight: 700,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {isAudioPlaying ? <Pause size={12} /> : <Play size={12} />}
-                    <span>{isAudioPlaying ? '일시정지' : '스피커 재생'}</span>
-                  </button>
-
-                  <button
-                    onClick={stopAudioPlayback}
-                    title="음성 정지"
-                    style={{
-                      padding: '4px 8px',
-                      backgroundColor: 'var(--surface-3)',
-                      color: 'var(--ink)',
-                      border: '1px solid var(--hairline)',
-                      borderRadius: '4px',
-                      fontSize: '13.5px',
                       cursor: 'pointer'
                     }}
                   >
-                    <Square size={11} />
+                    {isAudioPlaying ? '일시정지' : '재생'}
                   </button>
-
                   <button
                     onClick={handleClearAudioFile}
-                    title="음성 파일 제거"
-                    style={{
-                      padding: '4px 6px',
-                      background: 'none',
-                      color: 'var(--ink-muted)',
-                      border: 'none',
-                      cursor: 'pointer'
-                    }}
+                    style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '2px' }}
                   >
-                    <X size={14} />
-                  </button>
-
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    title="다른 음성(.m4a) 파일 열기"
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '4px', 
-                      padding: '4px 8px', 
-                      backgroundColor: 'var(--surface-2)', 
-                      border: '1px solid var(--hairline)', 
-                      borderRadius: '4px', 
-                      color: 'var(--ink)', 
-                      fontSize: '13.5px', 
-                      cursor: 'pointer', 
-                      fontWeight: 600,
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <Upload size={12} />
-                    <span>.m4a 변경</span>
-                  </button>
-                </>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-                  <button
-                    onClick={toggleManualStt}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      padding: '5px 12px',
-                      backgroundColor: isRecording ? '#dc2626' : '#059669',
-                      border: 'none',
-                      borderRadius: '4px',
-                      color: '#fff',
-                      fontSize: '13.5px',
-                      cursor: 'pointer',
-                      fontWeight: 700,
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {isRecording ? <MicOff size={13} /> : <Mic size={13} />}
-                    <span>{isRecording ? 'STT 끄기' : 'STT 켜기'}</span>
-                  </button>
-
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    title="음성(.m4a) 파일 열기"
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '4px', 
-                      padding: '5px 12px', 
-                      backgroundColor: 'var(--accent-primary)', 
-                      border: 'none', 
-                      borderRadius: '4px', 
-                      color: '#fff', 
-                      fontSize: '13.5px', 
-                      cursor: 'pointer', 
-                      fontWeight: 700,
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <Upload size={13} />
-                    <span>.m4a 열기</span>
+                    <X size={13} />
                   </button>
                 </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', whiteSpace: 'nowrap' }}>
+                  <span style={{ padding: '1px 5px', borderRadius: '3px', backgroundColor: '#bfdbfe', color: '#1e3a8a', fontWeight: 700 }}>고객</span>
+                  <span style={{ padding: '1px 5px', borderRadius: '3px', backgroundColor: '#fde68a', color: '#78350f', fontWeight: 700 }}>위치</span>
+                  <span style={{ padding: '1px 5px', borderRadius: '3px', backgroundColor: '#e9d5ff', color: '#581c87', fontWeight: 700 }}>모델</span>
+                  <span style={{ padding: '1px 5px', borderRadius: '3px', backgroundColor: '#fecaca', color: '#7f1d1d', fontWeight: 700 }}>증상</span>
+                  <span style={{ padding: '1px 5px', borderRadius: '3px', backgroundColor: '#a7f3d0', color: '#064e3b', fontWeight: 700 }}>조치</span>
+                </div>
+              )}
+            </div>
+
+            {/* Scenario Quick Simulation / Reset Buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+              <button
+                onClick={() => runQuickScenarioSimulation('dispatch')}
+                style={{
+                  padding: '3px 7px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  borderRadius: '4px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#f8fafc',
+                  color: '#334155',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                시연: 급수불량
+              </button>
+              <button
+                onClick={() => runQuickScenarioSimulation('quote')}
+                style={{
+                  padding: '3px 7px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  borderRadius: '4px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#f8fafc',
+                  color: '#334155',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                시연: 고무마모
+              </button>
+              <button
+                onClick={() => runQuickScenarioSimulation('resolve')}
+                style={{
+                  padding: '3px 7px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  borderRadius: '4px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#f8fafc',
+                  color: '#334155',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                시연: 자가해결
+              </button>
+              {activeParagraphs.length > 0 && (
+                <button
+                  onClick={() => {
+                    resetSessionForNewAudio();
+                    setRecommendedClosingAction('NONE');
+                    setConfirmedSlotFlags({ customer: false, phone: false, address: false, model: false });
+                  }}
+                  title="대화 초기화"
+                  style={{
+                    padding: '3px 6px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--hairline)',
+                    backgroundColor: 'var(--surface-2)',
+                    color: 'var(--ink-muted)',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <RotateCcw size={11} />
+                </button>
               )}
             </div>
           </div>
 
-          {/* STT Live Transcript Box: ACTS AS THE DROPZONE (FIXED HEIGHT RATIO WITH SCROLLBAR) */}
-          <div 
-            style={{ 
-              flex: '1 1 50%', 
-              minHeight: '160px', 
-              maxHeight: '50%',
-              padding: '10px', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              borderBottom: '1px solid var(--hairline)',
-              overflow: 'hidden',
-              position: 'relative'
-            }}
-          >
-            <div 
+          {/* Live Transcript Box (70% height) */}
+          <div style={{ flex: 1, minHeight: 0, padding: '8px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+            <div
               ref={transcriptBoxRef}
               onDragEnter={() => setIsDragOverDropzone(true)}
               onDragLeave={() => setIsDragOverDropzone(false)}
@@ -2361,64 +2593,61 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                 const isUp = target.scrollHeight - target.scrollTop - target.clientHeight > 80;
                 setIsUserScrolledUp(isUp);
               }}
-              style={{ 
-                flex: 1, 
+              style={{
+                flex: 1,
                 minHeight: 0,
-                backgroundColor: isDragOverDropzone ? 'rgba(37, 99, 235, 0.18)' : 'var(--surface-2)', 
-                border: isDragOverDropzone ? '2px dashed var(--accent-primary)' : '1px solid var(--hairline)', 
-                borderRadius: '6px', 
-                padding: '12px', 
+                backgroundColor: isDragOverDropzone ? 'rgba(37, 99, 235, 0.14)' : 'var(--surface-2)',
+                border: isDragOverDropzone ? '2px dashed var(--accent-primary)' : '1px solid var(--hairline)',
+                borderRadius: '6px',
+                padding: '10px 12px',
                 overflowY: 'auto',
                 overflowX: 'hidden',
                 wordBreak: 'break-word',
-                fontSize: '14px',
-                lineHeight: 1.6,
+                fontSize: '13.5px',
+                lineHeight: 1.65,
                 color: 'var(--ink)',
-                position: 'relative',
-                transition: 'all 0.15s ease'
+                position: 'relative'
               }}
             >
-              {/* Dragging Overlay Guide */}
               {isDragOverDropzone && (
                 <div style={{
                   position: 'absolute',
                   top: 0, left: 0, right: 0, bottom: 0,
-                  backgroundColor: 'rgba(37, 99, 235, 0.25)',
-                  backdropFilter: 'blur(2px)',
+                  backgroundColor: 'rgba(37, 99, 235, 0.22)',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#fff',
-                  fontWeight: 700,
+                  color: '#1e3a8a',
+                  fontWeight: 800,
                   fontSize: '14px',
                   zIndex: 20,
                   borderRadius: '6px'
                 }}>
-                  <Upload size={32} style={{ marginBottom: '8px', color: '#93c5fd' }} />
-                  <span>음성(.m4a) 파일을 놓으면 실시간 재생 분석됩니다.</span>
+                  <Upload size={28} style={{ marginBottom: '6px' }} />
+                  <span>음성(.m4a) 또는 대화 텍스트(.txt) 드롭</span>
                 </div>
               )}
 
               {activeParagraphs.length > 0 ? (
-                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '14px' }}>
+                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.65, fontSize: '13.5px' }}>
                   {activeParagraphs.map((line, pIdx) => {
                     const match = line.match(/^(\[\d{1,2}:\d{2}(?::\d{2})?\])\s*(.*)$/);
                     const timestampBadge = match ? match[1] : null;
                     const contentText = match ? match[2] : line;
 
                     return (
-                      <div key={pIdx} style={{ display: 'flex', alignItems: 'baseline', gap: '8px', minHeight: '1.5em', marginBottom: '2px' }}>
+                      <div key={pIdx} style={{ display: 'flex', alignItems: 'baseline', gap: '7px', minHeight: '1.5em', marginBottom: '4px' }}>
                         {timestampBadge && (
-                          <span style={{ 
-                            fontFamily: 'monospace', 
-                            fontSize: '13.5px', 
-                            fontWeight: 600, 
-                            color: 'var(--ink-muted)', 
-                            backgroundColor: 'var(--surface-3)', 
-                            border: '1px solid var(--hairline)', 
-                            borderRadius: '3px', 
-                            padding: '0px 5px', 
+                          <span style={{
+                            fontFamily: 'monospace',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            color: 'var(--ink-muted)',
+                            backgroundColor: 'var(--surface-3)',
+                            border: '1px solid var(--hairline)',
+                            borderRadius: '3px',
+                            padding: '0px 4px',
                             flexShrink: 0,
                             whiteSpace: 'nowrap',
                             userSelect: 'none'
@@ -2435,6 +2664,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                               onSiteClick: handleCustomerSelect,
                               onModelClick: (modelId) => {
                                 setSelectedCustomerModel(modelId);
+                                setConfirmedSlotFlags(prev => ({ ...prev, model: true }));
                                 showToast(`[장비모델 클릭: ${modelId}] 선택 고객 장비 매핑 완료`);
                                 setTimeout(() => clearToast(), 2500);
                               },
@@ -2449,52 +2679,63 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                     );
                   })}
 
-
-                  {/* Real-time Interim Streaming Words on current line */}
                   {(interimSttText || isRecording) && (
-                    <div style={{ minHeight: '1.4em', marginTop: '2px' }}>
-                      <span style={{ 
-                        color: '#1e40af', 
-                        backgroundColor: '#dbeafe', 
+                    <div style={{ minHeight: '1.4em', marginTop: '4px' }}>
+                      <span style={{
+                        color: '#1e40af',
+                        backgroundColor: '#dbeafe',
                         border: '1px solid #93c5fd',
-                        padding: '2px 8px', 
-                        borderRadius: '4px', 
+                        padding: '2px 8px',
+                        borderRadius: '4px',
                         fontWeight: 700,
-                        fontSize: '13.5px',
-                        letterSpacing: '-0.2px'
+                        fontSize: '13px'
                       }}>
                         {interimSttText || '듣는중'}
                       </span>
-                      {isRecording && (
-                        <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '14px', backgroundColor: 'var(--accent-primary)', marginLeft: '4px', verticalAlign: 'middle' }} />
-                      )}
                     </div>
                   )}
                 </div>
               ) : (interimSttText || isRecording) ? (
-                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '14px' }}>
-                  <span style={{ 
-                    color: '#1e40af', 
-                    backgroundColor: '#dbeafe', 
+                <div>
+                  <span style={{
+                    color: '#1e40af',
+                    backgroundColor: '#dbeafe',
                     border: '1px solid #93c5fd',
-                    padding: '2px 8px', 
-                    borderRadius: '4px', 
+                    padding: '2px 8px',
+                    borderRadius: '4px',
                     fontWeight: 700,
-                    fontSize: '13.5px',
-                    letterSpacing: '-0.2px'
+                    fontSize: '13px'
                   }}>
                     {interimSttText || '듣는중'}
                   </span>
-                  {isRecording && (
-                    <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '14px', backgroundColor: 'var(--accent-primary)', marginLeft: '4px', verticalAlign: 'middle' }} />
-                  )}
                 </div>
               ) : (
-                <div style={{ color: 'var(--ink-subtle)', padding: '24px 8px', textAlign: 'center', fontSize: '13.5px' }}>
-                  음성 파일(.m4a)을 선택하거나 음성 인식을 시작하면 실시간 전사 자막이 표시됩니다.
+                <div style={{ color: 'var(--ink-subtle)', padding: '32px 12px', textAlign: 'center', fontSize: '13px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                  <div>통화 음성(.m4a) 드롭, [STT 시작], 또는 상단 [시연] 버튼을 클릭하세요.</div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <button
+                      onClick={() => runQuickScenarioSimulation('dispatch')}
+                      style={{ padding: '5px 10px', borderRadius: '5px', border: '1px solid #93c5fd', backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      급수불량 시나리오 실행
+                    </button>
+                    <button
+                      onClick={() => runQuickScenarioSimulation('quote')}
+                      style={{ padding: '5px 10px', borderRadius: '5px', border: '1px solid #fcd34d', backgroundColor: '#fffbeb', color: '#b45309', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      고무마모 견적 시나리오 실행
+                    </button>
+                    <button
+                      onClick={() => runQuickScenarioSimulation('resolve')}
+                      style={{ padding: '5px 10px', borderRadius: '5px', border: '1px solid #6ee7b7', backgroundColor: '#ecfdf5', color: '#047857', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      전원이상 자가해결 시나리오 실행
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
+
             {isUserScrolledUp && (
               <button
                 onClick={() => {
@@ -2510,367 +2751,482 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                   backgroundColor: 'var(--accent-primary)',
                   color: '#fff',
                   border: 'none',
-                  borderRadius: '16px',
-                  padding: '6px 12px',
-                  fontSize: '13.5px',
+                  borderRadius: '14px',
+                  padding: '4px 10px',
+                  fontSize: '12px',
                   fontWeight: 700,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                   cursor: 'pointer',
-                  zIndex: 10,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
+                  zIndex: 10
                 }}
               >
-                <span>최신 발화 이동</span>
-                <span>↓</span>
+                최신 발화 ↓
               </button>
             )}
           </div>
 
-          {/* Detected Keywords & Diagnosis Panel (FIXED HEIGHT RATIO WITH SCROLLBAR) */}
-          <div style={{ flex: '1 1 50%', minHeight: '160px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)', display: 'block', fontWeight: 600 }}>
-                    이번 통화 실시간 감지 증상 ({detectedKeywordEntities.length}건)
-                  </label>
-                  {justTriggeredKeyword && (
-                    <span style={{ fontSize: '13.5px', color: 'var(--accent-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Zap size={12} /> [{justTriggeredKeyword}] 포착!
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => setShowAllSymptoms(!showAllSymptoms)}
-                  style={{
-                    fontSize: '13.5px',
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    backgroundColor: showAllSymptoms ? 'var(--accent-primary)' : 'var(--surface-2)',
-                    border: '1px solid var(--hairline)',
-                    color: showAllSymptoms ? '#fff' : 'var(--ink-muted)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {showAllSymptoms ? '전체 목록 닫기' : '+ 전체 6대 증상 목록'}
-                </button>
-              </div>
-
-              {/* Dynamic Detected Symptoms from THIS Call */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', minHeight: '32px', alignItems: 'center' }}>
-                {detectedKeywordEntities.length > 0 ? (
-                  detectedKeywordEntities.map((entity) => {
-                    const isSelected = activeKeywordEntity?.id === entity.id;
-                    return (
-                      <button
-                        key={entity.id}
-                        onClick={() => handleKeywordSelect(entity)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '5px 12px',
-                          borderRadius: '6px',
-                          backgroundColor: isSelected ? 'var(--accent-primary)' : 'rgba(37, 99, 235, 0.12)',
-                          border: `1px solid ${isSelected ? 'var(--accent-primary)' : 'rgba(37, 99, 235, 0.35)'}`,
-                          color: isSelected ? '#fff' : '#93c5fd',
-                          fontSize: '13.5px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          boxShadow: isSelected ? '0 1px 3px rgba(0, 0, 0, 0.2)' : 'none',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        <span>#{entity.keyword}</span>
-                        <span style={{ fontSize: '13.5px', opacity: 0.85, fontWeight: 500 }}>({entity.category})</span>
-                      </button>
-                    );
-                  })
-                ) : (
-                  <div style={{ fontSize: '13.5px', color: 'var(--ink-subtle)', padding: '4px 0' }}>
-                    포착된 증상 키워드가 없습니다.
-                  </div>
+          {/* Compact Detected Symptom & Part Strip (Bottom of Panel B) */}
+          <div style={{ padding: '10px', borderTop: '1px solid var(--hairline)', backgroundColor: 'var(--surface-1)', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink-muted)', whiteSpace: 'nowrap' }}>
+                  감지 증상 ({detectedKeywordEntities.length})
+                </span>
+                {justTriggeredKeyword && (
+                  <span style={{ fontSize: '11.5px', color: 'var(--accent-success)', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                    <Zap size={11} /> {justTriggeredKeyword}
+                  </span>
                 )}
               </div>
+              <button
+                onClick={() => setShowAllSymptoms(!showAllSymptoms)}
+                style={{
+                  fontSize: '11.5px',
+                  padding: '2px 7px',
+                  borderRadius: '4px',
+                  backgroundColor: showAllSymptoms ? 'var(--accent-primary)' : 'var(--surface-2)',
+                  border: '1px solid var(--hairline)',
+                  color: showAllSymptoms ? '#fff' : 'var(--ink-muted)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {showAllSymptoms ? '증상목록 닫기' : '+ 수동 증상 선택'}
+              </button>
+            </div>
 
-              {/* Collapsible Full Symptoms Catalog (Optional Manual Lookup) */}
-              {showAllSymptoms && (
-                <div style={{ marginTop: '8px', padding: '8px', backgroundColor: 'var(--surface-3)', borderRadius: '6px', border: '1px solid var(--hairline)' }}>
-                  <div style={{ fontSize: '13.5px', color: 'var(--ink-muted)', marginBottom: '4px', fontWeight: 600 }}>
-                    수동 증상 선택 카탈로그 (전체 6대 분류):
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                    {DOMAIN_KEYWORD_REGISTRY.map((entity) => {
-                      const isSelected = activeKeywordEntity?.id === entity.id;
-                      return (
-                        <button
-                          key={entity.id}
-                          onClick={() => {
-                            addDetectedKeywordEntity(entity);
-                            handleKeywordSelect(entity);
-                          }}
-                          style={{
-                            padding: '3px 8px',
-                            borderRadius: '4px',
-                            backgroundColor: isSelected ? 'var(--accent-primary)' : 'var(--badge-bg)',
-                            border: `1px solid ${isSelected ? 'var(--accent-primary)' : 'var(--hairline)'}`,
-                            color: isSelected ? '#fff' : 'var(--badge-text)',
-                            fontSize: '13.5px',
-                            fontWeight: 500,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          #{entity.keyword}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+            {/* Detected Symptom Chips */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', minHeight: '26px', alignItems: 'center' }}>
+              {detectedKeywordEntities.length > 0 ? (
+                detectedKeywordEntities.map((entity) => {
+                  const isSelected = activeKeywordEntity?.id === entity.id;
+                  return (
+                    <button
+                      key={entity.id}
+                      onClick={() => handleKeywordSelect(entity)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '5px',
+                        backgroundColor: isSelected ? 'var(--accent-primary)' : '#eff6ff',
+                        border: `1px solid ${isSelected ? 'var(--accent-primary)' : '#93c5fd'}`,
+                        color: isSelected ? '#fff' : '#1d4ed8',
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      #{entity.keyword}
+                    </button>
+                  );
+                })
+              ) : (
+                <span style={{ fontSize: '12px', color: 'var(--ink-subtle)' }}>대기 중 (발화 시 자동 포착)</span>
               )}
             </div>
 
-            {/* Diagnosis Result Card */}
-            {matchedDiagnosis ? (
-              <div style={{ 
-                backgroundColor: 'var(--surface-2)', 
-                padding: '12px', 
-                borderRadius: '6px', 
-                border: justTriggeredKeyword ? '1px solid var(--accent-primary)' : '1px solid var(--hairline)',
-                boxShadow: justTriggeredKeyword ? '0 2px 8px rgba(37, 99, 235, 0.25)' : 'none',
-                transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-                flexShrink: 0
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--accent-primary)' }}>{matchedDiagnosis.category}</span>
-                  <span style={{ fontSize: '13.5px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-success)', fontWeight: 600 }}>
-                    신뢰도 {matchedDiagnosis.confidence}%
-                  </span>
-                </div>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>
-                  {matchedDiagnosis.partName}
-                </div>
-                <div style={{ fontSize: '13.5px', color: 'var(--ink-muted)', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>부품코드: <strong className="font-mono" style={{ color: 'var(--ink)' }}>{matchedDiagnosis.partCode}</strong></span>
-                  <span>본사재고: <strong style={{ color: matchedDiagnosis.stock > 0 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>{matchedDiagnosis.stock}개 보유</strong></span>
-                </div>
-              </div>
-            ) : (
-              <div style={{ backgroundColor: 'var(--surface-2)', padding: '16px', borderRadius: '6px', border: '1px dashed var(--hairline)', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '13.5px', flexShrink: 0 }}>
-                상담 대화 중 증상 키워드가 감지되면 해당 부품 및 가이드가 자동 표출됩니다.
+            {showAllSymptoms && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '6px', backgroundColor: 'var(--surface-2)', borderRadius: '5px', border: '1px solid var(--hairline)' }}>
+                {DOMAIN_KEYWORD_REGISTRY.map((entity) => {
+                  const isSelected = activeKeywordEntity?.id === entity.id;
+                  return (
+                    <button
+                      key={entity.id}
+                      onClick={() => {
+                        addDetectedKeywordEntity(entity);
+                        handleKeywordSelect(entity);
+                      }}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: isSelected ? 'var(--accent-primary)' : 'var(--surface-1)',
+                        border: `1px solid ${isSelected ? 'var(--accent-primary)' : 'var(--hairline)'}`,
+                        color: isSelected ? '#fff' : 'var(--ink)',
+                        fontSize: '11.5px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      #{entity.keyword}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
-            {/* Manual Override Input */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
-              <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>
-                상담사 수동 진단 교정 (AI 추천 불일치 시 직접 입력)
-              </label>
-              <div style={{ display: 'flex', gap: '6px' }}>
+            {/* Matched Part Compact Bar + Manual Input */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {matchedDiagnosis ? (
+                <div style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  borderRadius: '5px',
+                  backgroundColor: 'var(--surface-2)',
+                  border: '1px solid var(--hairline)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '6px',
+                  fontSize: '12px',
+                  minWidth: 0
+                }}>
+                  <strong style={{ color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {matchedDiagnosis.partName}
+                  </strong>
+                  <span style={{ color: 'var(--ink-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    <code style={{ color: 'var(--accent-primary)', fontWeight: 700 }}>{matchedDiagnosis.partCode}</code> · 재고 {matchedDiagnosis.stock}개
+                  </span>
+                </div>
+              ) : null}
+
+              <div style={{ display: 'flex', gap: '4px', flex: matchedDiagnosis ? 0.85 : 1 }}>
                 <input
                   type="text"
-                  placeholder="오수탱크 하단 드레인 호스 파손 등..."
+                  placeholder="수동 증상/부품 입력"
                   value={manualOverrideKeyword}
                   onChange={(e) => setManualOverrideKeyword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && manualOverrideKeyword.trim()) {
+                      const kw = manualOverrideKeyword.trim();
+                      const localMatches = findMatchingSymptomEntities(kw);
+                      if (localMatches.length > 0) {
+                        addDetectedKeywordEntity(localMatches[0]);
+                        handleKeywordSelect(localMatches[0]);
+                      } else {
+                        setDiagnosisResult(
+                          [kw],
+                          {
+                            category: kw,
+                            partCode: 'MANUAL_PART',
+                            partName: kw,
+                            stock: 10,
+                            confidence: 100,
+                            source: 'manual',
+                            selfActionGuide: `${kw} 관련 전원 차단 및 1차 외관 상태를 확인해 주십시오.`
+                          },
+                          ['1단계: 전원 차단 및 외관 상태 확인', '2단계: 체결 부위 및 소모품 마모 점검', '3단계: 재가동 테스트']
+                        );
+                      }
+                      setManualOverrideKeyword('');
+                    }
+                  }}
                   style={{
                     flex: 1,
-                    padding: '6px 10px',
+                    padding: '5px 8px',
                     backgroundColor: 'var(--surface-2)',
                     border: '1px solid var(--hairline)',
                     borderRadius: '4px',
                     color: 'var(--ink)',
-                    fontSize: '13.5px'
+                    fontSize: '12px',
+                    minWidth: '90px'
                   }}
                 />
-                <button 
-                  onClick={async () => {
-                    const kw = manualOverrideKeyword.trim();
-                    if (!kw) return;
-                    try {
-                      const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
-                      const res = await fetch(`${apiBase}/counsel/classify`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ text: kw })
-                      });
-                      if (res.ok) {
-                        const data = await res.json();
-                        const scriptList = Array.isArray(data.action_script) && data.action_script.length > 0
-                          ? data.action_script
-                          : ["1단계: 전원 차단 및 육안 점검", "2단계: 부품 체결 및 세척 확인", "3단계: 재가동 테스트"];
-                        
-                        setDiagnosisResult(
-                          [kw],
-                          {
-                            category: "수동 교정 진단",
-                            partCode: data.part_code || "MANUAL_PART",
-                            partName: data.keyword || kw,
-                            stock: 12,
-                            confidence: data.confidence || 1.0,
-                            source: data.source || "manual_override",
-                            selfActionGuide: scriptList[0] || "1차 셀프조치 가이드를 확인하십시오."
-                          },
-                          scriptList
-                        );
-                        showToast(`키워드 [${kw}] 진단·부품·SOP 교정 적용 완료`);
-                      } else {
-                        showToast(`수동 교정 키워드 [${kw}] 적용 완료`);
-                      }
-                    } catch (err) {
-                      console.error("교정 API 호출 실패:", err);
-                      showToast(`수동 교정 키워드 [${kw}]가 적용되었습니다.`);
-                    }
-                    setTimeout(() => clearToast(), 3500);
-                  }}
-                  style={{
-                    padding: '6px 12px',
-                    backgroundColor: 'var(--surface-3)',
-                    border: '1px solid var(--hairline)',
-                    borderRadius: '4px',
-                    color: 'var(--ink)',
-                    fontSize: '13.5px',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  교정 적용
-                </button>
               </div>
             </div>
           </div>
         </section>
 
         {/* ------------------------------------------------------- */}
-        {/* PANEL C: 표준 조치 체크리스트 & 전환 액션 (34% 폭)       */}
+        {/* PANEL C: 다음 멘트 안내 & 점검 체크리스트 & 종결 (38% 폭) */}
         {/* ------------------------------------------------------- */}
-        <section style={{ 
-          width: '34%', 
+        <section style={{
+          width: '38%',
           minHeight: 0,
-          backgroundColor: 'var(--surface-1)', 
-          border: '1px solid var(--hairline)', 
-          borderRadius: '8px', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          overflow: 'hidden' 
+          backgroundColor: 'var(--surface-1)',
+          border: '1px solid var(--hairline)',
+          borderRadius: '8px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}>
-          {/* Panel Header & Progress */}
-          <div style={{ padding: '12px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
-              표준 조치 체크리스트 (SOP)
-            </span>
-            <span style={{ fontSize: '13.5px', fontWeight: 700, color: totalCount > 0 && checkedCount === totalCount ? 'var(--accent-success)' : 'var(--accent-primary)' }}>
-              {totalCount > 0 ? `${checkedCount} / ${totalCount} 완료 (${Math.round((checkedCount / totalCount) * 100)}%)` : '대기'}
-            </span>
-          </div>
-
-          {/* Self Action Counselor Script Card */}
-          {matchedDiagnosis?.selfActionGuide && (
-            <div style={{
-              margin: '12px 12px 0 12px',
-              padding: '10px 12px',
-              backgroundColor: '#eff6ff',
-              border: '1px solid #93c5fd',
-              borderRadius: '6px',
-              fontSize: '13.5px',
-              lineHeight: 1.4,
-              color: '#0f172a',
-              fontWeight: 600,
-              flexShrink: 0
-            }}>
-              <div style={{ fontWeight: 700, color: '#1d4ed8', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <HelpCircle size={13} />
-                상담사 안내 권장 스크립트:
+          {/* 1. HERO: DYNAMIC NEXT SCRIPT TELEPROMPTER (다음 안내 멘트) */}
+          <div style={{
+            padding: '12px',
+            backgroundColor: nextLeadGuidance.bgTint,
+            borderBottom: `2px solid ${nextLeadGuidance.borderTint}`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            flexShrink: 0
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{
+                  fontSize: '11.5px',
+                  fontWeight: 800,
+                  color: '#fff',
+                  backgroundColor: nextLeadGuidance.accentColor,
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  whiteSpace: 'nowrap'
+                }}>
+                  다음 안내 멘트
+                </span>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: nextLeadGuidance.accentColor, whiteSpace: 'nowrap' }}>
+                  {nextLeadGuidance.stageBadge}
+                </span>
               </div>
-              "{matchedDiagnosis.selfActionGuide}"
-            </div>
-          )}
 
-          {/* Checklist Items Container */}
-          <div style={{ flex: 1, minHeight: 0, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {actionChecklist.length > 0 ? (
-              actionChecklist.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => toggleChecklist(item.id)}
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(nextLeadGuidance.script.replace(/^"|"$/g, ''));
+                  showToast('안내 멘트가 복사되었습니다.');
+                  setTimeout(() => clearToast(), 2000);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  padding: '2px 7px',
+                  borderRadius: '4px',
+                  border: `1px solid ${nextLeadGuidance.borderTint}`,
+                  backgroundColor: '#ffffff',
+                  color: '#334155',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Copy size={11} /> 멘트 복사
+              </button>
+            </div>
+
+            {/* Primary Counselor Script to Read Aloud */}
+            <div style={{
+              padding: '10px 12px',
+              backgroundColor: '#ffffff',
+              border: `1.5px solid ${nextLeadGuidance.borderTint}`,
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: 700,
+              color: '#0f172a',
+              lineHeight: 1.5,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
+            }}>
+              {nextLeadGuidance.script}
+            </div>
+
+            {/* Sub-prompt for missing slot info or next action cue */}
+            <div style={{ fontSize: '12px', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <ChevronRight size={13} style={{ color: nextLeadGuidance.accentColor, flexShrink: 0 }} />
+              <span>{nextLeadGuidance.subPrompt}</span>
+            </div>
+
+            {/* 1-Click Counselor Progression Bar */}
+            {confirmedSlots.symptom && (
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', paddingTop: '2px' }}>
+                {nextUncheckedStep && (
+                  <button
+                    onClick={() => {
+                      toggleChecklist(nextUncheckedStep.id);
+                      showToast(`${nextUncheckedStep.id}단계 정상 확인 ➔ 다음 점검 멘트로 전환`);
+                      setTimeout(() => clearToast(), 2200);
+                    }}
+                    style={{
+                      flex: 1.2,
+                      padding: '7px 10px',
+                      borderRadius: '5px',
+                      border: 'none',
+                      backgroundColor: '#2563eb',
+                      color: '#fff',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Check size={13} />
+                    <span>{nextUncheckedStep.id}단계 정상 ➔ 다음 안내</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    setRecommendedClosingAction('PARTS_QUOTE');
+                    setIsPartsQuoteModalOpen(true);
+                  }}
                   style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '10px',
-                    padding: '10px',
-                    borderRadius: '6px',
-                    backgroundColor: item.checked ? '#ecfdf5' : '#ffffff',
-                    border: item.checked ? '1.5px solid #10b981' : '1px solid #cbd5e1',
+                    flex: 1,
+                    padding: '7px 8px',
+                    borderRadius: '5px',
+                    border: '1px solid #f59e0b',
+                    backgroundColor: '#fffbeb',
+                    color: '#92400e',
+                    fontSize: '12px',
+                    fontWeight: 700,
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    flexShrink: 0
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  <button style={{ background: 'none', border: 'none', color: item.checked ? '#047857' : '#64748b', cursor: 'pointer', marginTop: '1px' }}>
-                    {item.checked ? <CheckSquare size={16} /> : <Square size={16} />}
-                  </button>
-                  <div style={{ flex: 1, fontSize: '14px', lineHeight: 1.4, fontWeight: item.checked ? 700 : 500, color: item.checked ? '#065f46' : '#0f172a', textDecoration: item.checked ? 'line-through' : 'none' }}>
-                    <strong style={{ marginRight: '4px', color: item.checked ? '#047857' : '#475569' }}>{item.id}.</strong> {item.text}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '13.5px' }}>
-                진단이 시작되면 1~5단계 표준 점검 체크리스트가 표출됩니다.
+                  부품 마모 ➔ 견적발송
+                </button>
+
+                <button
+                  onClick={() => {
+                    setRecommendedClosingAction('DISPATCH');
+                    setDispatchDrawerOpen(true);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '7px 8px',
+                    borderRadius: '5px',
+                    border: '1px solid #ef4444',
+                    backgroundColor: '#fef2f2',
+                    color: '#991b1b',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  조치 불가 ➔ 출장접수
+                </button>
               </div>
             )}
           </div>
 
-          {/* Bottom Action Command Center */}
-          <div style={{ padding: '12px', borderTop: '1px solid var(--hairline)', backgroundColor: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
-            
-            {/* Action 1: 1-Click Resolve Complete */}
-            <button
-              onClick={handleResolveComplete}
-              disabled={isSubmitting}
-              style={{
-                width: '100%',
-                padding: '11px',
-                backgroundColor: isSubmitting ? 'var(--surface-3)' : 'var(--accent-success)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontWeight: 700,
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}
-            >
-              <CheckCircle2 size={16} />
-              {isSubmitting ? '처리 중...' : '셀프조치 완료 (종결)'}
-            </button>
+          {/* 2. MIDDLE: INTERACTIVE SOP CHECKLIST WITH ACTIVE STEP FOCUS */}
+          <div style={{ padding: '10px 12px 6px 12px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--ink)' }}>
+              단계별 점검 체크리스트
+            </span>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: totalCount > 0 && checkedCount === totalCount ? 'var(--accent-success)' : 'var(--accent-primary)' }}>
+              {totalCount > 0 ? `${checkedCount} / ${totalCount} 확인됨` : '증상 감지 시 자동 생성'}
+            </span>
+          </div>
 
-            {/* Dual Action: Dispatch vs Sales Transfer */}
-            <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ flex: 1, minHeight: 0, padding: '10px 12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {actionChecklist.length > 0 ? (
+              actionChecklist.map((item) => {
+                const isCurrentLeadStep = !item.checked && nextUncheckedStep?.id === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => toggleChecklist(item.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      backgroundColor: item.checked ? '#ecfdf5' : isCurrentLeadStep ? '#eff6ff' : '#ffffff',
+                      border: item.checked
+                        ? '1.5px solid #10b981'
+                        : isCurrentLeadStep
+                          ? '1.5px solid #3b82f6'
+                          : '1px solid #cbd5e1',
+                      cursor: 'pointer',
+                      flexShrink: 0
+                    }}
+                  >
+                    <button style={{ background: 'none', border: 'none', color: item.checked ? '#047857' : isCurrentLeadStep ? '#1d4ed8' : '#64748b', cursor: 'pointer', padding: 0, display: 'flex' }}>
+                      {item.checked ? <CheckSquare size={16} /> : <Square size={16} />}
+                    </button>
+                    <div style={{
+                      flex: 1,
+                      fontSize: '13px',
+                      lineHeight: 1.4,
+                      fontWeight: item.checked || isCurrentLeadStep ? 700 : 500,
+                      color: item.checked ? '#065f46' : isCurrentLeadStep ? '#1e3a8a' : '#0f172a',
+                      textDecoration: item.checked ? 'line-through' : 'none'
+                    }}>
+                      <strong style={{ marginRight: '4px' }}>{item.id}.</strong>
+                      {item.text}
+                    </div>
+                    {isCurrentLeadStep && (
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        backgroundColor: '#dbeafe',
+                        color: '#1d4ed8',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0
+                      }}>
+                        안내 차례
+                      </span>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div style={{ padding: '20px 12px', textAlign: 'center', color: 'var(--ink-subtle)', fontSize: '12.5px' }}>
+                대화 중 고장 증상이 포착되면 1~4단계 점검 체크리스트가 자동 구성됩니다.
+              </div>
+            )}
+          </div>
+
+          {/* 3. BOTTOM TERMINAL ACTION BAR (Z-Pattern 우하단 완결 액션) */}
+          <div style={{ padding: '10px 12px', borderTop: '1px solid var(--hairline)', backgroundColor: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
+            {/* Auto-Synthesized Note Preview */}
+            <div style={{
+              fontSize: '11.5px',
+              color: 'var(--ink-muted)',
+              backgroundColor: 'var(--surface-1)',
+              border: '1px solid var(--hairline)',
+              borderRadius: '4px',
+              padding: '5px 8px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              {dispatchNote}
+            </div>
+
+            <div style={{ display: 'flex', gap: '6px' }}>
               <button
-                onClick={() => setDispatchDrawerOpen(true)}
+                onClick={handleResolveComplete}
                 disabled={isSubmitting}
                 style={{
-                  flex: 1.2,
-                  padding: '11px',
-                  backgroundColor: isSubmitting ? 'var(--surface-3)' : 'var(--accent-primary)',
+                  flex: 1.1,
+                  padding: '10px 8px',
+                  backgroundColor: isSubmitting ? 'var(--surface-3)' : 'var(--accent-success)',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '6px',
-                  fontSize: '14px',
-                  fontWeight: 700,
+                  fontSize: '13px',
+                  fontWeight: 800,
                   cursor: isSubmitting ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px'
+                  gap: '5px',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                <Wrench size={15} />
-                출장 배차 접수
+                <CheckCircle2 size={15} />
+                <span>자가조치 완료</span>
+              </button>
+
+              <button
+                onClick={() => setDispatchDrawerOpen(true)}
+                disabled={isSubmitting}
+                style={{
+                  flex: 1.1,
+                  padding: '10px 8px',
+                  backgroundColor: isSubmitting ? 'var(--surface-3)' : 'var(--accent-primary)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Wrench size={14} />
+                <span>출장 배차 접수</span>
               </button>
 
               <button
@@ -2878,22 +3234,23 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                 disabled={isSubmitting}
                 style={{
                   flex: 0.8,
-                  padding: '11px',
+                  padding: '10px 8px',
                   backgroundColor: 'var(--surface-3)',
                   color: 'var(--ink)',
                   border: '1px solid var(--hairline)',
                   borderRadius: '6px',
-                  fontSize: '13.5px',
-                  fontWeight: 600,
+                  fontSize: '12.5px',
+                  fontWeight: 700,
                   cursor: isSubmitting ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px'
+                  gap: '4px',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                <Building2 size={14} />
-                영업팀 이관
+                <Building2 size={13} />
+                <span>영업 이관</span>
               </button>
             </div>
           </div>
@@ -2904,109 +3261,118 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
       {/* 3. CENTER DISPATCH BOOKING MODAL                          */}
       {/* ========================================================= */}
       {dispatchDrawerOpen && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.75)',
+            backgroundColor: 'rgba(0,0,0,0.65)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 100,
-            animation: 'fadeIn 0.15s ease-out'
+            zIndex: 100
           }}
           onClick={(e) => { if (e.target === e.currentTarget) setDispatchDrawerOpen(false); }}
         >
           <div style={{
-            width: '500px',
+            width: '480px',
             maxHeight: '90vh',
             backgroundColor: 'var(--surface-1)',
             border: '1px solid var(--hairline)',
             borderRadius: '8px',
-            boxShadow: '0 16px 40px rgba(0,0,0,0.8)',
+            boxShadow: '0 16px 40px rgba(0,0,0,0.45)',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden'
           }}>
-          {/* Drawer Header */}
-          <div style={{ padding: '16px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Wrench size={18} style={{ color: 'var(--accent-primary)' }} />
-              출장 배차 접수
-            </span>
-            <button onClick={() => setDispatchDrawerOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}>
-              <X size={18} />
-            </button>
-          </div>
-
-          {/* Drawer Form Body */}
-          <div style={{ flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            
-            {/* Auto-filled Summary */}
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '12px', borderRadius: '6px', border: '1px solid var(--hairline)', fontSize: '13.5px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>고객사</span><strong style={{ color: 'var(--ink)' }}>{selectedCustomer.name}</strong></div>
-              <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>방문지</span>{selectedCustomer.address} {selectedCustomer.addressDetail}</div>
-              <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>연락처</span>{selectedCustomer.manager} ({selectedCustomer.phone})</div>
-              <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>대상 장비</span>{selectedCustomer.assetModel} ({selectedCustomer.serialNumber})</div>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '7px' }}>
+                <Wrench size={16} style={{ color: 'var(--accent-primary)' }} />
+                출장 배차 접수
+              </span>
+              <button onClick={() => setDispatchDrawerOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
             </div>
 
-            {/* Engineer Assignment */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>출장 담당 정비기사 배정</label>
-              <select 
-                value={assignedEngineer} 
-                onChange={(e) => setAssignedEngineer(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '14px' }}
+            <div style={{ flex: 1, padding: '14px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ backgroundColor: 'var(--surface-2)', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--hairline)', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>고객사</span><strong style={{ color: 'var(--ink)' }}>{selectedCustomer.name}</strong></div>
+                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>방문지</span>{selectedCustomer.address} ({selectedCustomer.addressDetail})</div>
+                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>연락처</span>{selectedCustomer.manager} · {selectedCustomer.phone}</div>
+                <div><span style={{ color: 'var(--ink-subtle)', marginRight: 6 }}>장비모델</span>{selectedCustomer.assetModel} ({selectedCustomer.serialNumber})</div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink-muted)' }}>관할 정비기사 (주소 기반 자동 매칭)</label>
+                <select
+                  value={assignedEngineer}
+                  onChange={(e) => setAssignedEngineer(e.target.value)}
+                  style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '5px', color: 'var(--ink)', fontSize: '13.5px' }}
+                >
+                  <option value="김철수 정비기사 (화성/경기남부)">김철수 정비기사 (화성/경기남부 관할)</option>
+                  <option value="박영호 정비기사 (인천/서울서부)">박영호 정비기사 (인천/서울서부 관할)</option>
+                  <option value="이지훈 정비기사 (평택/충청북부)">이지훈 정비기사 (평택/충청북부 관할)</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink-muted)' }}>방문 일시</label>
+                <input
+                  type="text"
+                  value={dispatchDate}
+                  onChange={(e) => setDispatchDate(e.target.value)}
+                  style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '5px', color: 'var(--ink)', fontSize: '13.5px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink-muted)' }}>정비기사 전달 메모 (대화내용 자동 요약)</label>
+                <textarea
+                  rows={3}
+                  value={dispatchNote}
+                  onChange={(e) => setDispatchNote(e.target.value)}
+                  style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '5px', color: 'var(--ink)', fontSize: '13px', lineHeight: 1.4 }}
+                />
+              </div>
+            </div>
+
+            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--hairline)', backgroundColor: 'var(--surface-2)', display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => {
+                  setDispatchDrawerOpen(false);
+                  setIsDispatchDocModalOpen(true);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  backgroundColor: 'var(--surface-1)',
+                  color: 'var(--ink)',
+                  border: '1px solid var(--hairline)',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
               >
-                <option value="김철수 정비기사 (화성/경기남부)">김철수 정비기사 (화성/경기남부 관할)</option>
-                <option value="박영호 정비기사 (인천/서울서부)">박영호 정비기사 (인천/서울서부 관할)</option>
-                <option value="이지훈 정비기사 (평택/충청북부)">이지훈 정비기사 (평택/충청북부 관할)</option>
-              </select>
+                출장 안내 문서 조립
+              </button>
+              <button
+                onClick={handleConfirmDispatch}
+                style={{
+                  flex: 1.4,
+                  padding: '10px',
+                  backgroundColor: 'var(--accent-primary)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '13.5px',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                배차 확정 및 기사 전송
+              </button>
             </div>
-
-            {/* Visit Date & Time */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>방문 희망일시</label>
-              <input 
-                type="text" 
-                value={dispatchDate} 
-                onChange={(e) => setDispatchDate(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '14px' }}
-              />
-            </div>
-
-            {/* Dispatch Note */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>정비기사 전달 요청 메모</label>
-              <textarea 
-                rows={4}
-                value={dispatchNote} 
-                onChange={(e) => setDispatchNote(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '13.5px', lineHeight: 1.4 }}
-              />
-            </div>
-
-          </div>
-
-          {/* Drawer Footer CTA */}
-          <div style={{ padding: '16px', borderTop: '1px solid var(--hairline)', backgroundColor: 'var(--surface-2)' }}>
-            <button
-              onClick={handleConfirmDispatch}
-              style={{
-                width: '100%',
-                padding: '12px',
-                backgroundColor: 'var(--accent-primary)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              배차 확정 및 기사 모바일 앱 전송
-            </button>
-          </div>
           </div>
         </div>
       )}
@@ -3018,37 +3384,33 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         <div style={{
           position: 'fixed',
           top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.7)',
+          backgroundColor: 'rgba(0,0,0,0.65)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 100
         }}>
           <div style={{
-            width: '440px',
+            width: '420px',
             backgroundColor: 'var(--surface-1)',
             border: '1px solid var(--hairline)',
             borderRadius: '8px',
-            padding: '20px',
-            boxShadow: '0 16px 32px rgba(0,0,0,0.8)'
+            padding: '18px',
+            boxShadow: '0 16px 32px rgba(0,0,0,0.45)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)' }}>영업팀 분기 이관 접수</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>영업팀 이관 접수</span>
               <button onClick={() => setSalesModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}>
                 <X size={16} />
               </button>
             </div>
 
-            <div style={{ fontSize: '14px', color: 'var(--ink-muted)', marginBottom: '12px' }}>
-              고객사 <strong style={{ color: 'var(--ink)' }}>{selectedCustomer.name}</strong>의 단순 견적/계약 문의를 영업팀 리드 대장으로 이관합니다.
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
-              <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>이관 유형</label>
-              <select 
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink-muted)' }}>이관 유형</label>
+              <select
                 value={salesTransferType}
                 onChange={(e) => setSalesTransferType(e.target.value)}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '14px' }}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '5px', color: 'var(--ink)', fontSize: '13.5px' }}
               >
                 <option value="신규 렌탈 견적서 요청">신규 렌탈 견적서 요청</option>
                 <option value="장비 추가 도입 및 계약 변경">장비 추가 도입 및 계약 변경</option>
@@ -3056,13 +3418,13 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
               </select>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
-              <label style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>상세 요청사항</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '14px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink-muted)' }}>상세 요청사항 (자동 요약)</label>
               <textarea
                 value={salesTransferNote}
                 onChange={(e) => setSalesTransferNote(e.target.value)}
                 rows={3}
-                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '4px', color: 'var(--ink)', fontSize: '13.5px', resize: 'none' }}
+                style={{ padding: '8px', backgroundColor: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: '5px', color: 'var(--ink)', fontSize: '13px', resize: 'none' }}
               />
             </div>
 
@@ -3070,170 +3432,183 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
               onClick={handleConfirmSalesTransfer}
               style={{
                 width: '100%',
-                padding: '11px',
+                padding: '10px',
                 backgroundColor: 'var(--accent-warning)',
                 color: '#0f172a',
                 border: 'none',
                 borderRadius: '6px',
-                fontWeight: 700,
-                fontSize: '14px',
+                fontWeight: 800,
+                fontSize: '13.5px',
                 cursor: 'pointer'
               }}
             >
-              영업팀 대장 이관 완료
+              영업팀 대장 이관 확정
             </button>
           </div>
         </div>
       )}
 
       {/* ========================================================= */}
-      {/* 5. TOAST NOTIFICATION (3-Second Feedback)                 */}
+      {/* 5. 4 VISUAL PHOTO-ASSEMBLY DOCUMENT MODALS                */}
+      {/* ========================================================= */}
+      {isManualModalOpen && (
+        <EquipmentManualModal
+          isOpen={isManualModalOpen}
+          onClose={() => setIsManualModalOpen(false)}
+          equipmentModel={cleanModelCode}
+          serialNumber={selectedCustomer.serialNumber}
+          customerName={selectedCustomer.name}
+          manager={selectedCustomer.manager}
+          phone={selectedCustomer.phone}
+          symptoms={detectedKeywordEntities.map(e => e.keyword)}
+          onToast={(msg) => {
+            showToast(msg);
+            setTimeout(() => clearToast(), 3000);
+          }}
+        />
+      )}
+
+      {isPartsQuoteModalOpen && (
+        <PartsOrderQuotationModal
+          equipmentModel={cleanModelCode}
+          customerName={selectedCustomer.name}
+          manager={selectedCustomer.manager}
+          phone={selectedCustomer.phone}
+          serialNumber={selectedCustomer.serialNumber}
+          symptoms={detectedKeywordEntities.map(e => e.keyword)}
+          onClose={() => setIsPartsQuoteModalOpen(false)}
+          onToast={(msg) => {
+            showToast(msg);
+            setTimeout(() => clearToast(), 3000);
+          }}
+        />
+      )}
+
+      {isSelfGuideModalOpen && (
+        <SelfActionGuideModal
+          equipmentModel={cleanModelCode}
+          customerName={selectedCustomer.name}
+          manager={selectedCustomer.manager}
+          phone={selectedCustomer.phone}
+          serialNumber={selectedCustomer.serialNumber}
+          symptomTitle={activeKeywordEntity?.keyword || matchedDiagnosis?.category || '기본 자가점검'}
+          symptomSteps={actionChecklist.map((c) => ({
+            step_no: c.id,
+            title: c.text,
+            method: c.text,
+          }))}
+          onClose={() => setIsSelfGuideModalOpen(false)}
+          onOpenPartsQuotation={() => {
+            setIsSelfGuideModalOpen(false);
+            setIsPartsQuoteModalOpen(true);
+          }}
+          onOpenDispatchPackage={() => {
+            setIsSelfGuideModalOpen(false);
+            setIsDispatchDocModalOpen(true);
+          }}
+          onResolveDirect={() => {
+            setIsSelfGuideModalOpen(false);
+            handleResolveComplete();
+          }}
+          onToast={(msg) => {
+            showToast(msg);
+            setTimeout(() => clearToast(), 3000);
+          }}
+        />
+      )}
+
+      {isDispatchDocModalOpen && (
+        <DispatchDocPackageModal
+          initialDoc1st={{
+            recipientCompany: selectedCustomer.name,
+            recipientManager: selectedCustomer.manager,
+            recipientPhone: selectedCustomer.phone,
+            siteCompany: `${selectedCustomer.address} ${selectedCustomer.addressDetail}`,
+            siteWorkerName: selectedCustomer.manager,
+            siteWorkerPhone: selectedCustomer.phone,
+            equipmentModel: cleanModelCode,
+            serialNumber: selectedCustomer.serialNumber,
+            salesType: selectedCustomer.salesType,
+            symptoms: detectedKeywordEntities.map(e => e.keyword),
+            assignedEngineer: assignedEngineer.split(' ')[0] || '김철수',
+            plannedVisitAt: dispatchDate,
+          }}
+          initialDoc2nd={{
+            recipientCompany: selectedCustomer.name,
+            recipientManager: selectedCustomer.manager,
+            recipientPhone: selectedCustomer.phone,
+            siteCompany: `${selectedCustomer.address} ${selectedCustomer.addressDetail}`,
+            equipmentModel: cleanModelCode,
+            serialNumber: selectedCustomer.serialNumber,
+            engineerName: assignedEngineer.split(' ')[0] || '김철수',
+            visitedAt: dispatchDate,
+          }}
+          onClose={() => setIsDispatchDocModalOpen(false)}
+          onToast={(msg) => {
+            showToast(msg);
+            setTimeout(() => clearToast(), 3000);
+          }}
+        />
+      )}
+
+      {/* ========================================================= */}
+      {/* 6. TOAST NOTIFICATION & MIC TEST MODAL                    */}
       {/* ========================================================= */}
       {toastMessage && (
         <div style={{
           position: 'fixed',
-          bottom: '20px',
+          bottom: '18px',
           left: '50%',
           transform: 'translateX(-50%)',
-          backgroundColor: 'var(--surface-2)',
-          border: '1px solid var(--accent-success)',
-          color: 'var(--ink)',
-          padding: '10px 20px',
-          borderRadius: '8px',
-          fontSize: '14px',
-          fontWeight: 600,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          backgroundColor: '#0f172a',
+          border: '1px solid #10b981',
+          color: '#ffffff',
+          padding: '8px 16px',
+          borderRadius: '6px',
+          fontSize: '13px',
+          fontWeight: 700,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
           zIndex: 200,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
+          whiteSpace: 'nowrap'
         }}>
-          <span>{toastMessage}</span>
+          {toastMessage}
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* 6. MIC TEST MODAL                                         */}
-      {/* ========================================================= */}
       <MicTestModal isOpen={isMicTestOpen} onClose={() => setIsMicTestOpen(false)} />
 
-
-
-      {/* ========================================================= */}
-      {/* 8. LOCAL FASTER-WHISPER GPU LAUNCHER MODAL               */}
-      {/* ========================================================= */}
       {isWhisperLauncherModalOpen && (
         <div style={{
           position: 'fixed',
           top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.8)',
-          backdropFilter: 'blur(4px)',
+          backgroundColor: 'rgba(0,0,0,0.75)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 160
         }}>
           <div style={{
-            width: '560px',
+            width: '480px',
             backgroundColor: 'var(--surface-1)',
             border: '1px solid var(--accent-primary)',
             borderRadius: '8px',
-            padding: '24px',
+            padding: '20px',
             display: 'flex',
             flexDirection: 'column',
-            boxShadow: '0 20px 50px rgba(0,0,0,0.9)'
+            gap: '12px'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Zap size={20} color="var(--accent-primary)" />
-                <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)' }}>로컬 Faster-Whisper GPU 에이전트 실행</span>
-              </div>
-              <button 
-                onClick={() => setIsWhisperLauncherModalOpen(false)} 
-                style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}
-              >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>로컬 GPU 에이전트 상태</span>
+              <button onClick={() => setIsWhisperLauncherModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer' }}>
                 <X size={18} />
               </button>
             </div>
-
-            <div style={{ backgroundColor: 'var(--surface-2)', padding: '14px', borderRadius: '6px', border: '1px solid var(--hairline)', marginBottom: '16px' }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--ink-muted)', marginBottom: '6px', fontWeight: 600 }}>
-                배치 파일 경로:
-              </div>
-              <div style={{ fontSize: '13.5px', fontFamily: 'monospace', color: 'var(--accent-primary)', backgroundColor: 'var(--surface-3)', padding: '8px 10px', borderRadius: '4px', wordBreak: 'break-all', marginBottom: '10px' }}>
-                D:\01.AntiGravity\Space_consult_assist\start_backend_stt.bat
-              </div>
-              <div style={{ fontSize: '13.5px', color: 'var(--ink)' }}>
-                이 파일을 <strong>더블클릭</strong>하여 실행하면 로컬 GPU 서버가 <code>localhost:8000</code>에서 즉시 켜집니다.
-              </div>
-            </div>
-
-            {/* Live Polling Status Box */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between',
-              padding: '12px 16px', 
-              borderRadius: '6px', 
-              backgroundColor: gpuServerOnline ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.12)',
-              border: `1px solid ${gpuServerOnline ? 'var(--accent-success)' : 'rgba(245, 158, 11, 0.3)'}`,
-              marginBottom: '16px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {gpuServerOnline ? (
-                  <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-success)' }} className="animate-pulse" />
-                ) : (
-                  <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent-warning)' }} />
-                )}
-                <span style={{ fontSize: '14px', fontWeight: 700, color: gpuServerOnline ? 'var(--accent-success)' : 'var(--accent-warning)' }}>
-                  {gpuServerOnline ? "GPU 엔진 연결됨" : "GPU 서버 대기 중"}
-                </span>
-              </div>
-              <span style={{ fontSize: '13.5px', color: 'var(--ink-muted)' }}>
-                {gpuServerOnline ? "포트 8000 정상" : "자동 감지 중"}
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText("D:\\01.AntiGravity\\Space_consult_assist\\start_backend_stt.bat");
-                  showToast("배치 파일 경로가 클립보드에 복사되었습니다.");
-                  setTimeout(() => clearToast(), 3000);
-                }}
-                style={{
-                  padding: '9px 16px',
-                  backgroundColor: 'var(--surface-3)',
-                  border: '1px solid var(--hairline)',
-                  borderRadius: '6px',
-                  color: 'var(--ink)',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  fontWeight: 600
-                }}
-              >
-                파일명 복사
-              </button>
-              <button
-                onClick={() => setIsWhisperLauncherModalOpen(false)}
-                style={{
-                  padding: '9px 20px',
-                  backgroundColor: 'var(--accent-primary)',
-                  border: 'none',
-                  borderRadius: '6px',
-                  color: '#fff',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  fontWeight: 700
-                }}
-              >
-                닫기
-              </button>
+            <div style={{ fontSize: '13px', color: 'var(--ink)' }}>
+              {gpuServerOnline ? '포트 8000 백엔드 서버 정상 연결됨' : '백엔드 서버 연결 대기 중'}
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
