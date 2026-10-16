@@ -1752,7 +1752,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
         bgTint: '#eff6ff',
         borderTint: '#93c5fd',
         script: `"안녕하세요, 스페이스 고객지원실입니다. 사용 중인 장비 모델명과 어떤 불편 증상이 있으신지 말씀해 주시겠습니까?"`,
-        subPrompt: '고객 발화 또는 시뮬레이션 시 고객사·장비·증상이 자동 추출되고 1차 점검 멘트가 즉시 제안됩니다.',
+        subPrompt: '고객 발화 시 고객사·장비·증상이 자동 추출되고 1차 점검 멘트가 제안됩니다.',
       };
     }
 
@@ -1829,40 +1829,6 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
     checkedCount,
     nextUncheckedStep,
   ]);
-
-  // 원클릭 실시간 상담 시뮬레이션 실행기 (단계별 자동 추출 및 다음 멘트 변화 즉시 검증용)
-  const runQuickScenarioSimulation = useCallback((scenarioKey: 'dispatch' | 'quote' | 'resolve') => {
-    resetSessionForNewAudio();
-    clearAudioFile();
-    setRecommendedClosingAction('NONE');
-    setConfirmedSlotFlags({ customer: false, phone: false, address: false, model: false });
-
-    const turnsByScenario: Record<'dispatch' | 'quote' | 'resolve', string[]> = {
-      dispatch: [
-        '[00:02] 여보세요 거기 반포자이 아파트 지하 1층 방재실 박시설 과장인데요 010-9876-5432입니다',
-        '[00:07] 지금 J600T 청소기 물이 전혀 안 나오고 급수가 안 돼요',
-        '[00:14] 네 하단 급수 필터망 분리해서 봤는데 필터는 깨끗해요 이상 없습니다',
-        '[00:21] 스위치 켜봤는데 솔레노이드 딸깍 소리도 안 나고 해봤는데도 안 돼요 출장 접수해 주세요',
-      ],
-      quote: [
-        '[00:02] 안녕하세요 도곡렉슬아파트 최기술 팀장입니다 연락처는 010-7654-3210이에요',
-        '[00:08] S7 장비 쓰는데 바닥에 물기가 안 빨리고 잔수가 심하게 남아요',
-        '[00:15] 뒤쪽 스퀴지 내려서 보니까 고무가 다 닳았고 끝이 찢어졌어요 부품 견적서 보내주세요',
-      ],
-      resolve: [
-        '[00:02] 가산디지털엠타워 지하 1층 하역장 강센터 실장입니다 S5 장비 문의드립니다',
-        '[00:08] 열쇠 돌렸는데 전원이 아예 안 켜지고 먹통이에요',
-        '[00:14] 아 빨간색 비상정지 버튼이 눌려 있었네요 오른쪽으로 돌리니까 어 이제 작동 잘 됩니다 감사합니다',
-      ],
-    };
-
-    const lines = turnsByScenario[scenarioKey];
-    lines.forEach((line, idx) => {
-      setTimeout(() => {
-        processIncomingSpeechUtterance(line);
-      }, idx * 250);
-    });
-  }, [resetSessionForNewAudio, clearAudioFile, processIncomingSpeechUtterance]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)', width: '100%', backgroundColor: 'var(--canvas)', color: 'var(--ink)', overflow: 'hidden' }}>
@@ -2507,56 +2473,8 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
               )}
             </div>
 
-            {/* Scenario Quick Simulation / Reset Buttons */}
+            {/* Reset Button */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-              <button
-                onClick={() => runQuickScenarioSimulation('dispatch')}
-                style={{
-                  padding: '3px 7px',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  borderRadius: '4px',
-                  border: '1px solid #cbd5e1',
-                  backgroundColor: '#f8fafc',
-                  color: '#334155',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                시연: 급수불량
-              </button>
-              <button
-                onClick={() => runQuickScenarioSimulation('quote')}
-                style={{
-                  padding: '3px 7px',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  borderRadius: '4px',
-                  border: '1px solid #cbd5e1',
-                  backgroundColor: '#f8fafc',
-                  color: '#334155',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                시연: 고무마모
-              </button>
-              <button
-                onClick={() => runQuickScenarioSimulation('resolve')}
-                style={{
-                  padding: '3px 7px',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  borderRadius: '4px',
-                  border: '1px solid #cbd5e1',
-                  backgroundColor: '#f8fafc',
-                  color: '#334155',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                시연: 자가해결
-              </button>
               {activeParagraphs.length > 0 && (
                 <button
                   onClick={() => {
@@ -2709,31 +2627,7 @@ function LegacySttApp({ onOpenGuides: _onOpenGuides }: { onOpenGuides?: () => vo
                     {interimSttText || '듣는중'}
                   </span>
                 </div>
-              ) : (
-                <div style={{ color: 'var(--ink-subtle)', padding: '32px 12px', textAlign: 'center', fontSize: '13px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-                  <div>통화 음성(.m4a) 드롭, [STT 시작], 또는 상단 [시연] 버튼을 클릭하세요.</div>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                    <button
-                      onClick={() => runQuickScenarioSimulation('dispatch')}
-                      style={{ padding: '5px 10px', borderRadius: '5px', border: '1px solid #93c5fd', backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      급수불량 시나리오 실행
-                    </button>
-                    <button
-                      onClick={() => runQuickScenarioSimulation('quote')}
-                      style={{ padding: '5px 10px', borderRadius: '5px', border: '1px solid #fcd34d', backgroundColor: '#fffbeb', color: '#b45309', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      고무마모 견적 시나리오 실행
-                    </button>
-                    <button
-                      onClick={() => runQuickScenarioSimulation('resolve')}
-                      style={{ padding: '5px 10px', borderRadius: '5px', border: '1px solid #6ee7b7', backgroundColor: '#ecfdf5', color: '#047857', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      전원이상 자가해결 시나리오 실행
-                    </button>
-                  </div>
-                </div>
-              )}
+              ) : null}
             </div>
 
             {isUserScrolledUp && (
