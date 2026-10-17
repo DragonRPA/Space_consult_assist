@@ -1001,7 +1001,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-site-general',
     type: 'site',
     label: '주소/상세위치',
-    pattern: /(?:(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|경기도|강원|충북|충남|전북|전남|경북|경남|제주)(?:특별시|광역시|특별자치시|도)?\s+)?(?:[가-힣]{1,5}(?:시|군|구)\s+)*(?:[가-힣]{1,6}(?:구|읍|면|동)\s+)?[가-힣0-9]{1,12}(?:대로|번길|산단로|단지로|로|길)\s*\d{1,4}(?:-\d{1,4})?(?:\s*번지)?|[가-힣]{2,5}(?:시|군|구)\s+[가-힣0-9]{2,8}(?:읍|면|동|가|리)(?:\s+\d{1,4}(?:-\d{1,4})?)?|(?:지하\s*\d{1,2}\s*층|B\s*\d{1,2}\s*층?|\d{1,2}\s*층|\d{1,4}\s*동)(?:\s*(?:지하\s*주차장|주차장|하역장|방재실|기계실|기전실|전기실|관리사무소|관리실|경비실|미화실|창고|물류데크|생산라인))?|지하\s*주차장|주차장|입출고\s*하역장|하역장|물류\s*데크|방재실|기계실|기전실|전기실|기관실|경비실|보안실|미화실|정비\s*창고|저온\s*창고|프레스룸|생산\s*라인|청도|분당|판교|대전|파주|탕정|천안|아산|수원|화성|평택|안성|성남|안산|김포|일산|인천|부산|대구|광주|원주|청주|나라\s*장터/i,
+    pattern: /(?:(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|경기도|강원|충북|충남|전북|전남|경북|경남|제주)(?:특별시|광역시|특별자치시|도)?\s+)?(?:[가-힣]{1,5}(?:시|군|구)\s+)*(?:[가-힣]{1,6}(?:구|읍|면|동)\s+)?[가-힣0-9]{1,12}(?:대로|번길|산단로|단지로|로|길)\s*\d{1,4}(?:-\d{1,4})?(?:\s*번지)?|[가-힣]{2,5}(?:시|군|구)\s+[가-힣0-9]{2,8}(?:읍|면|동|가|리)(?:\s+\d{1,4}(?:-\d{1,4})?)?|(?:지하\s*\d{1,2}\s*층|B\s*\d{1,2}\s*층?|\d{1,2}\s*층|\d{1,4}\s*동)(?:\s*(?:지하\s*주차장|주차장|하역장|방재실|기계실|기전실|전기실|관리사무소|관리실|경비실|미화실|창고|물류데크|생산라인))?|지하\s*주차장|주차장|입출고\s*하역장|하역장|물류\s*데크|방재실|기계실|기전실|전기실|기관실|경비실|보안실|미화실|정비\s*창고|저온\s*창고|프레스룸|생산\s*라인|마포|서초|강남|금천|송파|영등포|강서|양천|구로|성동|광진|종로|용산|성북|동대문|중랑|노원|도봉|강북|은평|서대문|동작|관악|강동|부천|광명|고양|시흥|안양|오산|용인|의정부|남양주|하남|구리|청도|분당|판교|대전|파주|탕정|천안|아산|수원|화성|평택|안성|성남|안산|김포|일산|인천|부산|대구|광주|원주|청주|나라\s*장터/i,
     colorScheme: { bg: '#fde68a', border: '#f59e0b', text: '#78350f', glow: 'none' }
   },
 
@@ -1076,7 +1076,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-solenoid',
     type: 'symptom',
     label: '고장증상',
-    pattern: /솔레노이드\s*밸브|솔레노이드|솔리노이드|솔노이드|솔래노이드|물이?\s*(?:아예\s*|잘\s*)?안\s*나와(?:요|서)?|물\s*안\s*나옴|안\s*나오더라고요|브러시\s*물|세척수\s*미분사|노즐\s*막힘|관로가?\s*막혔|관로\s*막힘|필터\s*열어서|급수\s*밸브|필터가?\s*막혀|세수\s*필터/i,
+    pattern: /솔레노이드\s*밸브|솔레노이드|솔리노이드|솔노이드|소레노이드|솔래노이드|솔로노이드|슬레노이드|셀레노이드|솔레노이트|솔레노드|솔리노드|솔노드|솔\s*밸브|솔\s*벨브|전자\s*밸브|물이?\s*(?:아예\s*|잘\s*)?안\s*나와(?:요|서)?|물\s*안\s*나옴|안\s*나오더라고요|브러시\s*물|세척수\s*미분사|노즐\s*막힘|분사구\s*막힘|관로가?\s*막혔|관로\s*막힘|필터\s*열어서|급수\s*밸브|필터가?\s*막혀|세수\s*필터/i,
     keywordId: 'kw-solenoid',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1084,7 +1084,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-leak',
     type: 'symptom',
     label: '고장증상',
-    pattern: /세척수\s*누수|누수|물이?\s*계속\s*새(?:요|서)?|물이?\s*새요?|물이?\s*줄줄|물이?\s*뚝뚝|호스\s*물샘/i,
+    pattern: /세척수\s*누수|누수|물\s*샘|물이?\s*계속\s*새(?:요|서)?|물이?\s*새요?|물이?\s*줄줄|물이?\s*뚝뚝|호스\s*물샘|피팅\s*누수|밸브\s*닫힘\s*불량/i,
     keywordId: 'kw-water-leak',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1092,7 +1092,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-suction',
     type: 'symptom',
     label: '고장증상',
-    pattern: /흡입\s*모터|흡입\s*부분|흡입력\s*저하|흡입\s*불량|흡입력|흡입이?\s*(?:안|약|떨어)|흡기|진공압|모터\s*굉음|모터\s*과열|굉음|타는\s*냄새|탄\s*냄새|모터\s*소리|소음\s*발생|빨아들이지\s*못|안\s*빨려요?|못\s*빨아들/i,
+    pattern: /흡입\s*모터|흡입\s*모타|흐빕\s*모터|석션\s*모터|석션\s*모타|바큠\s*모터|바쿰\s*모터|진공\s*모터|진공\s*모타|흡입\s*부분|흡입력\s*저하|흡입\s*불량|흡입력|흡입이?\s*(?:안|약|떨어)|흡기|진공압|모터\s*굉음|모터\s*과열|굉음|타는\s*냄새|탄\s*냄새|탄내|모터\s*소리|소음\s*발생|빨아들이지\s*못|안\s*빨려요?|못\s*빨아들/i,
     keywordId: 'kw-suction',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1100,7 +1100,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-squeegee',
     type: 'symptom',
     label: '고장증상',
-    pattern: /스퀴지|와이퍼\s*고무|와이퍼|바닥\s*물기|잔수|줄무늬\s*잔수|고무\s*블레이드|고무날|물\s*자국|물이?\s*남아(?:요|서)?|물기가?\s*남아|물이?\s*흥건|고무\s*패드|패드\s*거치대|고정판|판\s*거치대|중간\s*부분|양쪽\s*끝|편마모/i,
+    pattern: /스퀴지|스퀴즈|스키지|스키즈|스끼지|스끼즈|스크지|스쿠지|스퀴시|스퀴기|스위지|수키지|수퀴지|스퀴징|와이퍼\s*고무|와이퍼|바닥\s*물기|잔수|줄무늬\s*잔수|줄무늬|고무\s*블레이드|고무\s*날|고무날|뒷\s*고무|뒤에\s*고무|물받이\s*고무|물\s*자국|물이?\s*남아(?:요|서)?|물기가?\s*남아|물이?\s*흥건|고무\s*패드|패드\s*거치대|고정판|판\s*거치대|중간\s*부분|양쪽\s*끝|편마모|뒤집어까지|뒤집어져/i,
     keywordId: 'kw-squeegee',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1108,7 +1108,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-float',
     type: 'symptom',
     label: '고장증상',
-    pattern: /플로트\s*밸브|플로트\s*볼|만수\s*센서|만수\s*경보|부표|오수탱크\s*조기\s*차단|거품\s*차단/i,
+    pattern: /플로트\s*밸브|플로트\s*볼|프로토\s*밸브|플롯\s*밸브|플로터\s*밸브|만수\s*센서|만수\s*경보|만수\s*차단|부표|오수탱크\s*조기\s*차단|거품\s*차단/i,
     keywordId: 'kw-float-sensor',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1116,7 +1116,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-terminal',
     type: 'symptom',
     label: '고장증상',
-    pattern: /배터리\s*점퍼\s*케이블|배터리\s*케이블|배터리\s*단자|배터리\s*커넥터|배터리\s*배선|배터리\s*전선|배터리\s*선|점퍼\s*케이블|충전기?\s*케이블|전원\s*케이블|전원\s*코드|앤더슨\s*커넥터|앤더슨\s*잭|단자\s*접촉\s*불량|충전\s*단자|잔량\s*표시\s*오류|게이지가?\s*튀어요?|케이블/i,
+    pattern: /배터리\s*점퍼\s*케이블|배터리\s*케이블|배터리\s*단자|배터리\s*커넥터|배터리\s*배선|배터리\s*전선|배터리\s*선|점퍼\s*케이블|충전기?\s*케이블|전원\s*케이블|전원\s*코드|앤더슨\s*커넥터|엔더슨\s*커넥터|언더슨\s*커넥터|앤더슨\s*잭|엔더슨\s*잭|언더슨\s*잭|단자\s*접촉\s*불량|충전\s*단자|잔량\s*표시\s*오류|게이지가?\s*튀어요?|케이블/i,
     keywordId: 'kw-terminal-loose',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1124,7 +1124,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-battery-degrade',
     type: 'symptom',
     label: '고장증상',
-    pattern: /배터리\s*조기\s*방전|조기\s*방전|배터리\s*방전|금방\s*방전|빨리\s*방전|금방\s*꺼져요?|사용\s*시간\s*급감|배터리\s*수명/i,
+    pattern: /배터리\s*조기\s*방전|조기\s*방전|배터리\s*방전|밧데리\s*방전|금방\s*방전|빨리\s*방전|금방\s*꺼져요?|사용\s*시간\s*급감|배터리\s*수명|증류수\s*보충/i,
     keywordId: 'kw-battery-degrade',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1132,7 +1132,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-battery',
     type: 'symptom',
     label: '고장증상',
-    pattern: /배터리\s*충전\s*불량|배터리\s*충전|충전\s*불량|충전\s*불가|충전\s*안\s*됨|충전이?\s*안\s*돼요?|충전기\s*고장|충전\s*문제|배터리\s*문제|배터리|충전기?|방전/i,
+    pattern: /배터리\s*충전\s*불량|배터리\s*충전|충전\s*불량|충전\s*불가|충전\s*안\s*됨|충전이?\s*안\s*돼요?|충전기\s*고장|충전\s*문제|배터리\s*문제|배터리|밧데리|빠떼리|바떼리|배떠리|충전기?|방전/i,
     keywordId: 'kw-battery',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1148,7 +1148,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-brush-stall',
     type: 'symptom',
     label: '고장증상',
-    pattern: /브러시\s*회전\s*불량|브러시가?\s*안\s*돌아?요?|솔이?\s*안\s*돌아?요?|과부하\s*차단|서킷\s*브레이커|브러시\s*모터/i,
+    pattern: /브러시\s*회전\s*불량|브러시가?\s*안\s*돌아?요?|솔이?\s*안\s*돌아?요?|과부하\s*차단|서킷\s*브레이커|써킷\s*브레이커|서킷\s*브레이카|브러시\s*모터/i,
     keywordId: 'kw-brush-stall',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1156,7 +1156,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-brush',
     type: 'symptom',
     label: '고장증상',
-    pattern: /패드\s*드라이버|고정\s*노브|데크\s*노브|삼발이\s*클러치|브러시|패드판|데크|노브|볼트|녹이?\s*슬|녹\s*발생|커넥터/i,
+    pattern: /패드\s*드라이버|패트\s*드라이버|페드\s*드라이버|고정\s*노브|데크\s*노브|삼발이\s*클러치|브러시|브러쉬|부러시|부러쉬|패드판|페드판|데크|노브|볼트|녹이?\s*슬|녹\s*발생|커넥터/i,
     keywordId: 'kw-brush-deck',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1164,7 +1164,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-wheel-drive',
     type: 'symptom',
     label: '고장증상',
-    pattern: /주행\s*모터|구동\s*모터|주행\s*불가|주행\s*불량|구동\s*불량|트랜스액슬|포텐셔미터|전자\s*브레이크|견인\s*레버|앞으로\s*안\s*가요?|뒤로\s*안\s*가요?|전진이?\s*안\s*돼요?|후진이?\s*안\s*돼요?|바퀴가?\s*안\s*굴러|직진\s*쏠림/i,
+    pattern: /주행\s*모터|구동\s*모터|주행\s*불가|주행\s*불량|구동\s*불량|트랜스액슬|트랜스\s*엑슬|트렌스\s*액슬|포텐셔미터|포텐쇼메타|전자\s*브레이크|견인\s*레버|앞으로\s*안\s*가요?|뒤로\s*안\s*가요?|전진이?\s*안\s*돼요?|후진이?\s*안\s*돼요?|바퀴가?\s*안\s*굴러|직진\s*쏠림/i,
     keywordId: 'kw-wheel-drive',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1180,7 +1180,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-lift-fail',
     type: 'symptom',
     label: '고장증상',
-    pattern: /리프트\s*액추에이터|액추에이터|승강\s*불량|리프트\s*불량|브러시가?\s*안\s*내려가요?|스퀴지가?\s*안\s*내려가요?|안\s*올라가요?/i,
+    pattern: /리프트\s*액추에이터|액추에이터|액츄에이터|엑추에이터|액추레이터|승강\s*불량|리프트\s*불량|브러시가?\s*안\s*내려가요?|스퀴지가?\s*안\s*내려가요?|안\s*올라가요?/i,
     keywordId: 'kw-lift-fail',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1188,7 +1188,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-error-code',
     type: 'symptom',
     label: '고장증상',
-    pattern: /\b(?:E0[1-9]|E1[0-9]|E2[0-9]|E91|F0[1-4]|EH|EL)\b|에러\s*코드|경고음|삐삐\s*소리/i,
+    pattern: /\b(?:E0[1-9]|E1[0-9]|E2[0-9]|E91|F0[1-4]|EH|EL)\b|에러\s*코드|오류\s*코드|경고음|삐삐\s*소리/i,
     keywordId: 'kw-error-code',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1196,7 +1196,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-chassis',
     type: 'symptom',
     label: '고장증상',
-    pattern: /드레인\s*호스|흡입\s*호스|배수\s*호스|호스\s*찢어짐|호스\s*막힘|호스\s*빠짐|호스\s*뽑힘|레버\s*부러짐|레버\s*부서짐|물통\s*깨짐|뚜껑\s*깨짐|외장\s*파손|커버\s*파손/i,
+    pattern: /드레인\s*호스|흡입\s*호스|배수\s*호스|흡입\s*호수|배수\s*호수|자바라\s*호수|호스\s*찢어짐|호스\s*막힘|호스\s*빠짐|호스\s*뽑힘|레버\s*부러짐|레버\s*부서짐|물통\s*깨짐|뚜껑\s*깨짐|외장\s*파손|커버\s*파손/i,
     keywordId: 'kw-chassis-damage',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1204,7 +1204,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-negative-state',
     type: 'symptom',
     label: '부정상태',
-    pattern: /(?:솔레노이드|솔밸브|급수|세척수|청수|분사구?|노즐|배관|피팅|스퀴지|와이퍼|고무날?|블레이드|흡입\s*모터|흡입력?|석션|진공|플로트|부표|만수\s*센서|배터리\s*케이블|배터리\s*단자|배터리|충전기?|단자|커넥터|앤더슨|전선|배선|케이블|코드|잭|전원|시동|계기판|키\s*스위치|키\s*박스|브러시\s*모터|브러시|솔|차단기|패드\s*드라이버|패드판?|데크|노브|볼트|삼발이|주행|전진|후진|전후진|구동|트랜스액슬|포텐셔미터|브레이크|벨트|텐셔너|액추에이터|승강|리프트|와이어|드레인\s*호스|흡입\s*호스|호스|레버|핸들|손잡이|뚜껑|커버|범퍼|물통|탱크|오수통|청수통|바퀴|캐스터|휠|페달|투명창|케이스|고정핀|핀|걸쇠|클램프|마개|캡|거름망|스위치)[이가은는을를도]?\s*(?:작동\s*|가동\s*|회전\s*|체결\s*)?(?:안\s*됨|안\s*돼(?:요|서)?|안\s*되(?:요|네)?|불가(?:능)?|파손(?:됨|됐)?|깨짐|깨졌(?:어요|어)?|부서짐|부서졌(?:어요|어)?|부러짐|부러졌(?:어요|어)?|빠짐|빠졌(?:어요|어)?|뽑힘|뽑혔(?:어요|어)?|끊어짐|끊어졌(?:어요|어)?|찢어짐|찢어졌(?:어요|어)?|막힘|막혔(?:어요|어)?)/i,
+    pattern: /(?:솔레노이드|솔리노이드|솔노이드|솔밸브|급수|세척수|청수|분사구?|노즐|배관|피팅|스퀴지|스퀴즈|스키지|스끼지|와이퍼|고무날?|블레이드|흡입\s*모터|흡입\s*모타|석션\s*모터|흡입력?|석션|진공|플로트|부표|만수\s*센서|배터리\s*케이블|배터리\s*단자|배터리|밧데리|충전기?|단자|커넥터|앤더슨|전선|배선|케이블|코드|잭|전원|시동|계기판|키\s*스위치|키\s*박스|브러시\s*모터|브러시|브러쉬|솔|차단기|패드\s*드라이버|패드판?|페드판|데크|노브|볼트|삼발이|주행|전진|후진|전후진|구동|트랜스액슬|포텐셔미터|브레이크|벨트|텐셔너|액추에이터|엑추에이터|승강|리프트|와이어|드레인\s*호스|흡입\s*호스|호스|레버|핸들|손잡이|뚜껑|커버|범퍼|물통|탱크|오수통|청수통|바퀴|캐스터|휠|페달|투명창|케이스|고정핀|핀|걸쇠|클램프|마개|캡|거름망|스위치)[이가은는을를도]?\s*(?:작동\s*|가동\s*|회전\s*|체결\s*)?(?:안\s*됨|안\s*돼(?:요|서)?|안\s*되(?:요|네)?|불가(?:능)?|파손(?:됨|됐)?|깨짐|깨졌(?:어요|어)?|부서짐|부서졌(?:어요|어)?|부러짐|부러졌(?:어요|어)?|빠짐|빠졌(?:어요|어)?|뽑힘|뽑혔(?:어요|어)?|끊어짐|끊어졌(?:어요|어)?|찢어짐|찢어졌(?:어요|어)?|막힘|막혔(?:어요|어)?|뒤집어까지|뒤집어져)/i,
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
 
@@ -1264,6 +1264,9 @@ export interface EntityClickHandlers {
  * - "배터리 케이블"처럼 두 단어가 결합되어 하나의 뜻을 갖는 표현이 등장할 때,
  *   단일 단어("배터리")가 앞부분만 먼저 잘라먹지 못하도록 문장 내 모든 후보 매칭 중
  *   [복합어(2어절 이상) & 글자 길이가 더 긴 매칭]을 최우선 확정합니다.
+ * - 또한 DOMAIN_KEYWORD_REGISTRY의 모든 synonyms를 SSOT로 함께 스캔하여,
+ *   증상 감지(evaluateUtteranceRules)에 포착된 모든 구어체/오발음(예: '스퀴즈')이
+ *   예외 없이 자막 하이라이트 박스에도 100% 동일하게 유지되도록 보장합니다.
  */
 export function renderMultiColorHighlightedText(
   text: string,
@@ -1309,6 +1312,41 @@ export function renderMultiColorHighlightedText(
         isCompound,
         ruleIdx: rIdx,
         rule,
+      });
+    }
+  }
+
+  // SSOT 연동: DOMAIN_KEYWORD_REGISTRY의 synonyms에 매칭되는 모든 구어체/오발음도 하이라이트 후보로 자동 편입
+  for (let dIdx = 0; dIdx < DOMAIN_KEYWORD_REGISTRY.length; dIdx++) {
+    const kwEntity = DOMAIN_KEYWORD_REGISTRY[dIdx];
+    const synRegex = new RegExp(kwEntity.synonyms.source, 'gi');
+    let m: RegExpExecArray | null;
+    while ((m = synRegex.exec(text)) !== null) {
+      const hit = m[0];
+      if (!hit) {
+        synRegex.lastIndex += 1;
+        continue;
+      }
+      const normLen = hit.replace(/\s+/g, '').length;
+      const isCompound =
+        /\s/.test(hit.trim()) ||
+        normLen >= 4 ||
+        Boolean(findCompoundSymptomEntity(hit));
+      candidates.push({
+        start: m.index,
+        end: m.index + hit.length,
+        matchedText: hit,
+        normLen,
+        isCompound,
+        ruleIdx: NAMED_ENTITY_REGISTRY.length + dIdx,
+        rule: {
+          id: `domain-syn-${kwEntity.id}`,
+          type: 'symptom',
+          label: '고장증상',
+          pattern: kwEntity.synonyms,
+          keywordId: kwEntity.id,
+          colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' },
+        },
       });
     }
   }

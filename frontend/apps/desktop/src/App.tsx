@@ -436,9 +436,11 @@ function LegacySttApp() {
   const evaluateUtteranceRules = useCallback((text: string) => {
     if (!text || !text.trim()) return;
 
-    // 1. 명시적으로 발화된 고장 증상/부품 매칭 (2단어 이상 결합된 복합어가 단일어보다 최우선)
-    const compoundPrimaryEntity = findCompoundSymptomEntity(text);
-    const directMatches = findMatchingSymptomEntities(text);
+    // 1. 명시적으로 발화된 고장 증상/부품 매칭 (원문 및 음운보정 텍스트 동시 검사 + 복합어 최우선)
+    const correctedForMatch = applyContextualCorrection(text).correctedText;
+    const combinedMatchTarget = correctedForMatch !== text ? `${text} ${correctedForMatch}` : text;
+    const compoundPrimaryEntity = findCompoundSymptomEntity(combinedMatchTarget);
+    const directMatches = findMatchingSymptomEntities(combinedMatchTarget);
     for (const entity of directMatches) {
       const curState = useCounselStore.getState();
       const alreadyDetected = curState.detectedKeywordEntities.some(e => e.id === entity.id);
@@ -448,12 +450,10 @@ function LegacySttApp() {
       if (!curState.activeKeywordEntity || isCompoundUpgrade) {
         curState.setActiveKeywordEntity(entity);
         setJustTriggeredKeyword(entity.keyword);
-        setTimeout(() => setJustTriggeredKeyword(null), 3000);
         curState.showToast(`[증상 확인: ${entity.keyword}]`);
         setTimeout(() => curState.clearToast(), 3000);
       } else if (!alreadyDetected) {
         setJustTriggeredKeyword(entity.keyword);
-        setTimeout(() => setJustTriggeredKeyword(null), 3000);
       }
     }
 
@@ -950,6 +950,7 @@ function LegacySttApp() {
     // 3. 화면 상담 세션 완전 초기화 (파일명 기반 사전 정보 표출 및 파일 메모리 디코딩 일절 금지)
     resetSessionForNewAudio();
     resetTempoProfile();
+    setJustTriggeredKeyword(null);
     setConfirmedSlotFlags({ customer: false, phone: false, address: false, model: false });
     setRecommendedClosingAction('NONE');
 
@@ -1258,6 +1259,7 @@ function LegacySttApp() {
     clearAudioFile();
     resetSessionForNewAudio();
     resetTempoProfile();
+    setJustTriggeredKeyword(null);
     setConfirmedSlotFlags({ customer: false, phone: false, address: false, model: false });
     setRecommendedClosingAction('NONE');
     showToast("음성 파일 및 STT 수신이 즉시 제거되었습니다.");
@@ -2038,7 +2040,7 @@ function LegacySttApp() {
           const previewDisplay = currentInterimDelta.trim()
             ? `${combinedPending} ${currentInterimDelta.trim()}`
             : combinedPending;
-          setInterimSttText(applyContextualCorrection(previewDisplay).correctedText);
+          setInterimSttText(previewDisplay);
           const holdSec = isUnfinishedEnding
             ? Math.max(0.55, tp.targetSilenceSec * 0.85)
             : Math.max(0.32, tp.targetSilenceSec * 0.54);
@@ -2054,8 +2056,7 @@ function LegacySttApp() {
         const combinedPreview = webSpeechPendingFinalRef.current
           ? `${webSpeechPendingFinalRef.current} ${currentInterimDelta.trim()}`.replace(/\s+/g, ' ').trim()
           : currentInterimDelta.trim();
-        const correctedInterim = applyContextualCorrection(combinedPreview).correctedText;
-        setInterimSttText(correctedInterim);
+        setInterimSttText(combinedPreview);
 
         if (webSpeechCommitTimerRef.current) {
           clearTimeout(webSpeechCommitTimerRef.current);
@@ -3180,6 +3181,7 @@ function LegacySttApp() {
                 <button
                   onClick={() => {
                     resetSessionForNewAudio();
+                    setJustTriggeredKeyword(null);
                     setRecommendedClosingAction('NONE');
                     setConfirmedSlotFlags({ customer: false, phone: false, address: false, model: false });
                   }}
@@ -3599,7 +3601,24 @@ function LegacySttApp() {
                         fontWeight: 700,
                         fontSize: '13px'
                       }}>
-                        {interimSttText || '듣는중'}
+                        {interimSttText && interimSttText !== '듣는중'
+                          ? renderMultiColorHighlightedText(
+                              interimSttText,
+                              {
+                                onSymptomClick: handleKeywordSelect,
+                                onCustomerClick: handleCustomerSelect,
+                                onSiteClick: handleCustomerSelect,
+                                onModelClick: (modelId) => {
+                                  setSelectedCustomerModel(modelId);
+                                  setConfirmedSlotFlags(prev => ({ ...prev, model: true }));
+                                },
+                                onActionClick: handleActionSelect
+                              },
+                              activeKeywordEntity?.id,
+                              selectedCustomer?.id,
+                              customerList
+                            )
+                          : '듣는중'}
                       </span>
                     </div>
                   )}
@@ -3615,7 +3634,24 @@ function LegacySttApp() {
                     fontWeight: 700,
                     fontSize: '13px'
                   }}>
-                    {interimSttText || '듣는중'}
+                    {interimSttText && interimSttText !== '듣는중'
+                      ? renderMultiColorHighlightedText(
+                          interimSttText,
+                          {
+                            onSymptomClick: handleKeywordSelect,
+                            onCustomerClick: handleCustomerSelect,
+                            onSiteClick: handleCustomerSelect,
+                            onModelClick: (modelId) => {
+                              setSelectedCustomerModel(modelId);
+                              setConfirmedSlotFlags(prev => ({ ...prev, model: true }));
+                            },
+                            onActionClick: handleActionSelect
+                          },
+                          activeKeywordEntity?.id,
+                          selectedCustomer?.id,
+                          customerList
+                        )
+                      : '듣는중'}
                   </span>
                 </div>
               ) : null}
