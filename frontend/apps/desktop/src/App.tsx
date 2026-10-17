@@ -250,6 +250,7 @@ function LegacySttApp() {
     } catch (_) {}
     return defaultSttLabOptions;
   });
+  const [hoveredSttHelp, setHoveredSttHelp] = useState<{ label: string; desc: string; status?: string } | null>(null);
   const sttLabOptionsRef = useRef(sttLabOptions);
   useEffect(() => {
     sttLabOptionsRef.current = sttLabOptions;
@@ -2500,6 +2501,7 @@ function LegacySttApp() {
             gap: '2px'
           }}>
             <button
+              title="Groq Whisper (whisper-large-v3-turbo): LPU 기반 초고속 한국어 음성 인식 및 직전문맥·도메인 단어 프롬프트 지원"
               onClick={() => {
                 if (recognitionRef.current) {
                   try { recognitionRef.current.stop(); } catch (_) {}
@@ -2521,6 +2523,7 @@ function LegacySttApp() {
               Groq Whisper
             </button>
             <button
+              title="웹 음성 STT (Web Speech API): 브라우저 내장 실시간 스트리밍 음성 인식"
               onClick={() => {
                 setSttEngine('web_speech');
                 setInterimSttText('');
@@ -2544,7 +2547,7 @@ function LegacySttApp() {
             </button>
             <button
               disabled
-              title="클로바 STT 비활성화됨"
+              title="클로바 STT: 응답 속도 및 정확도 이슈로 현재 비활성화됨"
               style={{
                 padding: '3px 8px',
                 fontSize: '11.5px',
@@ -3044,15 +3047,19 @@ function LegacySttApp() {
           </div>
 
           {/* STT 전처리·문맥 개별 스위치 바 (8대 기법 개별 ON/OFF 실험용) */}
-          <div style={{
-            padding: '6px 10px',
-            borderBottom: '1px solid var(--hairline)',
-            backgroundColor: '#f8fafc',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '5px',
-            flexShrink: 0
-          }}>
+          <div
+            onMouseLeave={() => setHoveredSttHelp(null)}
+            style={{
+              position: 'relative',
+              padding: '6px 10px',
+              borderBottom: '1px solid var(--hairline)',
+              backgroundColor: '#f8fafc',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '5px',
+              flexShrink: 0
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '11px', fontWeight: 800, color: '#334155', whiteSpace: 'nowrap' }}>
                 전처리·문맥 스위치
@@ -3060,6 +3067,15 @@ function LegacySttApp() {
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 <button
                   onClick={() => applySttLabPreset('RAW_DEFAULT')}
+                  title="순정 원본 (전체 OFF): 8가지 음향 전처리·문맥 주입·적응형 절단을 모두 끄고 원본 오디오(고정 5.5초 주기) 그대로 STT 엔진에 전송합니다."
+                  onMouseEnter={() =>
+                    setHoveredSttHelp({
+                      label: '순정 원본 (전체 OFF)',
+                      status: '프리셋',
+                      desc: '8가지 음향 전처리·문맥 주입·적응형 절단을 모두 끄고 원본 오디오(고정 5.5초 주기) 그대로 STT 엔진에 전송합니다.'
+                    })
+                  }
+                  onMouseLeave={() => setHoveredSttHelp(null)}
                   style={{
                     padding: '2px 6px',
                     fontSize: '10.5px',
@@ -3076,6 +3092,15 @@ function LegacySttApp() {
                 </button>
                 <button
                   onClick={() => applySttLabPreset('RECOMMENDED')}
+                  title="권장 설정: 통화 녹음 표준 최적 조합(자음증폭 3.2kHz만 OFF, 나머지 7종 ON)을 일괄 적용합니다."
+                  onMouseEnter={() =>
+                    setHoveredSttHelp({
+                      label: '권장 설정',
+                      status: '프리셋',
+                      desc: '통화 녹음 표준 최적 조합(자음증폭 3.2kHz만 OFF, 나머지 7종 ON)을 일괄 적용합니다.'
+                    })
+                  }
+                  onMouseLeave={() => setHoveredSttHelp(null)}
                   style={{
                     padding: '2px 6px',
                     fontSize: '10.5px',
@@ -3112,6 +3137,15 @@ function LegacySttApp() {
                 </button>
                 <button
                   onClick={() => applySttLabPreset('ALL_ON')}
+                  title="전체 켜기: 자음증폭(3.2kHz)을 포함한 8가지 전처리·문맥·음색 보정 기법을 모두 활성화합니다."
+                  onMouseEnter={() =>
+                    setHoveredSttHelp({
+                      label: '전체 켜기',
+                      status: '프리셋',
+                      desc: '자음증폭(3.2kHz)을 포함한 8가지 전처리·문맥·음색 보정 기법을 모두 활성화합니다.'
+                    })
+                  }
+                  onMouseLeave={() => setHoveredSttHelp(null)}
                   style={{
                     padding: '2px 6px',
                     fontSize: '10.5px',
@@ -3132,21 +3166,69 @@ function LegacySttApp() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '4px' }}>
               {(
                 [
-                  { key: 'lowCut85Hz', label: '저역차단 85Hz' },
-                  { key: 'highBoostConsonant', label: '자음증폭 3.2kHz' },
-                  { key: 'dualSpeakerBalance', label: '2화자 음색·성량' },
-                  { key: 'rollingPrevSentence', label: '직전문장 포함' },
-                  { key: 'domainWordBoost', label: '도메인 단어장' },
-                  { key: 'wavPeakNormalize', label: '음량 정규화' },
-                  { key: 'boxcarAntiAliasing', label: '안티에일리어싱' },
-                  { key: 'dynamicEnvelopeVad', label: '호흡 적응절단' },
+                  {
+                    key: 'lowCut85Hz',
+                    label: '저역차단 85Hz',
+                    desc: '85Hz 이하 저주파 대역(에어컨·환풍기·책상 진동·마이크 험 노이즈)을 고역통과 필터(HPF)로 제거하여 무음 오인식 및 저역 마스킹을 방지합니다.'
+                  },
+                  {
+                    key: 'highBoostConsonant',
+                    label: '자음증폭 3.2kHz',
+                    desc: '3.2kHz 대역 피킹 필터(+4.5dB)로 한국어 파열음·마찰음(ㄱ,ㄷ,ㅂ,ㅅ,ㅈ,ㅊ,ㅋ,ㅌ,ㅍ) 명료도를 증폭합니다. 고역 치찰음이 강할 때는 OFF 하세요.'
+                  },
+                  {
+                    key: 'dualSpeakerBalance',
+                    label: '2화자 음색·성량',
+                    desc: '상담원과 고객의 음색 높낮이(먹먹한 저음 화자 틸트 보정) 및 마이크 거리 차이로 인한 볼륨 편차를 문장 구간별로 자동 평탄화합니다.'
+                  },
+                  {
+                    key: 'rollingPrevSentence',
+                    label: '직전문장 포함',
+                    desc: '직전 1~2문장의 인식 결과를 다음 음성 조각의 문맥 프롬프트(Whisper prompt)로 전달하여 끊어진 문장 연결과 동음이의어 추론을 강화합니다.'
+                  },
+                  {
+                    key: 'domainWordBoost',
+                    label: '도메인 단어장',
+                    desc: '청소장비 모델명(J600T, S7, XD80 등), 주요 부품(스퀴지, 흡입모터, 솔레노이드), 현장 용어를 엔진 사전 프롬프트에 주입하여 고유명사 오타를 줄입니다.'
+                  },
+                  {
+                    key: 'wavPeakNormalize',
+                    label: '음량 정규화',
+                    desc: '전송 직전 PCM 파형의 DC 오프셋을 제거하고 최대 피크를 -1.4dBFS(85% 진폭)로 정규화하여 작은 목소리도 균일한 음량으로 인식시킵니다.'
+                  },
+                  {
+                    key: 'boxcarAntiAliasing',
+                    label: '안티에일리어싱',
+                    desc: '48kHz 원본 음성을 16kHz로 다운샘플링할 때 단순 샘플 건너뛰기 대신 구간 평균(Boxcar LPF)을 적용해 고주파 접힘 왜곡(Aliasing)을 차단합니다.'
+                  },
+                  {
+                    key: 'dynamicEnvelopeVad',
+                    label: '호흡 적응절단',
+                    desc: '고정 5.5초 기계적 절단 대신 화자의 발화 속도·에너지 낙폭(Envelope Drop)과 주변 소음 바닥을 추적하여 자연스러운 호흡·구절 단위로 음성을 절단합니다.'
+                  },
                 ] as const
               ).map((item) => {
                 const isOn = sttLabOptions[item.key];
                 return (
                   <button
                     key={item.key}
-                    onClick={() => toggleSttLabOption(item.key)}
+                    onClick={() => {
+                      toggleSttLabOption(item.key);
+                      setHoveredSttHelp({
+                        label: item.label,
+                        status: !isOn ? '현재 ON' : '현재 OFF',
+                        desc: item.desc
+                      });
+                    }}
+                    title={`${item.label} (${isOn ? 'ON' : 'OFF'}): ${item.desc}`}
+                    onMouseEnter={() =>
+                      setHoveredSttHelp({
+                        label: item.label,
+                        status: isOn ? '현재 ON' : '현재 OFF',
+                        desc: item.desc
+                      })
+                    }
+                    onMouseLeave={() => setHoveredSttHelp(null)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -3182,6 +3264,56 @@ function LegacySttApp() {
                 );
               })}
             </div>
+
+            {hoveredSttHelp && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '8px',
+                  right: '8px',
+                  top: 'calc(100% + 4px)',
+                  zIndex: 45,
+                  backgroundColor: '#0f172a',
+                  color: '#f8fafc',
+                  border: '1px solid #334155',
+                  borderRadius: '6px',
+                  padding: '7px 10px',
+                  boxShadow: '0 8px 20px rgba(15, 23, 42, 0.28)',
+                  pointerEvents: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '3px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#38bdf8' }}>
+                    {hoveredSttHelp.label}
+                  </span>
+                  {hoveredSttHelp.status && (
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        padding: '1px 5px',
+                        borderRadius: '3px',
+                        backgroundColor:
+                          hoveredSttHelp.status === '현재 ON'
+                            ? '#1d4ed8'
+                            : hoveredSttHelp.status === '현재 OFF'
+                              ? '#334155'
+                              : '#0369a1',
+                        color: '#ffffff'
+                      }}
+                    >
+                      {hoveredSttHelp.status}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '11.5px', lineHeight: 1.45, color: '#e2e8f0', fontWeight: 500 }}>
+                  {hoveredSttHelp.desc}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Live Transcript Box (70% height) */}
