@@ -85,7 +85,7 @@ export const DOMAIN_CORRECTION_RULES: DomainRule[] = [
     category: '장비모델'
   },
   {
-    pattern: /(?:에스|애스|S)\s*(?:5(?![0-9])|파이브|오(?=\s|$|[이가은는을를의로도만과와에]|모델|장비|청소))/gi,
+    pattern: /(?:에스|애스|S)\s*(?:5(?![0-9])|파이브|오(?=\s|$|[이가은는을를의로도만과와에]|모델|장비|청소))|ISO(?=\s*라고|\s*적혀|\s*모델|\s*장비)|아이소(?=\s*라고|\s*적혀|\s*모델)/gi,
     replacement: 'S5',
     category: '장비모델'
   },
@@ -133,6 +133,12 @@ export const DOMAIN_CORRECTION_RULES: DomainRule[] = [
   {
     pattern: /(?:에러\s*)?(?:이\s*에이치|E\s*H)(?=\s|$|에러|가|이|뜨|점멸)/gi,
     replacement: 'EH',
+    category: '에러코드'
+  },
+  {
+    // 계기판 "5C" (청수 부족/세수 수위센서) 에러코드 구어체/오인식 처리 ("OC", "오씨", "오시", "5씨", "5C" 등)
+    pattern: /(?:에러\s*코드|에러|코드)?\s*(?:[O0오][C씨시]|5[C씨시])(?=\s*(?:가|이)?\s*(?:뜨|나오|표시|적혀|뜬다|뜨거든|있거든|보이)|(?:\s*에러|\s*코드|\s*입니다|\s*떴))/gi,
+    replacement: '5C',
     category: '에러코드'
   },
 
@@ -269,6 +275,31 @@ export const DOMAIN_CORRECTION_RULES: DomainRule[] = [
     pattern: /물이\s*안\s*나서/gi,
     replacement: '물이 안 나와서',
     category: '급수계통'
+  },
+  {
+    pattern: /청포차(?=\s*돌리|\s*타|\s*운전|\s*장비)/gi,
+    replacement: '청소차',
+    category: '장비일반'
+  },
+  {
+    pattern: /물총에\s*물을?\s*(?:가득|채워)/gi,
+    replacement: '물통에 물을 가득',
+    category: '탱크계통'
+  },
+  {
+    pattern: /안숙\s*센터|안속\s*센터/gi,
+    replacement: '안쪽 센서',
+    category: '센서계통'
+  },
+  {
+    pattern: /해명\s*가서\s*조치/gi,
+    replacement: '현장 가서 조치',
+    category: '업무/배차'
+  },
+  {
+    pattern: /8명\s*이\s*뭘까요|팔명\s*이\s*뭘까요/gi,
+    replacement: '모델명이 뭘까요',
+    category: '상담/모델확인'
   },
   // [L] 부정 상태 서술어 구어체/오타 표준화 (부셔짐/뿌셔짐 ➔ 부서짐, 뿌러짐 ➔ 부러짐, 안됌 ➔ 안됨 등)
   {
