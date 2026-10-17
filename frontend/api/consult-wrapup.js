@@ -272,7 +272,7 @@ function buildRuleBasedWrapup(payload) {
   };
 }
 
-async function callGroqChatCompletion(apiKey, model, userPromptText) {
+async function callGroqChatCompletion(apiKey, model, userPromptText, maxTokens = 1600) {
   const resp = await fetch(GROQ_API_URL, {
     method: 'POST',
     headers: {
@@ -282,7 +282,7 @@ async function callGroqChatCompletion(apiKey, model, userPromptText) {
     body: JSON.stringify({
       model,
       temperature: 0.1,
-      max_tokens: 2200,
+      max_tokens: maxTokens,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -356,7 +356,7 @@ export default async function handler(req, res) {
     } = body;
 
     const groqApiKey = (process.env.GROQ_API_KEY || '').trim();
-    const groqModel = (process.env.GROQ_LLM_MODEL || 'llama-3.3-70b-versatile').trim();
+    const groqModel = (process.env.GROQ_LLM_MODEL || 'openai/gpt-oss-120b').trim();
     const openaiApiKey = (process.env.OPENAI_API_KEY || '').trim();
 
     const userPromptText = JSON.stringify(
@@ -373,30 +373,25 @@ export default async function handler(req, res) {
       2
     );
 
-    // 1순위: Groq Cloud API (llama-3.3-70b-versatile -> llama-3.1-8b-instant 폴백)
+    // 1순위: Groq Cloud API (openai/gpt-oss-120b -> openai/gpt-oss-20b -> qwen/qwen3.8-27b 폴백)
     if (groqApiKey) {
-      try {
-        const parsed = await callGroqChatCompletion(groqApiKey, groqModel, userPromptText);
-        return res.status(200).json({
-          status: 'ok',
-          provider: 'groq_cloud',
-          model: groqModel,
-          elapsedMs: Date.now() - startMs,
-          data: parsed,
-        });
-      } catch (groqErr70b) {
+      const candidateModels = [
+        { name: groqModel, maxTokens: 1600 },
+        { name: 'openai/gpt-oss-20b', maxTokens: 1600 },
+        { name: 'qwen/qwen3.8-27b', maxTokens: 850 },
+      ];
+      for (const cand of candidateModels) {
         try {
-          const fallbackModel = 'llama-3.1-8b-instant';
-          const parsedFast = await callGroqChatCompletion(groqApiKey, fallbackModel, userPromptText);
+          const parsed = await callGroqChatCompletion(groqApiKey, cand.name, userPromptText, cand.maxTokens);
           return res.status(200).json({
             status: 'ok',
             provider: 'groq_cloud',
-            model: fallbackModel,
+            model: cand.name,
             elapsedMs: Date.now() - startMs,
-            data: parsedFast,
+            data: parsed,
           });
-        } catch (groqErr8b) {
-          console.warn('[consult-wrapup] Groq Cloud fallback triggered:', groqErr8b.message);
+        } catch (groqErr) {
+          console.warn(`[consult-wrapup] Groq model ${cand.name} failed:`, groqErr.message);
         }
       }
     }

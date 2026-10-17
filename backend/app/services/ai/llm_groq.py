@@ -12,11 +12,11 @@ SYSTEM_PROMPT = """당신은 산업용 청소장비 렌탈·판매·AS 전문 �
 class GroqLLMProvider(BaseLLMProvider):
     """
     Groq Cloud LPU 가속 기반 초고속 무료/저지연 LLM 상담 결론 정리 구현체
-    - 기본 모델: llama-3.3-70b-versatile (폴백: llama-3.1-8b-instant)
+    - 기본 모델: openai/gpt-oss-120b (폴백: openai/gpt-oss-20b)
     - 엔드포인트: https://api.groq.com/openai/v1
     """
 
-    def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
+    def __init__(self, api_key: str, model: str = "openai/gpt-oss-120b"):
         self.api_key = api_key
         self.model = model
         self.base_url = "https://api.groq.com/openai/v1"

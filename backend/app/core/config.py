@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     llm_provider: str = "groq"
     groq_api_key: str = ""
     groq_stt_model: str = "whisper-large-v3-turbo"
-    groq_llm_model: str = "llama-3.3-70b-versatile"
+    groq_llm_model: str = "openai/gpt-oss-120b"
     openai_api_key: str = ""
     openai_stt_model: str = "whisper-1"
     openai_llm_model: str = "gpt-4o-mini"
