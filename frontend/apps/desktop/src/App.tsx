@@ -225,14 +225,14 @@ function LegacySttApp() {
   // ── STT 전처리·문맥·음색 개별 ON/OFF 실험 스위치 (로컬스토리지 상태 보존) ──
   const STT_LAB_STORAGE_KEY = 'space_stt_lab_options_v1';
   const defaultSttLabOptions = {
-    lowCut85Hz: true,           // 1. 저역 노이즈 차단 (85Hz High-Pass Filter)
-    highBoostConsonant: false,  // 2. 고역 자음 증폭 (2.5~5.5kHz 프리엠퍼시스 부스트)
-    dualSpeakerBalance: true,   // 3. 2화자 음색·성량 밸런서 (먹먹한 저음 화자 틸트 보정 + 로컬 볼륨 평탄화)
-    rollingPrevSentence: true,  // 4. 직전 문장 문맥 포함 (Whisper prompt / CLOVA 동적 부스팅)
-    domainWordBoost: true,      // 5. 도메인 단어장 주입 (모델명·부품명·고객사 사전 부스팅)
-    wavPeakNormalize: true,     // 6. 음량 정규화 (DC 오프셋 제거 + -1.4dBFS 볼륨 증폭)
-    boxcarAntiAliasing: true,   // 7. 안티에일리어싱 필터 (48kHz->16kHz 구간 평균 LPF)
-    dynamicEnvelopeVad: true,   // 8. 호흡 적응형 절단 (상대 포락선 낙폭 VAD vs 고정 5.5초 주기 절단)
+    lowCut85Hz: false,          // 1. 저역 노이즈 차단 (OFF)
+    highBoostConsonant: false,  // 2. 고역 자음 증폭 (OFF)
+    dualSpeakerBalance: true,   // 3. 2화자 음색·성량 밸런서 (ON)
+    rollingPrevSentence: true,  // 4. 직전 문장 문맥 포함 (ON)
+    domainWordBoost: true,      // 5. 도메인 단어장 주입 (ON)
+    wavPeakNormalize: true,     // 6. 음량 정규화 (ON)
+    boxcarAntiAliasing: true,   // 7. 안티에일리어싱 필터 (ON)
+    dynamicEnvelopeVad: false,  // 8. 호흡 적응절단 (OFF)
   };
   const [sttLabOptions, setSttLabOptions] = useState<typeof defaultSttLabOptions>(() => {
     try {
@@ -306,14 +306,14 @@ function LegacySttApp() {
               dynamicEnvelopeVad: true,
             }
           : {
-              lowCut85Hz: true,
+              lowCut85Hz: false,
               highBoostConsonant: false,
               dualSpeakerBalance: true,
               rollingPrevSentence: true,
               domainWordBoost: true,
               wavPeakNormalize: true,
               boxcarAntiAliasing: true,
-              dynamicEnvelopeVad: true,
+              dynamicEnvelopeVad: false,
             };
     sttLabOptionsRef.current = next;
     try {
@@ -3249,12 +3249,12 @@ function LegacySttApp() {
                 </button>
                 <button
                   onClick={() => applySttLabPreset('RECOMMENDED')}
-                  title="권장 설정: 통화 녹음 표준 최적 조합(자음증폭 3.2kHz만 OFF, 나머지 7종 ON)을 일괄 적용합니다."
+                  title="권장 설정: 실시간 통화 최적 5종 ON(2화자 음색·성량, 직전문장, 도메인단어장, 음량정규화, 안티에일리어싱) / 3종 OFF(저역차단, 자음증폭, 호흡적응절단)를 일괄 적용합니다."
                   onMouseEnter={() =>
                     setHoveredSttHelp({
                       label: '권장 설정',
                       status: '프리셋',
-                      desc: '통화 녹음 표준 최적 조합(자음증폭 3.2kHz만 OFF, 나머지 7종 ON)을 일괄 적용합니다.'
+                      desc: '실시간 통화 최적 5종 ON(2화자 음색·성량, 직전문장, 도메인단어장, 음량정규화, 안티에일리어싱) / 3종 OFF(저역차단, 자음증폭, 호흡적응절단)를 일괄 적용합니다.'
                     })
                   }
                   onMouseLeave={() => setHoveredSttHelp(null)}
@@ -3265,25 +3265,25 @@ function LegacySttApp() {
                     borderRadius: '4px',
                     border: '1px solid #cbd5e1',
                     backgroundColor:
-                      sttLabOptions.lowCut85Hz &&
+                      !sttLabOptions.lowCut85Hz &&
                       !sttLabOptions.highBoostConsonant &&
                       sttLabOptions.dualSpeakerBalance &&
                       sttLabOptions.rollingPrevSentence &&
                       sttLabOptions.domainWordBoost &&
                       sttLabOptions.wavPeakNormalize &&
                       sttLabOptions.boxcarAntiAliasing &&
-                      sttLabOptions.dynamicEnvelopeVad
+                      !sttLabOptions.dynamicEnvelopeVad
                         ? '#2563eb'
                         : '#ffffff',
                     color:
-                      sttLabOptions.lowCut85Hz &&
+                      !sttLabOptions.lowCut85Hz &&
                       !sttLabOptions.highBoostConsonant &&
                       sttLabOptions.dualSpeakerBalance &&
                       sttLabOptions.rollingPrevSentence &&
                       sttLabOptions.domainWordBoost &&
                       sttLabOptions.wavPeakNormalize &&
                       sttLabOptions.boxcarAntiAliasing &&
-                      sttLabOptions.dynamicEnvelopeVad
+                      !sttLabOptions.dynamicEnvelopeVad
                         ? '#ffffff'
                         : '#475569',
                     cursor: 'pointer',
