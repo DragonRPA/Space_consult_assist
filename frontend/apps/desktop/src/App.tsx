@@ -193,27 +193,28 @@ function LegacySttApp() {
   const clovaAbortControllersRef = useRef<AbortController[]>([]);
   const clovaInflightCountRef = useRef<number>(0);
 
-  // ── 실시간 화자 템포·박자 적응형 VAD 프로파일러 (Speaker Tempo & Cadence Profiler) ──
+  // ── 실시간 화자 템포·박자 적응형 VAD 프로파일러 (3대 STT 엔진 공통: Groq Whisper / CLOVA / Web Speech) ──
   const [tempoBadgeText, setTempoBadgeText] = useState<string>('박자 보통 0.85s');
   const tempoProfileRef = useRef({
     emaSps: 4.1,             // 화자 평균 발화 속도 (음절/초, 한국어 통화 표준 4.1)
-    emaBreathPauseSec: 0.38, // 문장 내 숨고르기(Micro-Pause) 평균 길이 (초)
+    emaBreathPauseSec: 0.36, // 문장 내 숨고르기(Micro-Pause) 평균 길이 (초)
     emaEnvelopeRate: 3.8,    // 음향 포락선 음절 맥박 빈도 (peaks/sec)
     tempoMultiplier: 1.0,    // 통합 박자 배율 (0.76 = 빠름 ~ 1.48 = 느림/숙고)
-    targetSilenceSec: 0.85,  // 표준 문장 절단 침묵 기준 (초, 기본 0.85s, 범위 0.60s ~ 1.25s)
-    targetClauseSec: 0.52,   // 장문 구절 호흡 절단 기준 (초, 범위 0.40s ~ 0.72s)
-    softMaxChunkSec: 4.0,    // 소프트 에너지 골짜기 절단 시작 시점 (초 - 타임아웃 방지 단축)
-    hardMaxChunkSec: 5.5,    // 최대 강제 절단 상한 (초 - 5.5초 초과 시 무조건 분할하여 타임아웃 100% 방지)
+    targetSilenceSec: 0.82,  // 표준 문장 절단 침묵 기준 (초, 기본 0.82s, 범위 0.56s ~ 1.22s)
+    targetClauseSec: 0.46,   // 장문 구절 호흡 절단 기준 (초, 범위 0.34s ~ 0.68s)
+    softMaxChunkSec: 5.2,    // 소프트 에너지 골짜기 절단 시작 시점 (초, 범위 4.2s ~ 6.6s)
+    hardMaxChunkSec: 7.4,    // 최대 강제 절단 상한 (초, 범위 6.2s ~ 8.6s - 기계적 5.8초 균일 절단 해소)
     clovaGapMs: 650,         // CLOVA gRPC semanticEpd gapThreshold (ms)
-    clovaDurMs: 5200,        // CLOVA gRPC semanticEpd durationThreshold (ms)
+    clovaDurMs: 6800,        // CLOVA gRPC semanticEpd durationThreshold (ms)
   });
 
   const whisperMaxChunkSec = 1.2;
   const whisperSilenceSec = 0.2;
-  const webSpeechSilenceSecRef = useRef(1.05);
+  const webSpeechSilenceSecRef = useRef(0.95);
   const webSpeechCommitTimerRef = useRef<number | null>(null);
   const webSpeechTurnStartMsRef = useRef<number>(0);
   const webSpeechPendingFinalRef = useRef<string>('');
+  const webSpeechAcousticFlushRef = useRef<((measuredDurSec?: number) => void) | null>(null);
 
   const recomputeTempoProfile = useCallback(() => {
     const tp = tempoProfileRef.current;
@@ -221,15 +222,15 @@ function LegacySttApp() {
     const effectiveRate = tp.emaSps * 0.65 + tp.emaEnvelopeRate * 0.35;
     // 말이 빠를수록(< 1.0) 기민하게 자르고, 느릴수록(> 1.0) 여유 있게 대기
     const rateFactor = Math.max(0.76, Math.min(1.48, 4.15 / Math.max(2.2, effectiveRate)));
-    // 화자의 평소 문장 내 숨고르기 길이(emaBreathPauseSec)의 2.0배 이상은 무조건 보장하여 문장 중간 절단 방지
-    const breathSafeSilence = tp.emaBreathPauseSec * 2.0;
-    const nextSilenceSec = Math.max(0.60, Math.min(1.25, Math.max(0.85 * rateFactor, breathSafeSilence)));
-    const nextClauseSec = Math.max(0.38, Math.min(0.72, nextSilenceSec * 0.62));
-    // 타임아웃 및 긴 청크 소실 방지를 위해 상한을 엄격히 4.0s / 5.5s 로 클램핑
-    const nextSoftMaxSec = Math.max(3.2, Math.min(4.8, 4.0 * rateFactor));
-    const nextHardMaxSec = Math.max(4.6, Math.min(5.8, 5.5 * rateFactor));
-    const nextClovaGapMs = Math.round(Math.max(550, Math.min(950, nextSilenceSec * 850)));
-    const nextClovaDurMs = Math.round(Math.max(4200, Math.min(5800, nextHardMaxSec * 950)));
+    // 화자의 평소 문장 내 숨고르기 길이(emaBreathPauseSec)의 1.85배 이상 보장하여 문장 중간 절단 방지
+    const breathSafeSilence = tp.emaBreathPauseSec * 1.85;
+    const nextSilenceSec = Math.max(0.56, Math.min(1.22, Math.max(0.82 * rateFactor, breathSafeSilence)));
+    const nextClauseSec = Math.max(0.34, Math.min(0.68, nextSilenceSec * 0.58));
+    // 단문(1.2~2.5s), 표준문(2.6~4.8s), 장문(4.9~7.8s)이 발화 호흡에 맞춰 가변 절단되도록 폭넓은 동적 상한 부여
+    const nextSoftMaxSec = Math.max(4.2, Math.min(6.6, 5.2 * rateFactor));
+    const nextHardMaxSec = Math.max(6.2, Math.min(8.6, 7.4 * rateFactor));
+    const nextClovaGapMs = Math.round(Math.max(520, Math.min(950, nextSilenceSec * 820)));
+    const nextClovaDurMs = Math.round(Math.max(5200, Math.min(8200, nextHardMaxSec * 940)));
 
     tp.tempoMultiplier = Number(rateFactor.toFixed(2));
     tp.targetSilenceSec = Number(nextSilenceSec.toFixed(2));
@@ -239,11 +240,11 @@ function LegacySttApp() {
     tp.clovaGapMs = nextClovaGapMs;
     tp.clovaDurMs = nextClovaDurMs;
 
-    // 웹 음성 STT 침묵 커밋 타이머도 화자 템포에 동기화
-    webSpeechSilenceSecRef.current = Number(Math.max(0.80, Math.min(1.45, nextSilenceSec * 1.15)).toFixed(2));
+    // 웹 음성 STT 침묵 커밋 타이머도 화자 템포에 1:1 동기화
+    webSpeechSilenceSecRef.current = Number(Math.max(0.68, Math.min(1.35, nextSilenceSec * 1.08)).toFixed(2));
 
     const tempoTag =
-      nextSilenceSec <= 0.74 ? '박자 빠름' : nextSilenceSec >= 1.05 ? '박자 느림' : '박자 보통';
+      nextSilenceSec <= 0.72 ? '박자 빠름' : nextSilenceSec >= 1.02 ? '박자 느림' : '박자 보통';
     const nextBadge = `${tempoTag} ${nextSilenceSec.toFixed(1)}s`;
     setTempoBadgeText((prev) => (prev === nextBadge ? prev : nextBadge));
   }, []);
@@ -265,20 +266,20 @@ function LegacySttApp() {
   const resetTempoProfile = useCallback(() => {
     tempoProfileRef.current = {
       emaSps: 4.1,
-      emaBreathPauseSec: 0.38,
+      emaBreathPauseSec: 0.36,
       emaEnvelopeRate: 3.8,
       tempoMultiplier: 1.0,
-      targetSilenceSec: 0.85,
-      targetClauseSec: 0.52,
-      softMaxChunkSec: 4.0,
-      hardMaxChunkSec: 5.5,
+      targetSilenceSec: 0.82,
+      targetClauseSec: 0.46,
+      softMaxChunkSec: 5.2,
+      hardMaxChunkSec: 7.4,
       clovaGapMs: 650,
-      clovaDurMs: 5200,
+      clovaDurMs: 6800,
     };
-    webSpeechSilenceSecRef.current = 1.05;
+    webSpeechSilenceSecRef.current = 0.95;
     webSpeechPendingFinalRef.current = '';
     webSpeechTurnStartMsRef.current = 0;
-    setTempoBadgeText('박자 보통 0.85s');
+    setTempoBadgeText('박자 보통 0.82s');
   }, []);
 
   // Periodic Local GPU Server Heartbeat Monitor (Every 3 seconds)
@@ -990,8 +991,8 @@ function LegacySttApp() {
     }
   }, [finalParagraphs, interimSttText, isUserScrolledUp]);
 
-  // 100% 물리적 마이크(getUserMedia) 실시간 수음 + 화자 박자(Tempo) 적응형 VAD + NAVER CLOVA Speech gRPC 스트리밍 전송
-  // (m4a 재생 시에도 파일 데이터를 읽지 않고, 오직 스피커에서 나와 마이크로 들어온 실제 소리만 캡처하여 전송)
+  // 100% 물리적 마이크(getUserMedia) 실시간 수음 + 상대적 포락선 낙폭(Relative Envelope Drop) & 동적 노이즈 플로어 적응형 VAD
+  // 3대 STT 엔진(Groq Whisper / NAVER CLOVA / 브라우저 내장 Web Speech) 모두 동일한 호흡·박자 감지기 공유
   useEffect(() => {
     let processorNode: ScriptProcessorNode | null = null;
     let micSpeechSamples: number[] = [];
@@ -1000,7 +1001,9 @@ function LegacySttApp() {
     let micSilenceChunks = 0;
     let micVoicedChunks = 0;
     let micSpeechStartSec = 0;
-    let micNoiseFloor = 55;
+    let micNoiseFloor = 65;
+    let speechPeakRms = 420;
+    const rollingRmsHistory: number[] = [];
     let prevFrameRms = 0;
     let prevRmsRising = false;
     let voicedPeakCount = 0;
@@ -1220,7 +1223,7 @@ function LegacySttApp() {
           const source = audioCtx.createMediaStreamSource(stream);
           source.connect(analyser);
 
-          // 오직 물리적 마이크(getUserMedia)가 실제로 수음한 파형만 16kHz로 다운샘플링하여 클로바 또는 Groq Whisper로 전송
+          // 오직 물리적 마이크(getUserMedia)가 실제로 수음한 파형만 16kHz로 다운샘플링하여 3대 STT 엔진 공통 VAD 수행
           try {
             processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
             source.connect(processorNode);
@@ -1257,14 +1260,42 @@ function LegacySttApp() {
               }
               const rms = Math.sqrt(sumSq / Math.max(1, outLen));
 
-              // 노이즈 플로어 폭주 방지: 75 이하로 클램핑하여 나지막한 목소리도 절대 누락하지 않음
-              if (!micInSpeech && rms < 110) {
-                micNoiseFloor = Math.max(35, Math.min(75, micNoiseFloor * 0.97 + Math.max(35, rms) * 0.03));
+              // ── 상대적 포락선 낙폭(Relative Envelope Drop) & 분위수 기반 동적 배경소음 추적 (3대 엔진 공통) ──
+              // 스피커->마이크 수음 시 문장 사이 무음 구간의 스피커 히스/실내 잔향(RMS 120~450)을 발화로 오인하여
+              // 매번 5.8초 상한에서 기계적으로 균일 절단되던 문제를 근본 해결
+              rollingRmsHistory.push(rms);
+              if (rollingRmsHistory.length > 48) {
+                rollingRmsHistory.shift();
               }
-              const threshold = Math.max(45, Math.min(90, micNoiseFloor * 1.35));
+              const sortedRms = [...rollingRmsHistory].sort((a, b) => a - b);
+              const p22Rms = sortedRms[Math.floor((sortedRms.length - 1) * 0.22)] ?? rms;
+              const p85Rms = sortedRms[Math.floor((sortedRms.length - 1) * 0.85)] ?? rms;
+
+              if (!micInSpeech) {
+                micNoiseFloor = Math.max(35, Math.min(680, micNoiseFloor * 0.88 + p22Rms * 0.12));
+              } else {
+                micNoiseFloor = Math.max(35, Math.min(680, micNoiseFloor * 0.96 + Math.min(micNoiseFloor, p22Rms) * 0.04));
+              }
+              speechPeakRms = Math.max(
+                160,
+                Math.min(12000, speechPeakRms * 0.90 + Math.max(p85Rms, micNoiseFloor * 2.2) * 0.10)
+              );
+
+              // 1) 발화 시작 임계치(onsetThreshold): 배경소음 플로어 대비 명확한 음절 에너지 상승 시 진입
+              const onsetThreshold = Math.max(52, Math.min(820, Math.max(micNoiseFloor * 1.52, micNoiseFloor + 60)));
+              // 2) 발화 중 호흡/문장 휴지 감지 임계치(pauseThreshold): 현재 발화 평균 에너지(meanVoicedRms) 대비
+              //    상대적 포락선 낙폭(44% 이하로 에너지가 뚝 떨어질 때)을 즉시 휴지(Silence)로 판정
+              const currentMeanVoiced = micVoicedChunks > 0 ? voicedRmsSum / micVoicedChunks : speechPeakRms;
+              const relativeDropThreshold = Math.min(currentMeanVoiced * 0.44, speechPeakRms * 0.40);
+              const pauseThreshold = Math.max(
+                45,
+                Math.min(740, Math.max(micNoiseFloor * 1.28, relativeDropThreshold))
+              );
+
+              const isVoicedFrame = micInSpeech ? rms > pauseThreshold : rms > onsetThreshold;
               const tp = tempoProfileRef.current;
 
-              if (rms > threshold) {
+              if (isVoicedFrame) {
                 if (!micInSpeech) {
                   micInSpeech = true;
                   micSilenceChunks = 0;
@@ -1281,7 +1312,7 @@ function LegacySttApp() {
                       : state.callSeconds;
                   micSpeechSamples = isClovaActive ? [...micPreRollSamples] : [];
                 } else if (micSilenceChunks >= 2) {
-                  // 문장 도중 잠깐 숨을 고른 뒤(0.16s ~ 1.35s) 다시 말을 이어간 경우 -> 클로바 & 내장 STT 공통으로 화자 고유 호흡 길이 학습
+                  // 문장 도중 잠깐 숨을 고른 뒤(0.16s ~ 1.35s) 다시 말을 이어간 경우 -> 3대 엔진 공통 화자 고유 호흡 길이 학습
                   const breathPauseSec = (micSilenceChunks * outLen) / 16000;
                   if (breathPauseSec >= 0.16 && breathPauseSec <= 1.35) {
                     tp.emaBreathPauseSec = tp.emaBreathPauseSec * 0.72 + breathPauseSec * 0.28;
@@ -1289,8 +1320,8 @@ function LegacySttApp() {
                   }
                 }
 
-                // 음향 포락선 음절 맥박(Syllable Peak) 감지: 클로바 & 내장 STT 공통 실시간 말하기 빠르기 추정
-                if (prevRmsRising && rms < prevFrameRms && prevFrameRms > threshold * 1.22) {
+                // 음향 포락선 음절 맥박(Syllable Peak) 감지: 3대 엔진 공통 실시간 말하기 빠르기 추정
+                if (prevRmsRising && rms < prevFrameRms && prevFrameRms > pauseThreshold * 1.22) {
                   voicedPeakCount += 1;
                 }
                 prevRmsRising = rms > prevFrameRms;
@@ -1311,26 +1342,33 @@ function LegacySttApp() {
                   }
                 }
 
-                if (!isClovaActive) {
-                  return;
+                if (isClovaActive) {
+                  for (let i = 0; i < downsampled.length; i++) micSpeechSamples.push(downsampled[i]);
+                  setInterimSttText('듣는중');
                 }
 
-                for (let i = 0; i < downsampled.length; i++) micSpeechSamples.push(downsampled[i]);
-                setInterimSttText('듣는중');
-
-                // 소프트 에너지 골짜기 절단(Soft Valley Split):
-                // softMaxChunkSec(4.0s) 이후 에너지가 순간 낮아지는 음절 골짜기에서 자연 절단하거나 hardMaxChunkSec(5.5s) 도달 시 강제 절단하여 타임아웃 원천 차단
-                const uttDurSec = micSpeechSamples.length / 16000;
-                const isEnergyValley = rms < threshold * 1.22;
+                // 소프트 에너지 골짜기 절단(Soft Valley Split) — 3대 엔진 공통 적용:
+                // softMaxChunkSec(4.2~6.6s) 이후 음절 사이 에너지 골짜기에서 자연 절단하거나 hardMaxChunkSec(6.2~8.6s) 도달 시 분할
+                const uttDurSec = isClovaActive
+                  ? micSpeechSamples.length / 16000
+                  : ((micVoicedChunks + micSilenceChunks) * outLen) / 16000;
+                const updatedMeanVoiced = voicedRmsSum / Math.max(1, micVoicedChunks);
+                const isEnergyValley = rms < Math.max(pauseThreshold * 1.25, updatedMeanVoiced * 0.56);
                 if (uttDurSec >= tp.hardMaxChunkSec || (uttDurSec >= tp.softMaxChunkSec && isEnergyValley)) {
                   const toSend = micSpeechSamples;
                   const startToSend = micSpeechStartSec;
-                  micPreRollSamples = toSend.slice(-Math.min(toSend.length, 4800));
+                  if (isClovaActive) {
+                    micPreRollSamples = toSend.slice(-Math.min(toSend.length, 4800));
+                  }
                   micSpeechSamples = [];
                   micInSpeech = false;
                   micSilenceChunks = 0;
                   micVoicedChunks = 0;
-                  flushMicSamplesToClova(toSend, startToSend);
+                  if (isClovaActive) {
+                    flushMicSamplesToClova(toSend, startToSend);
+                  } else {
+                    webSpeechAcousticFlushRef.current?.(uttDurSec);
+                  }
                 }
               } else {
                 prevRmsRising = false;
@@ -1360,30 +1398,32 @@ function LegacySttApp() {
                     recentVoicedRms.length > 0
                       ? recentVoicedRms.reduce((a, b) => a + b, 0) / recentVoicedRms.length
                       : meanVoicedRms;
-                  // 말을 생각하느라 모음을 끌거나 높은 에너지에서 갑자기 멈춘 경우(+0.15s 대기), 문장 끝 억양이 자연 하강한 경우(-0.06s)
+                  // 말을 생각하느라 모음을 끌거나 높은 에너지에서 갑자기 멈춘 경우(+0.14s 대기), 문장 끝 억양이 자연 하강한 경우(-0.07s)
                   const hesitationBonusSec =
-                    tailVoicedRms > meanVoicedRms * 1.04 ? 0.15 : tailVoicedRms < meanVoicedRms * 0.78 ? -0.06 : 0;
+                    tailVoicedRms > meanVoicedRms * 1.04 ? 0.14 : tailVoicedRms < meanVoicedRms * 0.78 ? -0.07 : 0;
 
-                  // 4단계 발화 길이에 따른 적응형 침묵 절단 임계시간 계산
+                  // 4단계 발화 길이에 따른 적응형 침묵 절단 임계시간 계산 (Groq Whisper / CLOVA / Web Speech 공통)
                   let requiredSilenceSec: number;
-                  if (uttDurSec < 1.8) {
-                    // Stage 1: 초단문 / 맞장구 / 단답형 구간 (빠른 종결로 청크 지연 방지)
-                    requiredSilenceSec = Math.max(0.48, tp.targetSilenceSec * 0.82 + Math.max(0, hesitationBonusSec));
-                  } else if (uttDurSec < 3.5) {
-                    // Stage 2: 표준 대화 문장 구간 (화자 맞춤형 템포 기준 적용)
-                    requiredSilenceSec = Math.max(0.55, tp.targetSilenceSec + hesitationBonusSec);
+                  if (uttDurSec < 1.9) {
+                    // Stage 1: 초단문 / 맞장구 / 단답형 구간 (1.1s~1.8s 단문 즉시 종결)
+                    requiredSilenceSec = Math.max(0.42, tp.targetSilenceSec * 0.74 + Math.max(0, hesitationBonusSec));
+                  } else if (uttDurSec < 3.6) {
+                    // Stage 2: 표준 대화 문장 구간 (2.0s~3.5s 문장 호흡 기준 적용)
+                    requiredSilenceSec = Math.max(0.50, tp.targetSilenceSec * 0.88 + hesitationBonusSec);
                   } else if (uttDurSec < tp.softMaxChunkSec) {
-                    // Stage 3: 3.5초 이상 장문 발화 구간 (구절 호흡 휴지에서 자연스럽게 절단)
+                    // Stage 3: 3.6초 이상 장문 발화 구간 (구절 호흡 휴지에서 자연 절단)
                     requiredSilenceSec = tp.targetClauseSec;
                   } else {
-                    // Stage 4: 4.0초 이상 초장문 구간 (미세 호흡만 감지되어도 즉시 절단)
+                    // Stage 4: softMaxChunkSec 이상 장문 구간 (미세 호흡만 감지되어도 즉시 절단)
                     requiredSilenceSec = 0.16;
                   }
 
                   if (silenceDurSec >= requiredSilenceSec) {
                     const toSend = micSpeechSamples;
                     const startToSend = micSpeechStartSec;
-                    micPreRollSamples = toSend.slice(-Math.min(toSend.length, 4800));
+                    if (isClovaActive) {
+                      micPreRollSamples = toSend.slice(-Math.min(toSend.length, 4800));
+                    }
                     micSpeechSamples = [];
                     micInSpeech = false;
                     micSilenceChunks = 0;
@@ -1394,6 +1434,8 @@ function LegacySttApp() {
                       } else if (clovaInflightCountRef.current === 0) {
                         setInterimSttText('');
                       }
+                    } else if (voicedDurSec >= 0.18) {
+                      webSpeechAcousticFlushRef.current?.(uttDurSec);
                     }
                   }
                 }
@@ -1447,6 +1489,7 @@ function LegacySttApp() {
   // Robust Persistent Web Speech API with Multi-Entity & Action Auto-Trigger
   useEffect(() => {
     if (sttEngine !== 'web_speech') {
+      webSpeechAcousticFlushRef.current = null;
       if (recognitionRef.current) {
         try { recognitionRef.current.stop(); } catch (_) {}
         recognitionRef.current = null;
@@ -1467,6 +1510,7 @@ function LegacySttApp() {
     // 동일 resultIndex 내에서 interim -> interim 또는 interim -> isFinal 전환 시 앞 문장이 누적 반복되는 현상을 원천 차단
     const consumedRawByResultIdx = new Map<number, string>();
     let lastVoiceActivityMs = 0;
+    let latestUnconsumedInterimEntries: Array<{ index: number; rawTranscript: string; delta: string }> = [];
 
     const normChars = (s: string): string => s.replace(/[\s.,?!~·\-]/g, '');
 
@@ -1510,7 +1554,7 @@ function LegacySttApp() {
       return rawTrim.slice(rawCutIdx).replace(/^[\s.,?!~·\-]+/, '').trim();
     };
 
-    const flushWebSpeechPending = (sessionId: number) => {
+    const flushWebSpeechPending = (sessionId: number, acousticDurSec?: number) => {
       if (isDisposed || audioSessionIdRef.current !== sessionId) return;
       const committed = webSpeechPendingFinalRef.current.trim();
       webSpeechPendingFinalRef.current = '';
@@ -1520,9 +1564,11 @@ function LegacySttApp() {
       const estBySyllables = Math.max(1.0, syllables / Math.max(2.4, tempoProfileRef.current.emaSps));
       const endVoiceMs = lastVoiceActivityMs > webSpeechTurnStartMsRef.current ? lastVoiceActivityMs : Date.now();
       const measuredSec =
-        webSpeechTurnStartMsRef.current > 0
-          ? Math.max(0.9, (endVoiceMs - webSpeechTurnStartMsRef.current) / 1000 + 0.35)
-          : estBySyllables;
+        typeof acousticDurSec === 'number' && acousticDurSec >= 0.8
+          ? acousticDurSec
+          : webSpeechTurnStartMsRef.current > 0
+            ? Math.max(0.9, (endVoiceMs - webSpeechTurnStartMsRef.current) / 1000 + 0.35)
+            : estBySyllables;
       const turnDurSec = Number(Math.min(12.5, Math.max(estBySyllables * 0.72, measuredSec)).toFixed(1));
       const sizeKb = Math.max(1, Math.round((turnDurSec * 32000) / 1024));
       const chunkSizeBadge = `[${turnDurSec.toFixed(1)}s · ${sizeKb}KB]`;
@@ -1532,6 +1578,49 @@ function LegacySttApp() {
       updateTempoFromUtterance(committed, turnDurSec);
       processIncomingSpeechUtterance(committed, chunkSizeBadge);
       setInterimSttText('');
+    };
+
+    // 물리 마이크 음향 포락선 VAD(onaudioprocess)에서 실제 문장/구절 휴지가 감지된 즉시 내장 STT 턴도 동일 박자로 커밋
+    webSpeechAcousticFlushRef.current = (acousticDurSec?: number) => {
+      if (isDisposed) return;
+      const capturedSessionId = audioSessionIdRef.current;
+      if (webSpeechPendingFinalRef.current.trim()) {
+        if (webSpeechCommitTimerRef.current) {
+          clearTimeout(webSpeechCommitTimerRef.current);
+          webSpeechCommitTimerRef.current = null;
+        }
+        flushWebSpeechPending(capturedSessionId, acousticDurSec);
+        return;
+      }
+      if (latestUnconsumedInterimEntries.length > 0) {
+        const interimJoined = latestUnconsumedInterimEntries.map((e) => e.delta).join(' ').trim();
+        const isEndedSentence =
+          interimJoined.length >= 10 && /(?:요|다|까|죠|니다|세요|네요|군요|게요)[.?!~]*$/.test(interimJoined);
+        const isLongClause =
+          typeof acousticDurSec === 'number' &&
+          acousticDurSec >= tempoProfileRef.current.softMaxChunkSec &&
+          interimJoined.length >= 14;
+        if (isEndedSentence || isLongClause) {
+          if (webSpeechCommitTimerRef.current) {
+            clearTimeout(webSpeechCommitTimerRef.current);
+            webSpeechCommitTimerRef.current = null;
+          }
+          let freshlyConsumed = '';
+          for (const item of latestUnconsumedInterimEntries) {
+            const prevConsumed = consumedRawByResultIdx.get(item.index) || '';
+            const freshDelta = extractUnconsumedSpeech(item.rawTranscript, prevConsumed);
+            consumedRawByResultIdx.set(item.index, item.rawTranscript);
+            if (freshDelta) {
+              freshlyConsumed += (freshlyConsumed ? ' ' : '') + freshDelta;
+            }
+          }
+          latestUnconsumedInterimEntries = [];
+          if (freshlyConsumed) {
+            webSpeechPendingFinalRef.current = freshlyConsumed;
+            flushWebSpeechPending(capturedSessionId, acousticDurSec);
+          }
+        }
+      }
     };
 
     recognition.onresult = (event: any) => {
@@ -1559,6 +1648,7 @@ function LegacySttApp() {
           unconsumedInterimEntries.push({ index: i, rawTranscript, delta });
         }
       }
+      latestUnconsumedInterimEntries = unconsumedInterimEntries;
 
       const tp = tempoProfileRef.current;
       const capturedSessionId = audioSessionIdRef.current;
@@ -1593,8 +1683,8 @@ function LegacySttApp() {
             : combinedPending;
           setInterimSttText(applyContextualCorrection(previewDisplay).correctedText);
           const holdSec = isUnfinishedEnding
-            ? Math.max(0.60, tp.targetSilenceSec * 0.88)
-            : Math.max(0.35, tp.targetSilenceSec * 0.58);
+            ? Math.max(0.55, tp.targetSilenceSec * 0.85)
+            : Math.max(0.32, tp.targetSilenceSec * 0.54);
           webSpeechCommitTimerRef.current = window.setTimeout(() => {
             webSpeechCommitTimerRef.current = null;
             flushWebSpeechPending(capturedSessionId);
@@ -1614,7 +1704,7 @@ function LegacySttApp() {
           clearTimeout(webSpeechCommitTimerRef.current);
         }
         // 크롬이 isFinal을 지연시키는 긴 침묵 구간에서만 미소비(unconsumed) 델타를 안전하게 커밋하고 소비 오프셋을 즉시 기록
-        const interimFallbackHoldSec = Math.max(1.35, webSpeechSilenceSecRef.current * 1.25);
+        const interimFallbackHoldSec = Math.max(1.15, webSpeechSilenceSecRef.current * 1.18);
         webSpeechCommitTimerRef.current = window.setTimeout(() => {
           webSpeechCommitTimerRef.current = null;
           if (!isDisposed && audioSessionIdRef.current === capturedSessionId) {
