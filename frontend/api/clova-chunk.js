@@ -145,6 +145,8 @@ function streamClovaGrpcPcm({
   grpcHost,
   gapThresholdMs = 850,
   durationThresholdMs = 9000,
+  useDomainPrompt = true,
+  prevContext = '',
   onSegment,
   isClientClosed,
 }) {
@@ -302,16 +304,22 @@ function streamClovaGrpcPcm({
     const safeGapMs = Math.max(500, Math.min(1600, Math.round(Number(gapThresholdMs) || 850)));
     const safeDurMs = Math.max(5000, Math.min(15000, Math.round(Number(durationThresholdMs) || 9000)));
 
-    const configPayload = JSON.stringify({
+    const boostWordSet = new Set();
+    if (useDomainPrompt) {
+      for (const w of DOMAIN_BOOST_WORDS) boostWordSet.add(w);
+    }
+    if (prevContext) {
+      const ctxTokens = String(prevContext)
+        .split(/[\s,.\-?!~()[\]]+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length >= 2 && t.length <= 10);
+      for (const tok of ctxTokens.slice(-12)) {
+        boostWordSet.add(tok);
+      }
+    }
+
+    const configObj = {
       transcription: { language: 'ko' },
-      keywordBoosting: {
-        boostings: [
-          {
-            words: DOMAIN_BOOST_WORDS.join(','),
-            weight: 3.5,
-          },
-        ],
-      },
       semanticEpd: {
         skipEmptyText: true,
         useWordEpd: false,
@@ -320,7 +328,19 @@ function streamClovaGrpcPcm({
         durationThreshold: safeDurMs,
         syllableThreshold: 0,
       },
-    });
+    };
+    if (boostWordSet.size > 0) {
+      configObj.keywordBoosting = {
+        boostings: [
+          {
+            words: Array.from(boostWordSet).join(','),
+            weight: 3.5,
+          },
+        ],
+      };
+    }
+
+    const configPayload = JSON.stringify(configObj);
 
     grpcReq.write(buildConfigRequest(configPayload));
 
@@ -396,6 +416,8 @@ module.exports = async function handler(req, res) {
     let streamMode = req.query?.stream === '1' || req.query?.stream === 'true';
     let gapThresholdMs = Number(req.query?.gap_ms || 850);
     let durationThresholdMs = Number(req.query?.dur_ms || 9000);
+    let useDomainPrompt = req.query?.domain_boost !== '0';
+    let prevContext = '';
 
     if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
       if (req.body.audio_base64) {
@@ -406,6 +428,8 @@ module.exports = async function handler(req, res) {
       if (req.body.stream !== undefined) streamMode = Boolean(req.body.stream);
       if (req.body.gap_ms !== undefined) gapThresholdMs = Number(req.body.gap_ms);
       if (req.body.dur_ms !== undefined) durationThresholdMs = Number(req.body.dur_ms);
+      if (req.body.use_domain_prompt !== undefined) useDomainPrompt = Boolean(req.body.use_domain_prompt);
+      if (req.body.prev_context !== undefined) prevContext = String(req.body.prev_context || '');
     } else if (Buffer.isBuffer(req.body)) {
       wavBuffer = req.body;
     } else if (typeof req.body === 'string' && req.body.length > 0) {
@@ -419,6 +443,8 @@ module.exports = async function handler(req, res) {
         if (parsed.stream !== undefined) streamMode = Boolean(parsed.stream);
         if (parsed.gap_ms !== undefined) gapThresholdMs = Number(parsed.gap_ms);
         if (parsed.dur_ms !== undefined) durationThresholdMs = Number(parsed.dur_ms);
+        if (parsed.use_domain_prompt !== undefined) useDomainPrompt = Boolean(parsed.use_domain_prompt);
+        if (parsed.prev_context !== undefined) prevContext = String(parsed.prev_context || '');
       } catch (_) {
         wavBuffer = Buffer.from(req.body, 'binary');
       }
@@ -443,6 +469,8 @@ module.exports = async function handler(req, res) {
             if (parsed.stream !== undefined) streamMode = Boolean(parsed.stream);
             if (parsed.gap_ms !== undefined) gapThresholdMs = Number(parsed.gap_ms);
             if (parsed.dur_ms !== undefined) durationThresholdMs = Number(parsed.dur_ms);
+            if (parsed.use_domain_prompt !== undefined) useDomainPrompt = Boolean(parsed.use_domain_prompt);
+            if (parsed.prev_context !== undefined) prevContext = String(parsed.prev_context || '');
           } catch (_) {}
         }
         if (!wavBuffer) {
@@ -492,6 +520,8 @@ module.exports = async function handler(req, res) {
         grpcHost,
         gapThresholdMs,
         durationThresholdMs,
+        useDomainPrompt,
+        prevContext,
         isClientClosed: () => clientAborted || res.writableEnded,
         onSegment: (segObj) => {
           if (!res.writableEnded) {
@@ -513,6 +543,8 @@ module.exports = async function handler(req, res) {
       grpcHost,
       gapThresholdMs,
       durationThresholdMs,
+      useDomainPrompt,
+      prevContext,
       isClientClosed: () => clientAborted,
     });
 

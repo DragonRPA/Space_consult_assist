@@ -215,6 +215,69 @@ function LegacySttApp() {
   const webSpeechTurnStartMsRef = useRef<number>(0);
   const webSpeechPendingFinalRef = useRef<string>('');
   const webSpeechAcousticFlushRef = useRef<((measuredDurSec?: number) => void) | null>(null);
+  const lastRecognizedSentenceRef = useRef<string>('');
+
+  // ── STT 전처리·문맥·음색 개별 ON/OFF 실험 스위치 (실시간 A/B 품질 비교용) ──
+  const [sttLabOptions, setSttLabOptions] = useState({
+    lowCut85Hz: true,           // 1. 저역 노이즈 차단 (85Hz High-Pass Filter)
+    highBoostConsonant: false,  // 2. 고역 자음 증폭 (2.5~5.5kHz 프리엠퍼시스 부스트)
+    dualSpeakerBalance: true,   // 3. 2화자 음색·성량 밸런서 (먹먹한 저음 화자 틸트 보정 + 로컬 볼륨 평탄화)
+    rollingPrevSentence: true,  // 4. 직전 문장 문맥 포함 (Whisper prompt / CLOVA 동적 부스팅)
+    domainWordBoost: true,      // 5. 도메인 단어장 주입 (모델명·부품명·고객사 사전 부스팅)
+    wavPeakNormalize: true,     // 6. 음량 정규화 (DC 오프셋 제거 + -1.4dBFS 볼륨 증폭)
+    boxcarAntiAliasing: true,   // 7. 안티에일리어싱 필터 (48kHz->16kHz 구간 평균 LPF)
+    dynamicEnvelopeVad: true,   // 8. 호흡 적응형 절단 (상대 포락선 낙폭 VAD vs 고정 5.5초 주기 절단)
+  });
+  const sttLabOptionsRef = useRef(sttLabOptions);
+  useEffect(() => {
+    sttLabOptionsRef.current = sttLabOptions;
+  }, [sttLabOptions]);
+
+  const toggleSttLabOption = useCallback((key: keyof typeof sttLabOptions) => {
+    setSttLabOptions((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      sttLabOptionsRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const applySttLabPreset = useCallback((mode: 'RAW_DEFAULT' | 'RECOMMENDED' | 'ALL_ON') => {
+    const next =
+      mode === 'RAW_DEFAULT'
+        ? {
+            lowCut85Hz: false,
+            highBoostConsonant: false,
+            dualSpeakerBalance: false,
+            rollingPrevSentence: false,
+            domainWordBoost: false,
+            wavPeakNormalize: false,
+            boxcarAntiAliasing: false,
+            dynamicEnvelopeVad: false,
+          }
+        : mode === 'ALL_ON'
+          ? {
+              lowCut85Hz: true,
+              highBoostConsonant: true,
+              dualSpeakerBalance: true,
+              rollingPrevSentence: true,
+              domainWordBoost: true,
+              wavPeakNormalize: true,
+              boxcarAntiAliasing: true,
+              dynamicEnvelopeVad: true,
+            }
+          : {
+              lowCut85Hz: true,
+              highBoostConsonant: false,
+              dualSpeakerBalance: true,
+              rollingPrevSentence: true,
+              domainWordBoost: true,
+              wavPeakNormalize: true,
+              boxcarAntiAliasing: true,
+              dynamicEnvelopeVad: true,
+            };
+    sttLabOptionsRef.current = next;
+    setSttLabOptions(next);
+  }, []);
 
   const recomputeTempoProfile = useCallback(() => {
     const tp = tempoProfileRef.current;
@@ -254,6 +317,9 @@ function LegacySttApp() {
       .replace(/^\[\d{1,2}:\d{2}(?::\d{2})?\]\s*/, '')
       .replace(/^\[\d+(?:\.\d+)?s\s*·\s*[^\]]+\]\s*/, '')
       .trim();
+    if (clean.length >= 2) {
+      lastRecognizedSentenceRef.current = clean.slice(-90);
+    }
     const syllables = (clean.match(/[가-힣0-9a-zA-Z]/g) || []).length;
     if (durationSec >= 0.8 && syllables >= 3) {
       const observedSps = Math.max(1.9, Math.min(7.2, syllables / durationSec));
@@ -279,6 +345,7 @@ function LegacySttApp() {
     webSpeechSilenceSecRef.current = 0.95;
     webSpeechPendingFinalRef.current = '';
     webSpeechTurnStartMsRef.current = 0;
+    lastRecognizedSentenceRef.current = '';
     setTempoBadgeText('박자 보통 0.82s');
   }, []);
 
@@ -666,22 +733,113 @@ function LegacySttApp() {
   }, [sttEngine, gpuServerOnline, loopbackDevice, activeAudioFile, appendFinalParagraph, showToast, clearToast, setRecording]);
 
 
-  // 16kHz Mono Float32Array -> 16-bit PCM WAV Blob 인코더 (DC 오프셋 제거 + 적응형 음량 정규화로 클로바 인식률 극대화)
+  // 16kHz Mono Float32Array -> 16-bit PCM WAV Blob 인코더 (개별 스위치 기반 DSP 전처리 체인)
   const encodeWav16kMono = (samples: Float32Array, sampleRate = 16000): Blob => {
+    const opts = sttLabOptionsRef.current;
     const numSamples = samples.length;
+    const proc = new Float32Array(numSamples);
+
+    // 0. 기본 DC 오프셋 계산 (음량 정규화 또는 필터 활성화 시 기준선 정렬)
     let sum = 0;
     for (let i = 0; i < numSamples; i++) {
       sum += samples[i];
     }
-    const dcOffset = numSamples > 0 ? sum / numSamples : 0;
-
-    let peak = 0;
+    const dcOffset = opts.wavPeakNormalize && numSamples > 0 ? sum / numSamples : 0;
     for (let i = 0; i < numSamples; i++) {
-      const v = Math.abs(samples[i] - dcOffset);
-      if (v > peak) peak = v;
+      proc[i] = samples[i] - dcOffset;
     }
-    // 스피커->마이크 수음 시 낮은 음량(예: peak 0.08~0.25)을 표준 -1.4dBFS(0.85) 수준으로 자동 증폭 (최대 8.5배 캡)
-    const normGain = peak > 0.008 ? Math.min(8.5, Math.max(1.0, 0.85 / peak)) : 1.0;
+
+    // 1. [스위치: 저역 노이즈 차단 (85Hz HPF)] 에어컨·팬·진동 초저주파 험 노이즈(0~85Hz) 2차(12dB/oct) 감쇠
+    if (opts.lowCut85Hz && numSamples > 4) {
+      const alphaHp = 1.0 / (1.0 + (2.0 * Math.PI * 85.0) / sampleRate); // ~0.9677 @ 16kHz
+      for (let pass = 0; pass < 2; pass++) {
+        let prevX = proc[0];
+        let prevY = proc[0];
+        for (let i = 1; i < numSamples; i++) {
+          const x = proc[i];
+          const y = alphaHp * (prevY + x - prevX);
+          proc[i] = y;
+          prevX = x;
+          prevY = y;
+        }
+      }
+    }
+
+    // 2. [스위치: 2화자 음색·성량 보정 (Dual-Speaker Timbre & Loudness Balancer)]
+    //    (a) 저음·수화기 너머 먹먹한 화자(고역 에너지 비율 < 0.42)일 때만 자음 명료도 틸트를 자동 보강하고 고음 화자는 원본 유지
+    //    (b) 0.35초 로컬 윈도우별 성량 격차 평탄화(큰 목소리 상담원과 작은 목소리 고객 간 볼륨 비대칭 해소)
+    if (opts.dualSpeakerBalance && numSamples > 320) {
+      let absSum = 0;
+      let diffSum = 0;
+      for (let i = 1; i < numSamples; i++) {
+        absSum += Math.abs(proc[i]);
+        diffSum += Math.abs(proc[i] - proc[i - 1]);
+      }
+      const hfRatio = absSum > 1e-5 ? diffSum / absSum : 0.45;
+      if (hfRatio < 0.42) {
+        const tiltCoeff = Math.min(0.52, (0.44 - hfRatio) * 1.65);
+        for (let i = numSamples - 1; i >= 1; i--) {
+          proc[i] = proc[i] + tiltCoeff * (proc[i] - proc[i - 1]);
+        }
+      }
+
+      // 0.35초(5600샘플) 블록 단위 로컬 RMS 측정 후 작은 목소리 구간만 최대 2.4배 부드럽게 부스트
+      const winSize = 5600;
+      let globalVoicedSq = 0;
+      let globalVoicedCnt = 0;
+      for (let i = 0; i < numSamples; i++) {
+        const v = proc[i];
+        if (Math.abs(v) > 0.006) {
+          globalVoicedSq += v * v;
+          globalVoicedCnt++;
+        }
+      }
+      const targetRms = globalVoicedCnt > 0 ? Math.sqrt(globalVoicedSq / globalVoicedCnt) : 0;
+      if (targetRms > 0.008) {
+        const numWins = Math.max(1, Math.ceil(numSamples / winSize));
+        const winGains = new Float32Array(numWins);
+        for (let w = 0; w < numWins; w++) {
+          const sIdx = w * winSize;
+          const eIdx = Math.min(numSamples, sIdx + winSize);
+          let wSq = 0;
+          for (let i = sIdx; i < eIdx; i++) wSq += proc[i] * proc[i];
+          const wRms = Math.sqrt(wSq / Math.max(1, eIdx - sIdx));
+          // 무음(배경 히스)은 키우지 않고, 작은 목소리로 말한 구간(targetRms의 22%~85%)만 끌어올림
+          if (wRms > targetRms * 0.22 && wRms < targetRms * 0.92) {
+            winGains[w] = Math.min(2.35, Math.max(1.0, (targetRms * 0.92) / wRms));
+          } else {
+            winGains[w] = 1.0;
+          }
+        }
+        for (let i = 0; i < numSamples; i++) {
+          const wFloat = i / winSize;
+          const w0 = Math.min(numWins - 1, Math.floor(wFloat));
+          const w1 = Math.min(numWins - 1, w0 + 1);
+          const frac = wFloat - w0;
+          const g = winGains[w0] * (1 - frac) + winGains[w1] * frac;
+          proc[i] *= g;
+        }
+      }
+    }
+
+    // 3. [스위치: 고역 자음 증폭 (3.2kHz Consonant Boost)] 한국어 마찰음·파열음(ㅅ,ㅈ,ㅊ,ㅋ,ㅌ,ㅍ) 고역 프리엠퍼시스 증폭
+    if (opts.highBoostConsonant && numSamples > 2) {
+      const preEmp = 0.56;
+      for (let i = numSamples - 1; i >= 1; i--) {
+        proc[i] = proc[i] + preEmp * (proc[i] - proc[i - 1]);
+      }
+    }
+
+    // 4. [스위치: 음량 정규화 (WAV Gain)] 돌발 클릭음 영향을 배제한 99% 분위수 기반 -1.4dBFS(0.85) 증폭 vs 순정 원본(1.0)
+    let normGain = 1.0;
+    if (opts.wavPeakNormalize && numSamples > 0) {
+      let peak = 0;
+      for (let i = 0; i < numSamples; i++) {
+        const v = Math.abs(proc[i]);
+        if (v > peak) peak = v;
+      }
+      normGain = peak > 0.008 ? Math.min(8.5, Math.max(1.0, 0.85 / peak)) : 1.0;
+    }
 
     const buffer = new ArrayBuffer(44 + numSamples * 2);
     const view = new DataView(buffer);
@@ -703,8 +861,14 @@ function LegacySttApp() {
     view.setUint32(40, numSamples * 2, true);
     let offset = 44;
     for (let i = 0; i < numSamples; i++, offset += 2) {
-      const normalized = (samples[i] - dcOffset) * normGain;
-      const s = Math.max(-1, Math.min(1, normalized));
+      const normalized = proc[i] * normGain;
+      // Soft-knee saturation防止: 0.95 이상 돌발 피크는 완만하게 리미팅하여 디지털 클리핑 왜곡 차단
+      const s =
+        normalized > 0.95
+          ? Math.min(1.0, 0.95 + Math.tanh((normalized - 0.95) * 2.0) * 0.05)
+          : normalized < -0.95
+            ? Math.max(-1.0, -0.95 + Math.tanh((normalized + 0.95) * 2.0) * 0.05)
+            : normalized;
       view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
     }
     return new Blob([buffer], { type: 'audio/wav' });
@@ -1089,8 +1253,11 @@ function LegacySttApp() {
       try {
         const activeEngine = useCounselStore.getState().sttEngine;
         const isGroqStt = activeEngine === 'whisper_large_v3';
+        const labOpts = sttLabOptionsRef.current;
+        const useDomainPrompt = labOpts.domainWordBoost;
+        const prevContextStr = labOpts.rollingPrevSentence ? lastRecognizedSentenceRef.current : '';
         const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const qs = `stream=1&start=${startSec.toFixed(2)}&end=${endSec.toFixed(2)}&gap_ms=${gapMs}&dur_ms=${durMs}`;
+        const qs = `stream=1&start=${startSec.toFixed(2)}&end=${endSec.toFixed(2)}&gap_ms=${gapMs}&dur_ms=${durMs}&domain_boost=${useDomainPrompt ? '1' : '0'}`;
         let response: Response | null = null;
 
         if (isLocalHost && !isGroqStt) {
@@ -1136,6 +1303,8 @@ function LegacySttApp() {
               end: Number(endSec.toFixed(2)),
               gap_ms: gapMs,
               dur_ms: durMs,
+              use_domain_prompt: useDomainPrompt,
+              prev_context: prevContextStr,
               stream: true,
             }),
             signal: abortCtrl.signal,
@@ -1240,60 +1409,77 @@ function LegacySttApp() {
                 return;
               }
               const isClovaActive = state.sttEngine === 'naver_clova' || state.sttEngine === 'whisper_large_v3';
+              const labOpts = sttLabOptionsRef.current;
 
               const input = e.inputBuffer.getChannelData(0);
               const outLen = Math.floor(input.length / ratio);
               let sumSq = 0;
               const downsampled: number[] = new Array(outLen);
               for (let i = 0; i < outLen; i++) {
-                // Boxcar Anti-Aliasing Low-Pass Filter: 48kHz -> 16kHz 다운샘플링 시 구간 평균으로 고주파 에일리어싱 왜곡 차단
                 const startIdx = Math.floor(i * ratio);
-                const endIdx = Math.min(input.length, Math.max(startIdx + 1, Math.floor((i + 1) * ratio)));
-                let acc = 0;
-                for (let k = startIdx; k < endIdx; k++) {
-                  acc += input[k];
+                let sample = 0;
+                if (labOpts.boxcarAntiAliasing) {
+                  // [스위치 ON: 안티에일리어싱 필터] 48kHz -> 16kHz 다운샘플링 시 구간 평균으로 고주파 에일리어싱 왜곡 차단
+                  const endIdx = Math.min(input.length, Math.max(startIdx + 1, Math.floor((i + 1) * ratio)));
+                  let acc = 0;
+                  for (let k = startIdx; k < endIdx; k++) {
+                    acc += input[k];
+                  }
+                  sample = acc / (endIdx - startIdx);
+                } else {
+                  // [스위치 OFF: 원본 포인트 샘플링]
+                  sample = input[startIdx] || 0;
                 }
-                const sample = acc / (endIdx - startIdx);
                 downsampled[i] = sample;
                 const v = sample * 32767;
                 sumSq += v * v;
               }
               const rms = Math.sqrt(sumSq / Math.max(1, outLen));
 
-              // ── 상대적 포락선 낙폭(Relative Envelope Drop) & 분위수 기반 동적 배경소음 추적 (3대 엔진 공통) ──
-              // 스피커->마이크 수음 시 문장 사이 무음 구간의 스피커 히스/실내 잔향(RMS 120~450)을 발화로 오인하여
-              // 매번 5.8초 상한에서 기계적으로 균일 절단되던 문제를 근본 해결
+              // ── [스위치: 호흡 적응형 VAD (dynamicEnvelopeVad)] 상대적 포락선 낙폭 vs 고정 임계치(<=90) 비교 ──
               rollingRmsHistory.push(rms);
               if (rollingRmsHistory.length > 48) {
                 rollingRmsHistory.shift();
               }
-              const sortedRms = [...rollingRmsHistory].sort((a, b) => a - b);
-              const p22Rms = sortedRms[Math.floor((sortedRms.length - 1) * 0.22)] ?? rms;
-              const p85Rms = sortedRms[Math.floor((sortedRms.length - 1) * 0.85)] ?? rms;
+              let onsetThreshold: number;
+              let pauseThreshold: number;
 
-              if (!micInSpeech) {
-                micNoiseFloor = Math.max(35, Math.min(680, micNoiseFloor * 0.88 + p22Rms * 0.12));
+              if (labOpts.dynamicEnvelopeVad) {
+                const sortedRms = [...rollingRmsHistory].sort((a, b) => a - b);
+                const p22Rms = sortedRms[Math.floor((sortedRms.length - 1) * 0.22)] ?? rms;
+                const p85Rms = sortedRms[Math.floor((sortedRms.length - 1) * 0.85)] ?? rms;
+
+                if (!micInSpeech) {
+                  micNoiseFloor = Math.max(35, Math.min(680, micNoiseFloor * 0.88 + p22Rms * 0.12));
+                } else {
+                  micNoiseFloor = Math.max(35, Math.min(680, micNoiseFloor * 0.96 + Math.min(micNoiseFloor, p22Rms) * 0.04));
+                }
+                speechPeakRms = Math.max(
+                  160,
+                  Math.min(12000, speechPeakRms * 0.90 + Math.max(p85Rms, micNoiseFloor * 2.2) * 0.10)
+                );
+
+                onsetThreshold = Math.max(52, Math.min(820, Math.max(micNoiseFloor * 1.52, micNoiseFloor + 60)));
+                const currentMeanVoiced = micVoicedChunks > 0 ? voicedRmsSum / micVoicedChunks : speechPeakRms;
+                const relativeDropThreshold = Math.min(currentMeanVoiced * 0.44, speechPeakRms * 0.40);
+                pauseThreshold = Math.max(
+                  45,
+                  Math.min(740, Math.max(micNoiseFloor * 1.28, relativeDropThreshold))
+                );
               } else {
-                micNoiseFloor = Math.max(35, Math.min(680, micNoiseFloor * 0.96 + Math.min(micNoiseFloor, p22Rms) * 0.04));
+                // 고정 임계치 (기존 5.8초 균일 절단 재현 비교용)
+                if (!micInSpeech && rms < 110) {
+                  micNoiseFloor = Math.max(35, Math.min(75, micNoiseFloor * 0.97 + Math.max(35, rms) * 0.03));
+                }
+                const fixedThr = Math.max(45, Math.min(90, micNoiseFloor * 1.35));
+                onsetThreshold = fixedThr;
+                pauseThreshold = fixedThr;
               }
-              speechPeakRms = Math.max(
-                160,
-                Math.min(12000, speechPeakRms * 0.90 + Math.max(p85Rms, micNoiseFloor * 2.2) * 0.10)
-              );
-
-              // 1) 발화 시작 임계치(onsetThreshold): 배경소음 플로어 대비 명확한 음절 에너지 상승 시 진입
-              const onsetThreshold = Math.max(52, Math.min(820, Math.max(micNoiseFloor * 1.52, micNoiseFloor + 60)));
-              // 2) 발화 중 호흡/문장 휴지 감지 임계치(pauseThreshold): 현재 발화 평균 에너지(meanVoicedRms) 대비
-              //    상대적 포락선 낙폭(44% 이하로 에너지가 뚝 떨어질 때)을 즉시 휴지(Silence)로 판정
-              const currentMeanVoiced = micVoicedChunks > 0 ? voicedRmsSum / micVoicedChunks : speechPeakRms;
-              const relativeDropThreshold = Math.min(currentMeanVoiced * 0.44, speechPeakRms * 0.40);
-              const pauseThreshold = Math.max(
-                45,
-                Math.min(740, Math.max(micNoiseFloor * 1.28, relativeDropThreshold))
-              );
 
               const isVoicedFrame = micInSpeech ? rms > pauseThreshold : rms > onsetThreshold;
               const tp = tempoProfileRef.current;
+              const effectiveSoftMaxSec = labOpts.dynamicEnvelopeVad ? tp.softMaxChunkSec : 4.0;
+              const effectiveHardMaxSec = labOpts.dynamicEnvelopeVad ? tp.hardMaxChunkSec : 5.5;
 
               if (isVoicedFrame) {
                 if (!micInSpeech) {
@@ -1348,13 +1534,14 @@ function LegacySttApp() {
                 }
 
                 // 소프트 에너지 골짜기 절단(Soft Valley Split) — 3대 엔진 공통 적용:
-                // softMaxChunkSec(4.2~6.6s) 이후 음절 사이 에너지 골짜기에서 자연 절단하거나 hardMaxChunkSec(6.2~8.6s) 도달 시 분할
                 const uttDurSec = isClovaActive
                   ? micSpeechSamples.length / 16000
                   : ((micVoicedChunks + micSilenceChunks) * outLen) / 16000;
                 const updatedMeanVoiced = voicedRmsSum / Math.max(1, micVoicedChunks);
-                const isEnergyValley = rms < Math.max(pauseThreshold * 1.25, updatedMeanVoiced * 0.56);
-                if (uttDurSec >= tp.hardMaxChunkSec || (uttDurSec >= tp.softMaxChunkSec && isEnergyValley)) {
+                const isEnergyValley = labOpts.dynamicEnvelopeVad
+                  ? rms < Math.max(pauseThreshold * 1.25, updatedMeanVoiced * 0.56)
+                  : rms < pauseThreshold * 1.22;
+                if (uttDurSec >= effectiveHardMaxSec || (uttDurSec >= effectiveSoftMaxSec && isEnergyValley)) {
                   const toSend = micSpeechSamples;
                   const startToSend = micSpeechStartSec;
                   if (isClovaActive) {
@@ -2819,6 +3006,147 @@ function LegacySttApp() {
                   <RotateCcw size={11} />
                 </button>
               )}
+            </div>
+          </div>
+
+          {/* STT 전처리·문맥 개별 스위치 바 (8대 기법 개별 ON/OFF 실험용) */}
+          <div style={{
+            padding: '6px 10px',
+            borderBottom: '1px solid var(--hairline)',
+            backgroundColor: '#f8fafc',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '5px',
+            flexShrink: 0
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#334155', whiteSpace: 'nowrap' }}>
+                전처리·문맥 스위치
+              </span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <button
+                  onClick={() => applySttLabPreset('RAW_DEFAULT')}
+                  style={{
+                    padding: '2px 6px',
+                    fontSize: '10.5px',
+                    fontWeight: 700,
+                    borderRadius: '4px',
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: Object.values(sttLabOptions).every((v) => !v) ? '#0f172a' : '#ffffff',
+                    color: Object.values(sttLabOptions).every((v) => !v) ? '#ffffff' : '#475569',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  순정 원본 (전체 OFF)
+                </button>
+                <button
+                  onClick={() => applySttLabPreset('RECOMMENDED')}
+                  style={{
+                    padding: '2px 6px',
+                    fontSize: '10.5px',
+                    fontWeight: 700,
+                    borderRadius: '4px',
+                    border: '1px solid #cbd5e1',
+                    backgroundColor:
+                      sttLabOptions.lowCut85Hz &&
+                      !sttLabOptions.highBoostConsonant &&
+                      sttLabOptions.dualSpeakerBalance &&
+                      sttLabOptions.rollingPrevSentence &&
+                      sttLabOptions.domainWordBoost &&
+                      sttLabOptions.wavPeakNormalize &&
+                      sttLabOptions.boxcarAntiAliasing &&
+                      sttLabOptions.dynamicEnvelopeVad
+                        ? '#2563eb'
+                        : '#ffffff',
+                    color:
+                      sttLabOptions.lowCut85Hz &&
+                      !sttLabOptions.highBoostConsonant &&
+                      sttLabOptions.dualSpeakerBalance &&
+                      sttLabOptions.rollingPrevSentence &&
+                      sttLabOptions.domainWordBoost &&
+                      sttLabOptions.wavPeakNormalize &&
+                      sttLabOptions.boxcarAntiAliasing &&
+                      sttLabOptions.dynamicEnvelopeVad
+                        ? '#ffffff'
+                        : '#475569',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  권장 설정
+                </button>
+                <button
+                  onClick={() => applySttLabPreset('ALL_ON')}
+                  style={{
+                    padding: '2px 6px',
+                    fontSize: '10.5px',
+                    fontWeight: 700,
+                    borderRadius: '4px',
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: Object.values(sttLabOptions).every(Boolean) ? '#059669' : '#ffffff',
+                    color: Object.values(sttLabOptions).every(Boolean) ? '#ffffff' : '#475569',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  전체 켜기
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '4px' }}>
+              {(
+                [
+                  { key: 'lowCut85Hz', label: '저역차단 85Hz' },
+                  { key: 'highBoostConsonant', label: '자음증폭 3.2kHz' },
+                  { key: 'dualSpeakerBalance', label: '2화자 음색·성량' },
+                  { key: 'rollingPrevSentence', label: '직전문장 포함' },
+                  { key: 'domainWordBoost', label: '도메인 단어장' },
+                  { key: 'wavPeakNormalize', label: '음량 정규화' },
+                  { key: 'boxcarAntiAliasing', label: '안티에일리어싱' },
+                  { key: 'dynamicEnvelopeVad', label: '호흡 적응절단' },
+                ] as const
+              ).map((item) => {
+                const isOn = sttLabOptions[item.key];
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => toggleSttLabOption(item.key)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '4px',
+                      padding: '3px 6px',
+                      borderRadius: '4px',
+                      border: isOn ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                      backgroundColor: isOn ? '#eff6ff' : '#ffffff',
+                      color: isOn ? '#1e3a8a' : '#64748b',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>
+                    <span
+                      style={{
+                        padding: '0px 4px',
+                        borderRadius: '3px',
+                        fontSize: '9.5px',
+                        fontWeight: 800,
+                        backgroundColor: isOn ? '#2563eb' : '#e2e8f0',
+                        color: isOn ? '#ffffff' : '#64748b',
+                        flexShrink: 0
+                      }}
+                    >
+                      {isOn ? 'ON' : 'OFF'}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

@@ -41,7 +41,7 @@ function isHallucinatedOrPromptEcho(text) {
   return false;
 }
 
-function buildMultipartBody(wavBuffer, modelName) {
+function buildMultipartBody(wavBuffer, modelName, customPrompt) {
   const boundary = `----GroqWhisperBoundary${Date.now().toString(16)}`;
   const chunks = [];
 
@@ -67,7 +67,9 @@ function buildMultipartBody(wavBuffer, modelName) {
   pushField('language', 'ko');
   pushField('response_format', 'verbose_json');
   pushField('temperature', '0');
-  pushField('prompt', DOMAIN_CONTEXT_PROMPT);
+  if (customPrompt && customPrompt.trim()) {
+    pushField('prompt', customPrompt.trim());
+  }
 
   chunks.push(Buffer.from(`--${boundary}--\r\n`, 'utf-8'));
 
@@ -77,8 +79,8 @@ function buildMultipartBody(wavBuffer, modelName) {
   };
 }
 
-async function transcribeWithGroqModel(apiKey, wavBuffer, modelName) {
-  const { boundary, bodyBuffer } = buildMultipartBody(wavBuffer, modelName);
+async function transcribeWithGroqModel(apiKey, wavBuffer, modelName, customPrompt) {
+  const { boundary, bodyBuffer } = buildMultipartBody(wavBuffer, modelName, customPrompt);
 
   const resp = await fetch(GROQ_STT_URL, {
     method: 'POST',
@@ -125,6 +127,8 @@ export default async function handler(req, res) {
     const audioBase64 = String(body.audio_base64 || '').trim();
     const startSec = Number(body.start || req.query?.start || 0);
     const isStreamMode = Boolean(body.stream || req.query?.stream === '1');
+    const useDomainPrompt = body.use_domain_prompt !== undefined ? Boolean(body.use_domain_prompt) : true;
+    const prevContext = String(body.prev_context || '').trim();
 
     if (!audioBase64) {
       return res.status(400).json({ status: 'error', error: 'audio_base64 데이터가 없습니다.' });
@@ -135,14 +139,23 @@ export default async function handler(req, res) {
       return res.status(200).json({ status: 'ok', text: '', segments: [] });
     }
 
+    const promptParts = [];
+    if (useDomainPrompt) {
+      promptParts.push(DOMAIN_CONTEXT_PROMPT);
+    }
+    if (prevContext) {
+      promptParts.push(prevContext.slice(-110));
+    }
+    const effectivePrompt = promptParts.join(' ').trim();
+
     let usedModel = 'whisper-large-v3-turbo';
     let whisperData = null;
 
     try {
-      whisperData = await transcribeWithGroqModel(groqApiKey, wavBuffer, 'whisper-large-v3-turbo');
+      whisperData = await transcribeWithGroqModel(groqApiKey, wavBuffer, 'whisper-large-v3-turbo', effectivePrompt);
     } catch (errTurbo) {
       usedModel = 'whisper-large-v3';
-      whisperData = await transcribeWithGroqModel(groqApiKey, wavBuffer, 'whisper-large-v3');
+      whisperData = await transcribeWithGroqModel(groqApiKey, wavBuffer, 'whisper-large-v3', effectivePrompt);
     }
 
     const rawSegments = Array.isArray(whisperData?.segments) ? whisperData.segments : [];
