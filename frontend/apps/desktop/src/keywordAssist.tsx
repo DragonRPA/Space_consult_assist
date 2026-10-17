@@ -207,24 +207,25 @@ export const DOMAIN_KEYWORD_REGISTRY: KeywordEntity[] = [
     selfActionGuide: '계기판에 불이 전혀 안 들어온다면 가장 먼저 빨간색 비상정지 버튼이 눌려 있는지 시계 방향으로 돌려 튀어나오게 하고, 배터리 앤더슨 잭을 재체결하도록 안내하세요.'
   },
 
-  // [9] 충전 단자 접촉 불량 / 게이지 튐 (PWR_TERMINAL_LOOSE)
+  // [9] 배터리 케이블·단자 접촉 불량 / 커넥터·게이지 이상 (PWR_TERMINAL_LOOSE)
   {
     id: 'kw-terminal-loose',
     canonicalId: 'PWR_TERMINAL_LOOSE',
-    keyword: '충전 단자 접촉 불량 / 잔량 표시 오류',
-    synonyms: /앤더슨\s*커넥터|단자\s*접촉|충전\s*단자|충전\s*잭|커넥터\s*헐거|단자\s*유격|(?:앤더슨\s*커넥터|커넥터|충전\s*단자|단자|충전\s*잭)[이가은는]?\s*(?:접촉\s*)?(?:안\s*됨|안\s*돼|불가|불량|파손|깨짐|깨졌|부서짐|부서졌|빠짐|빠졌|뽑힘|뽑혔|끊어짐|끊어졌)|(?:잔량|게이지|배터리\s*칸)[이가]?\s*(?:튀어|튐|왔다\s*갔다|깜빡|오류|안\s*맞|안\s*됨|불량)/i,
-    fuzzyPhrases: ['충전단자접촉불량', '앤더슨커넥터파손', '단자빠짐', '전선뽑힘', '배선뽑힘', '커넥터깨짐', '배터리게이지오류', '단자헐거움'],
-    category: 'ELECTRICAL / 단자·커넥터',
-    partCode: 'ANDERSON-CONNECTOR',
-    partName: '앤더슨 파워 커넥터 50A/120A 하우징 세트',
+    keyword: '배터리 케이블·단자 / 커넥터 접촉 불량',
+    synonyms: /배터리\s*케이블|배터리\s*단자|배터리\s*배선|배터리\s*전선|배터리\s*선|배터리\s*커넥터|점퍼\s*케이블|점퍼\s*선|충전기?\s*케이블|전원\s*케이블|전원\s*코드|앤더슨\s*커넥터|앤더슨\s*잭|단자\s*접촉|충전\s*단자|충전\s*잭|커넥터\s*헐거|단자\s*유격|(?:배터리\s*케이블|충전\s*케이블|전원\s*케이블|점퍼\s*케이블|케이블|배선|전선|앤더슨\s*커넥터|커넥터|충전\s*단자|단자|충전\s*잭)[이가은는도]?\s*(?:접촉\s*|연결\s*)?(?:안\s*됨|안\s*돼|불가|불량|파손|깨짐|깨졌|부서짐|부서졌|빠짐|빠졌|뽑힘|뽑혔|끊어짐|끊어졌|단선|부식|백화|헐거|타버|녹아)|(?:잔량|게이지|배터리\s*칸)[이가]?\s*(?:튀어|튐|왔다\s*갔다|깜빡|오류|안\s*맞|안\s*됨|불량)/i,
+    fuzzyPhrases: ['배터리케이블', '배터리단자', '충전케이블', '충전단자접촉불량', '앤더슨커넥터파손', '단자빠짐', '전선뽑힘', '배선뽑힘', '커넥터깨짐', '배터리게이지오류', '단자헐거움'],
+    category: 'ELECTRICAL / 배터리케이블·단자·커넥터',
+    partCode: 'ANDERSON-CABLE-ASSY',
+    partName: '배터리 점퍼 케이블 및 앤더슨 커넥터 어셈블리',
     stock: 30,
-    confidence: 93,
+    confidence: 96,
     checklist: [
+      '배터리 단자 점퍼 케이블 체결 너트 풀림·단선 및 백화(부식) 여부 확인',
       '앤더슨 커넥터 내부 금속 단자 핀이 뒤로 밀렸거나 벌어졌는지 확인',
-      '커넥터 플라스틱 하우징 균열 및 케이블 압착부 발열 흔적 점검',
-      '하우징 파손 시 규격(50A/120A/175A) 확인 후 부품 출고'
+      '커넥터 플라스틱 하우징 균열 및 배터리 케이블 압착부 발열·소손 흔적 점검',
+      '케이블 단선 또는 커넥터 파손 시 규격(50A/120A/175A) 확인 후 부품 출고/배차'
     ],
-    selfActionGuide: '충전 잭이 헐겁거나 잔량 게이지가 튄다면 앤더슨 커넥터 내부의 금속 핀이 뒤로 밀리지 않았는지 확인하도록 안내하세요.'
+    selfActionGuide: '배터리 케이블 연결부 너트가 헐겁거나 단자 백화·케이블 피복 손상이 있는지 확인하고, 앤더슨 커넥터 내부 금속 핀 유격을 점검하도록 안내하세요.'
   },
 
   // [10] 브러시 모터 회전 불가 / 과부하 차단 (DRV_BRUSH_STALL)
@@ -642,22 +643,133 @@ export function extractNegativeStateExpressions(text: string): ExtractedNegative
   return results;
 }
 
+// ── 1-B-2. 복합어(2단어 이상 결합 = 단일 의미) 최우선 식별 사전 ──
+// 단일 단어("배터리", "모터", "호스", "브러시", "밸브")가 복합어("배터리 케이블", "흡입 호스", "브러시 모터")의
+// 앞부분만 가로채어 오판정하는 현상을 방지하기 위해, 복합어를 최장 일치(Longest-Match) 기준으로 선행 매칭 후 해당 구간을 마스킹합니다.
+const COMPOUND_SYMPTOM_PRIORITY_RULES: Array<{ pattern: RegExp; keywordId: string }> = [
+  // 배터리 케이블 / 단자 / 커넥터 (단일어 '배터리'보다 최우선 처리)
+  { pattern: /배터리\s*점퍼\s*케이블|배터리\s*케이블|배터리\s*단자|배터리\s*커넥터|배터리\s*배선|배터리\s*전선|배터리\s*선|점퍼\s*케이블|충전기?\s*케이블|전원\s*케이블|전원\s*코드|앤더슨\s*커넥터|앤더슨\s*잭|충전\s*단자|충전\s*커넥터|단자\s*접촉\s*불량|잔량\s*표시\s*오류|배터리\s*게이지/gi, keywordId: 'kw-terminal-loose' },
+  // 배터리 방전 / 수명 열화
+  { pattern: /배터리\s*조기\s*방전|배터리\s*방전|조기\s*방전|금방\s*방전|빨리\s*방전|배터리\s*수명|배터리\s*교체|사용\s*시간\s*급감|증류수\s*보충/gi, keywordId: 'kw-battery-degrade' },
+  // 배터리 충전 / 충전기 이상
+  { pattern: /배터리\s*충전\s*불량|배터리\s*충전|충전\s*불량|충전\s*불가|충전기\s*고장|충전기\s*불량|충전기\s*파손|어댑터\s*불량/gi, keywordId: 'kw-battery' },
+  // 급수 / 솔레노이드 밸브 / 청수 필터
+  { pattern: /솔레노이드\s*밸브|급수\s*밸브|전자\s*밸브|세척수\s*미분사|노즐\s*막힘|분사구\s*막힘|청수\s*필터|세수\s*필터|거름망\s*필터/gi, keywordId: 'kw-solenoid' },
+  // 세척수 누수 / 호스 피팅 물샘
+  { pattern: /세척수\s*누수|청수\s*누수|호스\s*피팅\s*누수|호스\s*물샘|엘보\s*피팅|밸브\s*닫힘\s*불량|물이?\s*계속\s*새/gi, keywordId: 'kw-water-leak' },
+  // 스퀴지 고무 / 바닥 잔수
+  { pattern: /스퀴지\s*블레이드|스퀴지\s*고무|스퀴지\s*날|와이퍼\s*고무|고무\s*블레이드|고무\s*날|뒷\s*고무|바닥\s*물기|바닥\s*잔수|줄무늬\s*잔수|물\s*자국|패드\s*거치대|판\s*거치대/gi, keywordId: 'kw-squeegee' },
+  // 외장 / 흡입 호스 / 드레인 호스 (단일어 '흡입'보다 '흡입 호스'가 먼저 매칭되도록 배치)
+  { pattern: /흡입\s*호스|석션\s*호스|드레인\s*호스|배수\s*호스|배수\s*캡|오수\s*탱크\s*파손|청수\s*탱크\s*파손|물통\s*깨짐|뚜껑\s*깨짐|레버\s*부러짐|레버\s*부서짐|외장\s*파손|커버\s*파손|호스\s*찢어짐|호스\s*빠짐|호스\s*뽑힘|호스\s*막힘/gi, keywordId: 'kw-chassis-damage' },
+  // 흡입 모터 / 석션 모터 / 진공 모터
+  { pattern: /흡입\s*모터|흡입\s*모타|석션\s*모터|바큠\s*모터|진공\s*모터|흡입력\s*저하|흡입\s*불량|진공압\s*저하|모터\s*굉음|모터\s*과열|모터\s*소음|타는\s*냄새|탄\s*냄새/gi, keywordId: 'kw-suction' },
+  // 오수탱크 플로트 밸브 / 만수 센서
+  { pattern: /플로트\s*밸브|플로트\s*볼|플로트\s*센서|만수\s*센서|만수\s*경보|만수\s*차단|수위\s*센서|오수\s*탱크\s*조기\s*차단/gi, keywordId: 'kw-float-sensor' },
+  // 전원 완전 인입 불가 / 비상정지 / 키스위치
+  { pattern: /비상\s*정지\s*버튼|비상\s*정지\s*스위치|비상\s*정지|키\s*스위치|키\s*박스|메인\s*릴레이|메인\s*퓨즈|전원\s*불량|전원\s*먹통|계기판\s*먹통/gi, keywordId: 'kw-power-dead' },
+  // 브러시 모터 / 서킷 브레이커
+  { pattern: /브러시\s*모터|브러시\s*회전\s*불량|브러시\s*회전|브러시\s*미회전|서킷\s*브레이커|과부하\s*차단기?/gi, keywordId: 'kw-brush-stall' },
+  // 패드 드라이버 / 고정 노브 / 삼발이
+  { pattern: /패드\s*드라이버|패드\s*홀더|데크\s*노브|고정\s*노브|삼발이\s*클러치|브러시\s*장착|브러시\s*탈착|볼트\s*풀림/gi, keywordId: 'kw-brush-deck' },
+  // 주행 구동 / 트랜스액슬 / 전자 브레이크
+  { pattern: /주행\s*모터|구동\s*모터|주행\s*불가|주행\s*불량|구동\s*불량|전자\s*브레이크|견인\s*레버|직진\s*쏠림/gi, keywordId: 'kw-wheel-drive' },
+  // 타이밍 벨트 / 구동 벨트 슬립
+  { pattern: /타이밍\s*벨트|구동\s*벨트|벨트\s*슬립|벨트\s*마모|벨트\s*늘어짐|벨트\s*끊어짐|끼익\s*소리|고무\s*마찰음/gi, keywordId: 'kw-belt-slip' },
+  // 리프트 액추에이터 / 승강 불량
+  { pattern: /리프트\s*액추에이터|전동\s*액추에이터|승강\s*불량|승강\s*장치|리프트\s*불량|승강\s*페달/gi, keywordId: 'kw-lift-fail' },
+  // 에러 코드 / 경고음
+  { pattern: /에러\s*코드|오류\s*코드|삐삐\s*소리/gi, keywordId: 'kw-error-code' },
+];
+
+/**
+ * 발화 문장 내 2단어 이상 결합된 복합어(예: "배터리 케이블", "솔레노이드 밸브", "흡입 호스")가
+ * 포함되어 있는지 최장 일치 기준으로 우선 판정하여 반환합니다.
+ */
+export function findCompoundSymptomEntity(text: string): KeywordEntity | null {
+  if (!text || !text.trim()) return null;
+  let bestKeywordId: string | null = null;
+  let bestNormLen = 0;
+
+  for (const rule of COMPOUND_SYMPTOM_PRIORITY_RULES) {
+    const regex = new RegExp(rule.pattern.source, 'gi');
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(text)) !== null) {
+      const normLen = m[0].replace(/\s+/g, '').length;
+      if (normLen > bestNormLen) {
+        bestNormLen = normLen;
+        bestKeywordId = rule.keywordId;
+      }
+    }
+  }
+  if (!bestKeywordId) return null;
+  return DOMAIN_KEYWORD_REGISTRY.find(k => k.id === bestKeywordId) || null;
+}
+
 /**
  * 문장(또는 슬라이딩 윈도우 문맥)에서 매칭되는 모든 표준 증상 엔티티를 반환
- * 1차: 구어체 조합 정규식(synonyms) 매칭
- * 2차: 부정적 상태표현 구문 추출기([OOO 안됨/불가/파손/깨짐/부서짐/빠짐/뽑힘]) 기반 의미 매핑
- * 3차: 정규식/구문 미매칭 시 한국어 자모 음운 유사도(fuzzyPhrases) 기반 매칭 (유사도 >= 0.78)
+ * - 1단계 (복합어 최우선 처리 & 구간 마스킹): "배터리 케이블", "흡입 호스", "솔레노이드 밸브" 등
+ *   2단어 이상 결합된 복합어를 최장 일치(Longest-Match) 순으로 먼저 식별하고 해당 글자 구간을 마스킹합니다.
+ * - 2단계 (잔여 구간 일반 매칭): 마스킹된 후 남은 문장에 대해서만 일반 정규식(synonyms) 매칭을 수행하여
+ *   "배터리 케이블"에서 "배터리"만 먼저 잡혀 오판정되는 현상을 원천 차단합니다.
  */
 export function findMatchingSymptomEntities(text: string): KeywordEntity[] {
   if (!text || !text.trim()) return [];
   const matched: KeywordEntity[] = [];
   const seenIds = new Set<string>();
 
-  // 명시적 증상/부품 구어체 정규식(synonyms) 매칭만 수행 (모호한 부정상태 추론 및 자모 유사도 추측 비활성화)
-  for (const entity of DOMAIN_KEYWORD_REGISTRY) {
-    if (entity.synonyms.test(text) && !seenIds.has(entity.id)) {
-      matched.push(entity);
-      seenIds.add(entity.id);
+  // 1단계: 복합어(2단어 이상 결합어) 후보 전체 수집 후 길이 내림차순(최장 일치) 정렬 및 구간 마스킹
+  const compoundHits: Array<{ start: number; end: number; normLen: number; keywordId: string }> = [];
+  for (const rule of COMPOUND_SYMPTOM_PRIORITY_RULES) {
+    const regex = new RegExp(rule.pattern.source, 'gi');
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(text)) !== null) {
+      const hitText = m[0];
+      compoundHits.push({
+        start: m.index,
+        end: m.index + hitText.length,
+        normLen: hitText.replace(/\s+/g, '').length,
+        keywordId: rule.keywordId,
+      });
+    }
+  }
+
+  compoundHits.sort((a, b) => (b.normLen !== a.normLen ? b.normLen - a.normLen : a.start - b.start));
+
+  const chars = text.split('');
+  const consumedMask = new Array<boolean>(chars.length).fill(false);
+
+  for (const hit of compoundHits) {
+    let overlaps = false;
+    for (let i = hit.start; i < hit.end; i++) {
+      if (consumedMask[i]) {
+        overlaps = true;
+        break;
+      }
+    }
+    if (overlaps) continue;
+
+    for (let i = hit.start; i < hit.end; i++) {
+      consumedMask[i] = true;
+      chars[i] = ' ';
+    }
+
+    if (!seenIds.has(hit.keywordId)) {
+      const entity = DOMAIN_KEYWORD_REGISTRY.find(k => k.id === hit.keywordId);
+      if (entity) {
+        matched.push(entity);
+        seenIds.add(entity.id);
+      }
+    }
+  }
+
+  // 2단계: 복합어 구간이 마스킹(제거)된 잔여 텍스트에서만 단일어/일반 구어체 정규식 매칭 수행
+  const remainingText = chars.join('');
+  if (remainingText.trim()) {
+    for (const entity of DOMAIN_KEYWORD_REGISTRY) {
+      if (entity.synonyms.test(remainingText) && !seenIds.has(entity.id)) {
+        matched.push(entity);
+        seenIds.add(entity.id);
+      }
     }
   }
 
@@ -1001,10 +1113,18 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
   {
+    id: 'ent-sym-terminal',
+    type: 'symptom',
+    label: '고장증상',
+    pattern: /배터리\s*점퍼\s*케이블|배터리\s*케이블|배터리\s*단자|배터리\s*커넥터|배터리\s*배선|배터리\s*전선|배터리\s*선|점퍼\s*케이블|충전기?\s*케이블|전원\s*케이블|전원\s*코드|앤더슨\s*커넥터|앤더슨\s*잭|단자\s*접촉\s*불량|충전\s*단자|잔량\s*표시\s*오류|게이지가?\s*튀어요?|케이블/i,
+    keywordId: 'kw-terminal-loose',
+    colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
+  },
+  {
     id: 'ent-sym-battery-degrade',
     type: 'symptom',
     label: '고장증상',
-    pattern: /조기\s*방전|배터리\s*방전|금방\s*방전|빨리\s*방전|금방\s*꺼져요?|사용\s*시간\s*급감|배터리\s*수명/i,
+    pattern: /배터리\s*조기\s*방전|조기\s*방전|배터리\s*방전|금방\s*방전|빨리\s*방전|금방\s*꺼져요?|사용\s*시간\s*급감|배터리\s*수명/i,
     keywordId: 'kw-battery-degrade',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1012,7 +1132,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-battery',
     type: 'symptom',
     label: '고장증상',
-    pattern: /충전\s*불량|충전\s*불가|충전\s*안\s*됨|충전이?\s*안\s*돼요?|충전기\s*고장|충전\s*문제|배터리\s*문제|배터리|충전기?|방전/i,
+    pattern: /배터리\s*충전\s*불량|배터리\s*충전|충전\s*불량|충전\s*불가|충전\s*안\s*됨|충전이?\s*안\s*돼요?|충전기\s*고장|충전\s*문제|배터리\s*문제|배터리|충전기?|방전/i,
     keywordId: 'kw-battery',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1020,16 +1140,8 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-power-dead',
     type: 'symptom',
     label: '고장증상',
-    pattern: /전원\s*불량|전원이?\s*안\s*켜져?요?|전원\s*먹통|계기판\s*먹통|시동이?\s*안\s*걸려?요?|아예\s*먹통|비상\s*정지|안\s*켜져요?/i,
+    pattern: /비상\s*정지\s*버튼|비상\s*정지\s*스위치|비상\s*정지|키\s*스위치|전원\s*불량|전원이?\s*안\s*켜져?요?|전원\s*먹통|계기판\s*먹통|시동이?\s*안\s*걸려?요?|아예\s*먹통|안\s*켜져요?/i,
     keywordId: 'kw-power-dead',
-    colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
-  },
-  {
-    id: 'ent-sym-terminal',
-    type: 'symptom',
-    label: '고장증상',
-    pattern: /앤더슨\s*커넥터|단자\s*접촉\s*불량|충전\s*단자|잔량\s*표시\s*오류|게이지가?\s*튀어요?/i,
-    keywordId: 'kw-terminal-loose',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
   {
@@ -1044,7 +1156,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-brush',
     type: 'symptom',
     label: '고장증상',
-    pattern: /패드\s*드라이버|브러시|패드판|데크|노브|볼트|녹이?\s*슬|녹\s*발생|커넥터/i,
+    pattern: /패드\s*드라이버|고정\s*노브|데크\s*노브|삼발이\s*클러치|브러시|패드판|데크|노브|볼트|녹이?\s*슬|녹\s*발생|커넥터/i,
     keywordId: 'kw-brush-deck',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1052,7 +1164,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-wheel-drive',
     type: 'symptom',
     label: '고장증상',
-    pattern: /주행\s*불가|주행\s*불량|구동\s*불량|트랜스액슬|포텐셔미터|앞으로\s*안\s*가요?|뒤로\s*안\s*가요?|전진이?\s*안\s*돼요?|후진이?\s*안\s*돼요?|바퀴가?\s*안\s*굴러|직진\s*쏠림/i,
+    pattern: /주행\s*모터|구동\s*모터|주행\s*불가|주행\s*불량|구동\s*불량|트랜스액슬|포텐셔미터|전자\s*브레이크|견인\s*레버|앞으로\s*안\s*가요?|뒤로\s*안\s*가요?|전진이?\s*안\s*돼요?|후진이?\s*안\s*돼요?|바퀴가?\s*안\s*굴러|직진\s*쏠림/i,
     keywordId: 'kw-wheel-drive',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1060,7 +1172,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-belt-slip',
     type: 'symptom',
     label: '고장증상',
-    pattern: /벨트\s*슬립|타이밍\s*벨트|벨트\s*끊어짐|벨트\s*마모|끼익\s*소리/i,
+    pattern: /벨트\s*슬립|타이밍\s*벨트|구동\s*벨트|벨트\s*끊어짐|벨트\s*마모|끼익\s*소리/i,
     keywordId: 'kw-belt-slip',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1068,7 +1180,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-lift-fail',
     type: 'symptom',
     label: '고장증상',
-    pattern: /액추에이터|승강\s*불량|리프트\s*불량|브러시가?\s*안\s*내려가요?|스퀴지가?\s*안\s*내려가요?|안\s*올라가요?/i,
+    pattern: /리프트\s*액추에이터|액추에이터|승강\s*불량|리프트\s*불량|브러시가?\s*안\s*내려가요?|스퀴지가?\s*안\s*내려가요?|안\s*올라가요?/i,
     keywordId: 'kw-lift-fail',
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
@@ -1092,7 +1204,7 @@ export const NAMED_ENTITY_REGISTRY: EntityRule[] = [
     id: 'ent-sym-negative-state',
     type: 'symptom',
     label: '부정상태',
-    pattern: /(?:솔레노이드|솔밸브|급수|세척수|청수|분사구?|노즐|배관|피팅|스퀴지|와이퍼|고무날?|블레이드|흡입\s*모터|흡입력?|석션|진공|플로트|부표|만수\s*센서|배터리|충전기?|단자|커넥터|앤더슨|전선|배선|케이블|코드|잭|전원|시동|계기판|키\s*스위치|키\s*박스|브러시|솔|차단기|패드\s*드라이버|패드판?|데크|노브|볼트|삼발이|주행|전진|후진|전후진|구동|트랜스액슬|포텐셔미터|브레이크|벨트|텐셔너|액추에이터|승강|리프트|와이어|호스|레버|핸들|손잡이|뚜껑|커버|범퍼|물통|탱크|오수통|청수통|바퀴|캐스터|휠|페달|투명창|케이스|고정핀|핀|걸쇠|클램프|마개|캡|거름망|스위치)[이가은는을를도]?\s*(?:작동\s*|가동\s*|회전\s*|체결\s*)?(?:안\s*됨|안\s*돼(?:요|서)?|안\s*되(?:요|네)?|불가(?:능)?|파손(?:됨|됐)?|깨짐|깨졌(?:어요|어)?|부서짐|부서졌(?:어요|어)?|부러짐|부러졌(?:어요|어)?|빠짐|빠졌(?:어요|어)?|뽑힘|뽑혔(?:어요|어)?|끊어짐|끊어졌(?:어요|어)?|찢어짐|찢어졌(?:어요|어)?|막힘|막혔(?:어요|어)?)/i,
+    pattern: /(?:솔레노이드|솔밸브|급수|세척수|청수|분사구?|노즐|배관|피팅|스퀴지|와이퍼|고무날?|블레이드|흡입\s*모터|흡입력?|석션|진공|플로트|부표|만수\s*센서|배터리\s*케이블|배터리\s*단자|배터리|충전기?|단자|커넥터|앤더슨|전선|배선|케이블|코드|잭|전원|시동|계기판|키\s*스위치|키\s*박스|브러시\s*모터|브러시|솔|차단기|패드\s*드라이버|패드판?|데크|노브|볼트|삼발이|주행|전진|후진|전후진|구동|트랜스액슬|포텐셔미터|브레이크|벨트|텐셔너|액추에이터|승강|리프트|와이어|드레인\s*호스|흡입\s*호스|호스|레버|핸들|손잡이|뚜껑|커버|범퍼|물통|탱크|오수통|청수통|바퀴|캐스터|휠|페달|투명창|케이스|고정핀|핀|걸쇠|클램프|마개|캡|거름망|스위치)[이가은는을를도]?\s*(?:작동\s*|가동\s*|회전\s*|체결\s*)?(?:안\s*됨|안\s*돼(?:요|서)?|안\s*되(?:요|네)?|불가(?:능)?|파손(?:됨|됐)?|깨짐|깨졌(?:어요|어)?|부서짐|부서졌(?:어요|어)?|부러짐|부러졌(?:어요|어)?|빠짐|빠졌(?:어요|어)?|뽑힘|뽑혔(?:어요|어)?|끊어짐|끊어졌(?:어요|어)?|찢어짐|찢어졌(?:어요|어)?|막힘|막혔(?:어요|어)?)/i,
     colorScheme: { bg: '#fecaca', border: '#f87171', text: '#7f1d1d', glow: 'none' }
   },
 
@@ -1147,9 +1259,12 @@ export interface EntityClickHandlers {
   onActionClick?: (actionRule: EntityRule) => void;
 }
 
-// Master Unified Regex capturing Customers, Sites, Models, Symptoms, and Action SOP steps dynamically
-const masterRegex = new RegExp('(' + NAMED_ENTITY_REGISTRY.map(r => r.pattern.source).join('|') + ')', 'gi');
-
+/**
+ * 복합어 최우선 · 최장 일치(Longest-Match & Compound-Term-First) 스팬 스캐너
+ * - "배터리 케이블"처럼 두 단어가 결합되어 하나의 뜻을 갖는 표현이 등장할 때,
+ *   단일 단어("배터리")가 앞부분만 먼저 잘라먹지 못하도록 문장 내 모든 후보 매칭 중
+ *   [복합어(2어절 이상) & 글자 길이가 더 긴 매칭]을 최우선 확정합니다.
+ */
 export function renderMultiColorHighlightedText(
   text: string,
   handlers: EntityClickHandlers,
@@ -1159,84 +1274,171 @@ export function renderMultiColorHighlightedText(
 ): React.ReactNode[] {
   if (!text) return [];
 
-  const parts = text.split(masterRegex);
+  interface CandidateSpan {
+    start: number;
+    end: number;
+    matchedText: string;
+    normLen: number;
+    isCompound: boolean;
+    ruleIdx: number;
+    rule: EntityRule;
+  }
 
-  return parts.map((part, idx) => {
-    if (!part) return null;
+  const candidates: CandidateSpan[] = [];
 
-    const matchedRule = NAMED_ENTITY_REGISTRY.find(r => r.pattern.test(part));
-
-    if (matchedRule) {
-      const resolvedSymptomEntity =
-        matchedRule.type === 'symptom'
-          ? (matchedRule.keywordId
-              ? DOMAIN_KEYWORD_REGISTRY.find(k => k.id === matchedRule.keywordId)
-              : undefined) || findMatchingSymptomEntities(part)[0]
-          : undefined;
-
-      let isSelected = false;
-      if (matchedRule.type === 'symptom' && resolvedSymptomEntity?.id === activeKeywordId) {
-        isSelected = true;
-      } else if ((matchedRule.type === 'customer' || matchedRule.type === 'site') && matchedRule.customerId === activeCustomerId) {
-        isSelected = true;
+  for (let rIdx = 0; rIdx < NAMED_ENTITY_REGISTRY.length; rIdx++) {
+    const rule = NAMED_ENTITY_REGISTRY[rIdx];
+    const globalRegex = new RegExp(rule.pattern.source, 'gi');
+    let m: RegExpExecArray | null;
+    while ((m = globalRegex.exec(text)) !== null) {
+      const hit = m[0];
+      if (!hit) {
+        globalRegex.lastIndex += 1;
+        continue;
       }
+      const normLen = hit.replace(/\s+/g, '').length;
+      const isCompound =
+        /\s/.test(hit.trim()) ||
+        normLen >= 4 ||
+        Boolean(findCompoundSymptomEntity(hit));
+      candidates.push({
+        start: m.index,
+        end: m.index + hit.length,
+        matchedText: hit,
+        normLen,
+        isCompound,
+        ruleIdx: rIdx,
+        rule,
+      });
+    }
+  }
 
-      const handleClick = () => {
-        if (matchedRule.type === 'symptom' && resolvedSymptomEntity) {
-          handlers.onSymptomClick(resolvedSymptomEntity);
-        } else if ((matchedRule.type === 'customer' || matchedRule.type === 'site') && matchedRule.customerId && customerList) {
-          const cust = customerList.find(c => c.id === matchedRule.customerId);
-          if (cust && handlers.onCustomerClick) {
-            handlers.onCustomerClick(cust);
-          }
-        } else if (matchedRule.type === 'model' && matchedRule.modelId && handlers.onModelClick) {
-          handlers.onModelClick(matchedRule.modelId);
-        } else if (matchedRule.type === 'action' && handlers.onActionClick) {
-          handlers.onActionClick(matchedRule);
-        }
-      };
+  if (candidates.length === 0) {
+    return [<span key={0}>{text}</span>];
+  }
 
-      const extractedNeg = matchedRule.type === 'symptom' ? extractNegativeStateExpressions(part)[0] : undefined;
-      const titleText = matchedRule.type === 'customer' 
-        ? `[고객사: ${part}]` 
-        : matchedRule.type === 'site' 
-        ? `[현장/위치: ${part}]` 
-        : matchedRule.type === 'model'
-        ? `[장비모델: ${part}]`
-        : matchedRule.type === 'action'
-        ? `[조치사항: ${part}]` 
-        : extractedNeg
-        ? `[부정상태 추출: ${extractedNeg.stateSummary}]`
-        : `[증상: ${part}]`;
+  // 정렬 우선순위: 1) 글자 길이(normLen)가 긴 복합어 최우선 -> 2) 시작 위치가 빠른 순 -> 3) 룰 등록 순
+  candidates.sort((a, b) => {
+    if (b.normLen !== a.normLen) return b.normLen - a.normLen;
+    if (a.isCompound !== b.isCompound) return a.isCompound ? -1 : 1;
+    if (a.start !== b.start) return a.start - b.start;
+    return a.ruleIdx - b.ruleIdx;
+  });
 
-      return (
-        <span
-          key={idx}
-          onClick={handleClick}
-          tabIndex={0}
-          role="button"
-          aria-label={titleText}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); } }}
-          title={titleText}
-          style={{
-            display: 'inline',
-            backgroundColor: matchedRule.colorScheme.bg,
-            border: `1px solid ${matchedRule.colorScheme.border}`,
-            color: matchedRule.colorScheme.text,
-            fontWeight: 700,
-            padding: '1px 5px',
-            margin: '0 2px',
-            borderRadius: '3px',
-            cursor: 'pointer',
-            boxShadow: isSelected ? `0 0 0 2px ${matchedRule.colorScheme.border}` : 'none',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          {part}
-        </span>
-      );
+  const occupied = new Array<boolean>(text.length).fill(false);
+  const selectedSpans: CandidateSpan[] = [];
+
+  for (const cand of candidates) {
+    let conflict = false;
+    for (let i = cand.start; i < cand.end; i++) {
+      if (occupied[i]) {
+        conflict = true;
+        break;
+      }
+    }
+    if (conflict) continue;
+    for (let i = cand.start; i < cand.end; i++) {
+      occupied[i] = true;
+    }
+    selectedSpans.push(cand);
+  }
+
+  selectedSpans.sort((a, b) => a.start - b.start);
+
+  const nodes: React.ReactNode[] = [];
+  let cursor = 0;
+  let nodeKey = 0;
+
+  for (const span of selectedSpans) {
+    if (span.start > cursor) {
+      nodes.push(<span key={nodeKey++}>{text.slice(cursor, span.start)}</span>);
     }
 
-    return <span key={idx}>{part}</span>;
-  });
+    const part = span.matchedText;
+    const matchedRule = span.rule;
+    const resolvedSymptomEntity =
+      matchedRule.type === 'symptom'
+        ? findCompoundSymptomEntity(part) ||
+          (matchedRule.keywordId
+            ? DOMAIN_KEYWORD_REGISTRY.find(k => k.id === matchedRule.keywordId)
+            : undefined) ||
+          findMatchingSymptomEntities(part)[0]
+        : undefined;
+
+    let isSelected = false;
+    if (matchedRule.type === 'symptom' && resolvedSymptomEntity?.id === activeKeywordId) {
+      isSelected = true;
+    } else if ((matchedRule.type === 'customer' || matchedRule.type === 'site') && matchedRule.customerId === activeCustomerId) {
+      isSelected = true;
+    }
+
+    const handleClick = () => {
+      if (matchedRule.type === 'symptom' && resolvedSymptomEntity) {
+        handlers.onSymptomClick(resolvedSymptomEntity);
+      } else if ((matchedRule.type === 'customer' || matchedRule.type === 'site') && matchedRule.customerId && customerList) {
+        const cust = customerList.find(c => c.id === matchedRule.customerId);
+        if (cust && handlers.onCustomerClick) {
+          handlers.onCustomerClick(cust);
+        }
+      } else if (matchedRule.type === 'model' && matchedRule.modelId && handlers.onModelClick) {
+        handlers.onModelClick(matchedRule.modelId);
+      } else if (matchedRule.type === 'action' && handlers.onActionClick) {
+        handlers.onActionClick(matchedRule);
+      }
+    };
+
+    const extractedNeg = matchedRule.type === 'symptom' ? extractNegativeStateExpressions(part)[0] : undefined;
+    const titleText =
+      matchedRule.type === 'customer'
+        ? `[고객사: ${part}]`
+        : matchedRule.type === 'site'
+          ? `[현장/위치: ${part}]`
+          : matchedRule.type === 'model'
+            ? `[장비모델: ${part}]`
+            : matchedRule.type === 'action'
+              ? `[조치사항: ${part}]`
+              : extractedNeg
+                ? `[부정상태 추출: ${extractedNeg.stateSummary}]`
+                : `[증상/부품: ${part}]`;
+
+    nodes.push(
+      <span
+        key={nodeKey++}
+        onClick={handleClick}
+        tabIndex={0}
+        role="button"
+        aria-label={titleText}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleClick();
+          }
+        }}
+        title={titleText}
+        style={{
+          display: 'inline',
+          backgroundColor: matchedRule.colorScheme.bg,
+          border: `1px solid ${matchedRule.colorScheme.border}`,
+          color: matchedRule.colorScheme.text,
+          fontWeight: 700,
+          padding: '1px 5px',
+          margin: '0 2px',
+          borderRadius: '3px',
+          cursor: 'pointer',
+          boxShadow: isSelected ? `0 0 0 2px ${matchedRule.colorScheme.border}` : 'none',
+          transition: 'all 0.15s ease',
+        }}
+      >
+        {part}
+      </span>
+    );
+
+    cursor = span.end;
+  }
+
+  if (cursor < text.length) {
+    nodes.push(<span key={nodeKey++}>{text.slice(cursor)}</span>);
+  }
+
+  return nodes;
 }

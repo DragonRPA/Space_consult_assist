@@ -18,9 +18,11 @@ from app.core.secret_vault import get_server_secret
 logger = logging.getLogger("space_advisor.clova_grpc")
 
 CLOVA_DOMAIN_BOOST_WORDS = (
-    "S12,S12L,S7,S5,S3,S2,S1,R3,W12,W15,J600T,J800,J900,"
+    "배터리 케이블,배터리케이블,배터리 단자,배터리단자,점퍼 케이블,충전기 케이블,전원 케이블,"
+    "솔레노이드 밸브,흡입 호스,배수 호스,브러시 모터,흡입 모터,주행 모터,스퀴지 고무,"
+    "S12,S12L,S7,S5,S3,S2,S1,R3,W12,W15,J600T,J800,J900,스마트타워,타워,"
     "스페이스,수림종합관리,청소차,스크러버,스퀴지,흡입모터,솔모터,솔레노이드,"
-    "배터리,충전기,솔브러쉬,패드홀더,오수탱크,정수탱크,플로트밸브,앤더슨커넥터"
+    "배터리,충전기,솔브러쉬,패드홀더,오수탱크,정수탱크,플로트밸브,앤더슨커넥터,케이블,단자"
 )
 
 _channel_lock = threading.Lock()
@@ -99,7 +101,7 @@ def build_nest_config_request(
                 "boostings": [
                     {
                         "words": CLOVA_DOMAIN_BOOST_WORDS,
-                        "weight": 2.0,
+                        "weight": 3.5,
                     }
                 ]
             },
@@ -177,9 +179,11 @@ def stream_pcm_with_clova_grpc(
     인식된 문장 조각(NestResponse)이 도착할 때마다 즉시 yield 합니다.
     """
     secret_key, grpc_url = _get_clova_grpc_credentials()
-    pcm_bytes = extract_pcm_s16le_from_wav_or_raw(pcm_Or_wav_bytes)
-    if not pcm_bytes or len(pcm_bytes) < 320:
+    raw_pcm = extract_pcm_s16le_from_wav_or_raw(pcm_Or_wav_bytes)
+    if not raw_pcm or len(raw_pcm) < 320:
         return
+    # 청크 말미 단어가 잘리지 않도록 0.45초(14,400 bytes) 무음 꼬리 패딩(Tail Silence Padding) 부착
+    pcm_bytes = raw_pcm + (b"\x00" * 14400)
 
     channel = _get_shared_grpc_channel(grpc_url)
     recognize_rpc = channel.stream_stream(
@@ -260,10 +264,7 @@ def stream_pcm_with_clova_grpc(
                         "provider": "naver_clova",
                     }
 
-                if last_seq_id_box[0] > 0 and (
-                    seq_id >= last_seq_id_box[0]
-                    or (ep_flag and seq_id >= max(1, last_seq_id_box[0] - 2))
-                ):
+                if last_seq_id_box[0] > 0 and seq_id >= last_seq_id_box[0]:
                     stop_send_event.set()
                     break
     finally:

@@ -10,8 +10,13 @@ const DEFAULT_GRPC_HOST = 'clovaspeech-gw.ncloud.com:50051';
 const NEST_SERVICE_PATH = '/com.nbp.cdncp.nest.grpc.proto.v1.NestService/recognize';
 
 const DOMAIN_BOOST_WORDS = [
-  '솔레노이드', '솔레노이드 밸브', '스퀴지', '흡입모터', '플로트 볼', '플로트 밸브',
-  '액추에이터', '트랜스액슬', '브러시', '청수필터', '수림종합관리', '수림', 'S12', '스12', 'J600T', 'J800'
+  '배터리 케이블', '배터리 단자', '점퍼 케이블', '충전기 케이블', '전원 케이블', '앤더슨 커넥터',
+  '솔레노이드', '솔레노이드 밸브', '급수 밸브', '스퀴지', '스퀴지 고무', '스퀴지 블레이드',
+  '흡입모터', '흡입 모터', '석션 모터', '플로트 볼', '플로트 밸브', '만수 센서',
+  '액추에이터', '트랜스액슬', '브러시', '브러시 모터', '서킷 브레이커', '패드 드라이버',
+  '청수필터', '세수필터', '드레인 호스', '흡입 호스', '오수탱크', '청수탱크', '비상정지',
+  '스마트타워', '수림종합관리', '수림', '반포자이', '래미안퍼스티지', '도곡렉슬', '엠타워',
+  'S12', 'S12L', '스12', 'J600T', 'J800', 'S7', 'S5', 'S3', 'S2', 'R3', 'XD80', 'XD60', 'M100', 'Q45'
 ];
 
 function encodeVarint(val) {
@@ -199,7 +204,9 @@ function streamClovaGrpcPcm({
     const segments = [];
 
     const chunkSize = 3200; // 100ms @ 16kHz 16-bit mono
-    const totalChunks = Math.max(1, Math.ceil(pcmBuffer.length / chunkSize));
+    // 청크 말미 단어가 잘리지 않도록 0.45초(14,400 bytes) 무음 꼬리 패딩(Tail Silence Padding) 부착
+    const paddedPcmBuffer = Buffer.concat([pcmBuffer, Buffer.alloc(14400, 0)]);
+    const totalChunks = Math.max(1, Math.ceil(paddedPcmBuffer.length / chunkSize));
 
     grpcReq.on('response', (headers) => {
       if (headers['grpc-status'] && headers['grpc-status'] !== '0') {
@@ -247,16 +254,16 @@ function streamClovaGrpcPcm({
                 } catch (_) {}
               }
             }
-            // 모든 PCM 패킷 전송이 끝난 후 마지막 구간(seqId >= totalChunks - 3)에 도달했을 때만 즉시 종료
-            if (allChunksSent && (seqId >= totalChunks || (tr.epFlag === true && seqId >= Math.max(1, totalChunks - 4)))) {
+            // 모든 PCM 패킷 전송이 끝난 후 전체 청크(seqId >= totalChunks)에 도달했을 때만 즉시 종료
+            if (allChunksSent && seqId >= totalChunks) {
               try {
                 grpcReq.end();
               } catch (_) {}
             } else if (allChunksSent && tr.epFlag === true) {
-              // 중간 구간에서 epFlag가 발생한 경우 남은 오디오에 대한 후속 세그먼트를 위해 여유 대기 후 종료
+              // 중간 구간에서 epFlag가 발생한 경우 남은 오디오에 대한 후속 세그먼트를 위해 충분한 여유 대기 후 종료
               if (tailSettleTimer) clearTimeout(tailSettleTimer);
               const remainingChunks = Math.max(0, totalChunks - seqId);
-              const waitMs = Math.min(4500, Math.max(900, remainingChunks * 95 + 700));
+              const waitMs = Math.min(4500, Math.max(1200, remainingChunks * 80 + 800));
               tailSettleTimer = setTimeout(() => {
                 try {
                   grpcReq.end();
@@ -341,7 +348,7 @@ function streamClovaGrpcPcm({
         return;
       }
 
-      const slice = pcmBuffer.subarray(idx * chunkSize, (idx + 1) * chunkSize);
+      const slice = paddedPcmBuffer.subarray(idx * chunkSize, (idx + 1) * chunkSize);
       const isLast = idx === totalChunks - 1;
       const seqId = idx + 1;
       const extraJson = JSON.stringify({ epFlag: isLast, seqId });
