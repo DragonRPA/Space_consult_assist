@@ -943,7 +943,15 @@ function LegacySttApp() {
       if (sttEngine === 'web_speech') {
         startSttStreaming();
       }
-      showToast(`STT 청음 시작 (${sttEngine === 'naver_clova' ? '네이버 클로바 STT' : '브라우저 내장 STT'})`);
+      showToast(
+        `STT 청음 시작 (${
+          sttEngine === 'whisper_large_v3'
+            ? 'Groq Whisper LPU'
+            : sttEngine === 'naver_clova'
+              ? '네이버 클로바 STT'
+              : '브라우저 내장 STT'
+        })`
+      );
       setTimeout(() => clearToast(), 2500);
     } else {
       if (webSpeechCommitTimerRef.current) {
@@ -1076,11 +1084,13 @@ function LegacySttApp() {
       };
 
       try {
+        const activeEngine = useCounselStore.getState().sttEngine;
+        const isGroqStt = activeEngine === 'whisper_large_v3';
         const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         const qs = `stream=1&start=${startSec.toFixed(2)}&end=${endSec.toFixed(2)}&gap_ms=${gapMs}&dur_ms=${durMs}`;
         let response: Response | null = null;
 
-        if (isLocalHost) {
+        if (isLocalHost && !isGroqStt) {
           try {
             const formData = new FormData();
             formData.append('file', wavBlob, `mic_${startSec.toFixed(1)}_${endSec.toFixed(1)}.wav`);
@@ -1109,9 +1119,10 @@ function LegacySttApp() {
             reader.readAsDataURL(wavBlob);
           });
 
+          const endpointPath = isGroqStt ? `/api/groq-stt-chunk?${qs}` : `/api/clova-chunk?${qs}`;
           const cloudUrl = isLocalHost
-            ? `https://space-consult-assist.vercel.app/api/clova-chunk?${qs}`
-            : `/api/clova-chunk?${qs}`;
+            ? `https://space-consult-assist.vercel.app${endpointPath}`
+            : endpointPath;
 
           response = await fetch(cloudUrl, {
             method: 'POST',
@@ -1129,7 +1140,7 @@ function LegacySttApp() {
         }
 
         if (!response.ok) {
-          throw new Error(`Clova gRPC HTTP ${response.status}`);
+          throw new Error(`${isGroqStt ? 'Groq STT' : 'Clova gRPC'} HTTP ${response.status}`);
         }
 
         if (response.body) {
@@ -1173,7 +1184,7 @@ function LegacySttApp() {
         }
       } catch (err: any) {
         if (err?.name !== 'AbortError') {
-          console.warn('마이크 클로바 STT 전사 실패:', err);
+          console.warn('마이크 클라우드 STT 전사 실패:', err);
         }
       } finally {
         if (chunkTexts.length > 0 && audioSessionIdRef.current === capturedSessionId) {
@@ -1209,7 +1220,7 @@ function LegacySttApp() {
           const source = audioCtx.createMediaStreamSource(stream);
           source.connect(analyser);
 
-          // 오직 물리적 마이크(getUserMedia)가 실제로 수음한 파형만 16kHz로 다운샘플링하여 클로바로 전송
+          // 오직 물리적 마이크(getUserMedia)가 실제로 수음한 파형만 16kHz로 다운샘플링하여 클로바 또는 Groq Whisper로 전송
           try {
             processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
             source.connect(processorNode);
@@ -1225,7 +1236,7 @@ function LegacySttApp() {
               if (!isRecordingRef.current) {
                 return;
               }
-              const isClovaActive = state.sttEngine === 'naver_clova';
+              const isClovaActive = state.sttEngine === 'naver_clova' || state.sttEngine === 'whisper_large_v3';
 
               const input = e.inputBuffer.getChannelData(0);
               const outLen = Math.floor(input.length / ratio);
@@ -1413,8 +1424,9 @@ function LegacySttApp() {
     }
 
     return () => {
+      const endEngine = useCounselStore.getState().sttEngine;
       if (
-        useCounselStore.getState().sttEngine === 'naver_clova' &&
+        (endEngine === 'naver_clova' || endEngine === 'whisper_large_v3') &&
         micInSpeech &&
         micVoicedChunks >= 2 &&
         micSpeechSamples.length >= 16000 * 0.35
@@ -2173,6 +2185,27 @@ function LegacySttApp() {
             border: '1px solid #cbd5e1',
             gap: '2px'
           }}>
+            <button
+              onClick={() => {
+                if (recognitionRef.current) {
+                  try { recognitionRef.current.stop(); } catch (_) {}
+                }
+                setSttEngine('whisper_large_v3');
+              }}
+              style={{
+                padding: '3px 8px',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                color: sttEngine === 'whisper_large_v3' ? '#fff' : '#334155',
+                backgroundColor: sttEngine === 'whisper_large_v3' ? '#ea580c' : 'transparent',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Groq Whisper
+            </button>
             <button
               onClick={() => {
                 if (recognitionRef.current) {

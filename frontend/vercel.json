@@ -6,6 +6,9 @@
     "api/clova-chunk.js": {
       "maxDuration": 60
     },
+    "api/groq-stt-chunk.js": {
+      "maxDuration": 30
+    },
     "api/consult-wrapup.js": {
       "maxDuration": 30
     }
