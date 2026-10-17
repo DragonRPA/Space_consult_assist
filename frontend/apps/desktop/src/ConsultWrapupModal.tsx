@@ -76,6 +76,14 @@ interface ConsultWrapupModalProps {
   checklist: { id: number; text: string; checked: boolean }[];
   assignedEngineer: string;
   dispatchDate: string;
+  archiveId?: string | null;
+  audioFileName?: string;
+  audioFileSize?: number;
+  audioDurationSec?: number;
+  sttEngine?: string;
+  sttLabOptions?: Record<string, boolean>;
+  sttParagraphs?: string[];
+  onArchiveIdChange?: (id: string) => void;
   onOpenPartsQuote: () => void;
   onOpenDispatchDoc: () => void;
   onCompleteWrapup: (summaryNote: string) => void;
@@ -154,6 +162,14 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
   checklist,
   assignedEngineer,
   dispatchDate,
+  archiveId,
+  audioFileName,
+  audioFileSize,
+  audioDurationSec,
+  sttEngine,
+  sttLabOptions,
+  sttParagraphs,
+  onArchiveIdChange,
   onOpenPartsQuote,
   onOpenDispatchDoc,
   onCompleteWrapup,
@@ -229,19 +245,22 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
       const result = await resp.json();
       const data = result.data || {};
 
+      const provStr = result.provider || 'groq_cloud';
+      const modStr = result.model || 'llama-3.3-70b-versatile';
       setProviderInfo({
-        provider: result.provider || 'groq_cloud',
-        model: result.model || 'llama-3.3-70b-versatile',
+        provider: provStr,
+        model: modStr,
         elapsedMs: Number(result.elapsedMs || 0),
       });
 
-      setOverallSummary({
+      const nextSummary = {
         issue: data.overallSummary?.issue || `${selectedCustomer?.name || '고객사'} (${equipmentModel}) 상담 접수`,
         guidance: data.overallSummary?.guidance || '점검 체크리스트 안내 완료',
         conclusion: data.overallSummary?.conclusion || '상담 결론 도출 완료',
-      });
+      };
+      setOverallSummary(nextSummary);
 
-      setCustomerDraft({
+      const nextCustomer = {
         companyName: data.extractedCustomer?.companyName || selectedCustomer?.name || '미확인 고객사',
         managerName: data.extractedCustomer?.managerName || selectedCustomer?.manager || '현장 담당자',
         phone: data.extractedCustomer?.phone || selectedCustomer?.phone || '',
@@ -251,7 +270,8 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
           '',
         equipmentModel: data.extractedCustomer?.equipmentModel || equipmentModel || 'J600T',
         serialNumber: data.extractedCustomer?.serialNumber || selectedCustomer?.serialNumber || '',
-      });
+      };
+      setCustomerDraft(nextCustomer);
 
       const rawOutcomes = Array.isArray(data.outcomes) ? data.outcomes : [];
       const mappedOutcomes: WrapupOutcomeItem[] = rawOutcomes.map((item: any, idx: number) => {
@@ -295,6 +315,55 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
       });
 
       setOutcomes(mappedOutcomes);
+
+      // AI 결론 도출 즉시 public.stt_audio_archives 테이블에 (파일명 + STT 텍스트 + AI 결론) 세트 자동 기록
+      try {
+        const paras = Array.isArray(sttParagraphs) && sttParagraphs.length > 0
+          ? sttParagraphs
+          : (transcriptText || '').split('\n').filter(Boolean);
+        const archivePayload = {
+          file_name: audioFileName || '실시간 마이크 수음',
+          file_size_bytes: audioFileSize || 0,
+          audio_duration_sec: Number((audioDurationSec || 0).toFixed(2)),
+          stt_engine: sttEngine || 'whisper_large_v3',
+          stt_lab_options: sttLabOptions || {},
+          stt_text: transcriptText || '',
+          stt_paragraphs: paras,
+          paragraph_count: paras.length,
+          detected_keywords: detectedKeywords.map((k) => ({
+            id: k.id,
+            keyword: k.keyword,
+            category: k.category,
+          })),
+          customer_name: nextCustomer.companyName,
+          manager_name: nextCustomer.managerName,
+          phone: nextCustomer.phone,
+          address: nextCustomer.address,
+          equipment_model: nextCustomer.equipmentModel,
+          ai_summary_issue: nextSummary.issue,
+          ai_summary_guidance: nextSummary.guidance,
+          ai_summary_conclusion: nextSummary.conclusion,
+          ai_outcomes: mappedOutcomes,
+          ai_provider: `${provStr}:${modStr}`,
+          status: 'AI_ANALYZED',
+          updated_at: new Date().toISOString(),
+        };
+
+        if (archiveId) {
+          await supabase.from('stt_audio_archives').update(archivePayload).eq('id', archiveId);
+        } else {
+          const { data: insertedRow } = await supabase
+            .from('stt_audio_archives')
+            .insert([archivePayload])
+            .select('id')
+            .single();
+          if (insertedRow?.id && onArchiveIdChange) {
+            onArchiveIdChange(insertedRow.id);
+          }
+        }
+      } catch (archiveErr) {
+        console.warn('stt_audio_archives AI_ANALYZED update notice:', archiveErr);
+      }
     } catch (err: any) {
       setErrorMsg(String(err?.message || err));
     } finally {
@@ -308,6 +377,14 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
     checklist,
     assignedEngineer,
     dispatchDate,
+    archiveId,
+    audioFileName,
+    audioFileSize,
+    audioDurationSec,
+    sttEngine,
+    sttLabOptions,
+    sttParagraphs,
+    onArchiveIdChange,
   ]);
 
   useEffect(() => {
@@ -581,10 +658,65 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
         }
       }
 
+      // 4. 음성파일 + 추출텍스트 + AI 결론 세트 최종 확정 저장 (public.stt_audio_archives)
+      const paras = Array.isArray(sttParagraphs) && sttParagraphs.length > 0
+        ? sttParagraphs
+        : (transcriptText || '').split('\n').filter(Boolean);
+      const confirmedArchivePayload = {
+        file_name: audioFileName || '실시간 마이크 수음',
+        file_size_bytes: audioFileSize || 0,
+        audio_duration_sec: Number((audioDurationSec || 0).toFixed(2)),
+        stt_engine: sttEngine || 'whisper_large_v3',
+        stt_lab_options: sttLabOptions || {},
+        stt_text: transcriptText || '',
+        stt_paragraphs: paras,
+        paragraph_count: paras.length,
+        detected_keywords: detectedKeywords.map((k) => ({
+          id: k.id,
+          keyword: k.keyword,
+          category: k.category,
+        })),
+        customer_name: customerDraft.companyName,
+        manager_name: customerDraft.managerName,
+        phone: customerDraft.phone,
+        address: customerDraft.address,
+        equipment_model: customerDraft.equipmentModel,
+        ai_summary_issue: overallSummary.issue,
+        ai_summary_guidance: overallSummary.guidance,
+        ai_summary_conclusion: overallSummary.conclusion,
+        ai_outcomes: checkedOutcomes,
+        ai_provider: `${providerInfo.provider}:${providerInfo.model}`,
+        consult_id: consultId || null,
+        status: 'CONFIRMED',
+        updated_at: new Date().toISOString(),
+      };
+
+      if (archiveId) {
+        const { error: archUpdErr } = await supabase
+          .from('stt_audio_archives')
+          .update(confirmedArchivePayload)
+          .eq('id', archiveId);
+        if (archUpdErr) {
+          throw new Error(`파일·STT·AI 세트(stt_audio_archives) 확정 저장 실패: ${archUpdErr.message}`);
+        }
+      } else {
+        const { data: archInsRow, error: archInsErr } = await supabase
+          .from('stt_audio_archives')
+          .insert([confirmedArchivePayload])
+          .select('id')
+          .single();
+        if (archInsErr) {
+          throw new Error(`파일·STT·AI 세트(stt_audio_archives) 신규 저장 실패: ${archInsErr.message}`);
+        }
+        if (archInsRow?.id && onArchiveIdChange) {
+          onArchiveIdChange(archInsRow.id);
+        }
+      }
+
       const finalSummaryNote = `[AI 결론 확정] ${checkedOutcomes.map((o) => o.title).join(' / ')}`;
       onCompleteWrapup(finalSummaryNote);
       onToast(
-        `DB 저장 완료: 상담이력(consult_logs) 1건 · 일정캘린더 ${savedScheduleCount}건${
+        `DB 저장 완료: 파일·STT·AI 세트(stt_audio_archives) 1건 · 상담이력 1건 · 일정캘린더 ${savedScheduleCount}건${
           savedVisitCount > 0 ? ` · 출장배차 ${savedVisitCount}건` : ''
         }${savedSalesCount > 0 ? ` · 영업대장 ${savedSalesCount}건` : ''}`
       );

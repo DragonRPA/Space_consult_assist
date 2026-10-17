@@ -29,6 +29,8 @@ import { PartsOrderQuotationModal } from './PartsOrderQuotationModal';
 import { SelfActionGuideModal } from './SelfActionGuideModal';
 import { DispatchDocPackageModal } from './DispatchDocPackageModal';
 import { ConsultWrapupModal } from './ConsultWrapupModal';
+import { SttArchiveModal } from './SttArchiveModal';
+import { supabase } from './scheduleApi';
 import { applyContextualCorrection } from './contextCorrector';
 import { 
   DOMAIN_KEYWORD_REGISTRY, 
@@ -181,6 +183,9 @@ function LegacySttApp() {
   const [isSelfGuideModalOpen, setIsSelfGuideModalOpen] = useState(false);
   const [isDispatchDocModalOpen, setIsDispatchDocModalOpen] = useState(false);
   const [isWrapupModalOpen, setIsWrapupModalOpen] = useState(false);
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [activeArchiveId, setActiveArchiveId] = useState<string | null>(null);
+  const activeArchiveIdRef = useRef<string | null>(null);
   const [recommendedClosingAction, setRecommendedClosingAction] = useState<'NONE' | 'PARTS_QUOTE' | 'DISPATCH' | 'RESOLVED'>('NONE');
   const [confirmedSlotFlags, setConfirmedSlotFlags] = useState<{
     customer: boolean;
@@ -960,6 +965,39 @@ function LegacySttApp() {
     setIsAudioPlaying(true);
     setRecording(true);
 
+    // 6. 음성 파일 열람 즉시 public.stt_audio_archives 테이블에 초기 세션 행 생성 (OPENED)
+    activeArchiveIdRef.current = null;
+    setActiveArchiveId(null);
+    void (async () => {
+      try {
+        const curEngine = useCounselStore.getState().sttEngine;
+        const { data: insRow, error: insErr } = await supabase
+          .from('stt_audio_archives')
+          .insert([
+            {
+              file_name: file.name,
+              file_size_bytes: file.size || 0,
+              audio_duration_sec: 0,
+              stt_engine: curEngine,
+              stt_lab_options: sttLabOptionsRef.current,
+              stt_text: '',
+              stt_paragraphs: [],
+              paragraph_count: 0,
+              detected_keywords: [],
+              status: 'OPENED',
+            },
+          ])
+          .select('id')
+          .single();
+        if (!insErr && insRow?.id && audioSessionIdRef.current === mySessionId) {
+          activeArchiveIdRef.current = insRow.id;
+          setActiveArchiveId(insRow.id);
+        }
+      } catch (e) {
+        console.warn('stt_audio_archives OPENED insert notice:', e);
+      }
+    })();
+
     setTimeout(() => {
       if (audioSessionIdRef.current !== mySessionId) return;
       if (globalAudioRef.current) {
@@ -983,9 +1021,79 @@ function LegacySttApp() {
       }
     }, 30);
 
-    showToast(`[${file.name}] 스피커 재생 및 마이크 수음 시작`);
+    showToast(`[${file.name}] 스피커 재생 및 마이크 수음 시작 (DB 기록 시작)`);
     setTimeout(() => clearToast(), 3000);
   }, [abortAllClovaStreams, resetSessionForNewAudio, resetTempoProfile, setActiveAudioFile, setIsAudioPlaying, setAudioTime, setInterimSttText, setRecording, startSttStreaming, showToast, clearToast]);
+
+  // STT 추출 텍스트가 누적·갱신될 때마다 public.stt_audio_archives 테이블에 실시간 자동 반영
+  useEffect(() => {
+    if (finalParagraphs.length === 0) return;
+    const timer = window.setTimeout(async () => {
+      try {
+        const joinedText = finalParagraphs.join('\n');
+        const rawMod = selectedCustomer?.assetModel || '';
+        const modMatch = rawMod.match(/\b(J600T?|J800|S12L?|S7P?|S5|S3|S2|S1|R3|XD80|XD60|S800|M100|Q45)\b/i);
+        const eqMod = modMatch ? modMatch[1].toUpperCase() : rawMod;
+        const payload: Record<string, unknown> = {
+          file_name: activeAudioFile?.name || '실시간 마이크 수음',
+          file_size_bytes: activeAudioFile?.size || 0,
+          audio_duration_sec: Number((audioDuration || callSeconds || 0).toFixed(2)),
+          stt_engine: sttEngine,
+          stt_lab_options: sttLabOptionsRef.current,
+          stt_text: joinedText,
+          stt_paragraphs: finalParagraphs,
+          paragraph_count: finalParagraphs.length,
+          detected_keywords: detectedKeywordEntities.map((k) => ({
+            id: k.id,
+            keyword: k.keyword,
+            category: k.category,
+          })),
+          customer_name: selectedCustomer?.name || '',
+          manager_name: selectedCustomer?.manager || '',
+          phone: selectedCustomer?.phone || '',
+          address: `${selectedCustomer?.address || ''} ${selectedCustomer?.addressDetail || ''}`.trim(),
+          equipment_model: eqMod || '',
+          updated_at: new Date().toISOString(),
+        };
+
+        const curArchiveId = activeArchiveIdRef.current;
+        if (curArchiveId) {
+          await supabase
+            .from('stt_audio_archives')
+            .update({ ...payload, status: 'STT_COMPLETED' })
+            .eq('id', curArchiveId)
+            .in('status', ['OPENED', 'STT_PROCESSING', 'STT_COMPLETED']);
+          await supabase
+            .from('stt_audio_archives')
+            .update(payload)
+            .eq('id', curArchiveId)
+            .in('status', ['AI_ANALYZED', 'CONFIRMED']);
+        } else {
+          const { data: insRow } = await supabase
+            .from('stt_audio_archives')
+            .insert([{ ...payload, status: 'STT_COMPLETED' }])
+            .select('id')
+            .single();
+          if (insRow?.id) {
+            activeArchiveIdRef.current = insRow.id;
+            setActiveArchiveId(insRow.id);
+          }
+        }
+      } catch (e) {
+        console.warn('stt_audio_archives auto-sync notice:', e);
+      }
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    finalParagraphs,
+    activeAudioFile,
+    audioDuration,
+    callSeconds,
+    sttEngine,
+    detectedKeywordEntities,
+    selectedCustomer,
+  ]);
 
   // GLOBAL WINDOW DRAG & DROP & PASTE INTERCEPTOR
   useEffect(() => {
@@ -2607,6 +2715,29 @@ function LegacySttApp() {
           >
             <Upload size={12} />
             <span>음성파일 열기</span>
+          </button>
+
+          {/* STT & AI Archive History */}
+          <button
+            onClick={() => setIsArchiveModalOpen(true)}
+            title="열어본 음성파일 · STT 추출텍스트 · AI 결론 DB 기록 보관함"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '4px 10px',
+              borderRadius: '5px',
+              border: '1px solid #93c5fd',
+              backgroundColor: '#eff6ff',
+              color: '#1e3a8a',
+              fontSize: '12px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <FileText size={12} />
+            <span>파일·STT 기록</span>
           </button>
 
           {/* Mic Check */}
@@ -4317,6 +4448,17 @@ function LegacySttApp() {
           checklist={actionChecklist}
           assignedEngineer={assignedEngineer}
           dispatchDate={dispatchDate}
+          archiveId={activeArchiveId}
+          audioFileName={activeAudioFile?.name || '실시간 마이크 수음'}
+          audioFileSize={activeAudioFile?.size || 0}
+          audioDurationSec={audioDuration || callSeconds || 0}
+          sttEngine={sttEngine}
+          sttLabOptions={sttLabOptions}
+          sttParagraphs={finalParagraphs}
+          onArchiveIdChange={(id) => {
+            activeArchiveIdRef.current = id;
+            setActiveArchiveId(id);
+          }}
           onOpenPartsQuote={() => {
             setIsWrapupModalOpen(false);
             setIsPartsQuoteModalOpen(true);
@@ -4339,6 +4481,20 @@ function LegacySttApp() {
               };
               selectCustomer(updatedCust);
             }
+          }}
+          onToast={(msg) => {
+            showToast(msg);
+            setTimeout(() => clearToast(), 3500);
+          }}
+        />
+      )}
+
+      {isArchiveModalOpen && (
+        <SttArchiveModal
+          isOpen={isArchiveModalOpen}
+          onClose={() => setIsArchiveModalOpen(false)}
+          onLoadTranscript={(fileName, paras) => {
+            handlePasteText(paras.join('\n'), fileName);
           }}
           onToast={(msg) => {
             showToast(msg);
