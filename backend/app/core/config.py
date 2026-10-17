@@ -35,11 +35,12 @@ class Settings(BaseSettings):
     r2_bucket_name: str = "dragonrpa"
     r2_public_domain: str = "https://pub-4bd1b65a7bcc4eef8993da27e7362727.r2.dev"
 
-    # AI 엔진 설정 (stt: groq, openai, mock, local / llm: ollama, openai, mock)
+    # AI 엔진 설정 (stt: groq, openai, mock, local / llm: groq, openai, ollama, mock)
     stt_provider: str = "groq"
-    llm_provider: str = "openai"
+    llm_provider: str = "groq"
     groq_api_key: str = ""
     groq_stt_model: str = "whisper-large-v3-turbo"
+    groq_llm_model: str = "llama-3.3-70b-versatile"
     openai_api_key: str = ""
     openai_stt_model: str = "whisper-1"
     openai_llm_model: str = "gpt-4o-mini"
@@ -65,6 +66,8 @@ def get_settings():
             s.naver_clova_speech_secret_key = get_server_secret("NAVER_CLOVA_SPEECH_SECRET_KEY", "")
         if not s.naver_clova_speech_grpc_url or s.naver_clova_speech_grpc_url == "clovaspeech-gw.ncloud.com:50051":
             s.naver_clova_speech_grpc_url = get_server_secret("NAVER_CLOVA_SPEECH_GRPC_URL", "clovaspeech-gw.ncloud.com:50051")
+        if not s.groq_api_key:
+            s.groq_api_key = get_server_secret("GROQ_API_KEY", "")
         if not s.openai_api_key:
             s.openai_api_key = get_server_secret("OPENAI_API_KEY", "")
     except Exception:

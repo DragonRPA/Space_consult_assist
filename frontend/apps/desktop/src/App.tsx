@@ -28,6 +28,7 @@ import { EquipmentManualModal } from './EquipmentManualModal';
 import { PartsOrderQuotationModal } from './PartsOrderQuotationModal';
 import { SelfActionGuideModal } from './SelfActionGuideModal';
 import { DispatchDocPackageModal } from './DispatchDocPackageModal';
+import { ConsultWrapupModal } from './ConsultWrapupModal';
 import { applyContextualCorrection } from './contextCorrector';
 import { 
   DOMAIN_KEYWORD_REGISTRY, 
@@ -179,6 +180,7 @@ function LegacySttApp() {
   const [isPartsQuoteModalOpen, setIsPartsQuoteModalOpen] = useState(false);
   const [isSelfGuideModalOpen, setIsSelfGuideModalOpen] = useState(false);
   const [isDispatchDocModalOpen, setIsDispatchDocModalOpen] = useState(false);
+  const [isWrapupModalOpen, setIsWrapupModalOpen] = useState(false);
   const [recommendedClosingAction, setRecommendedClosingAction] = useState<'NONE' | 'PARTS_QUOTE' | 'DISPATCH' | 'RESOLVED'>('NONE');
   const [confirmedSlotFlags, setConfirmedSlotFlags] = useState<{
     customer: boolean;
@@ -3291,6 +3293,31 @@ function LegacySttApp() {
               {dispatchNote}
             </div>
 
+            {/* 1-Click AI Multi-Outcome Wrap-Up Button (Groq Cloud LPU) */}
+            <button
+              onClick={() => setIsWrapupModalOpen(true)}
+              disabled={isSubmitting}
+              style={{
+                width: '100%',
+                padding: '9px 10px',
+                backgroundColor: '#0f172a',
+                color: '#ffffff',
+                border: '1.5px solid #2563eb',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: 800,
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <Zap size={14} style={{ color: '#38bdf8' }} />
+              <span>AI 결론 정리 (기술·견적·시연·납품·AS 일괄 분류)</span>
+            </button>
+
             <div style={{ display: 'flex', gap: '6px' }}>
               <button
                 onClick={handleResolveComplete}
@@ -3658,6 +3685,35 @@ function LegacySttApp() {
           onToast={(msg) => {
             showToast(msg);
             setTimeout(() => clearToast(), 3000);
+          }}
+        />
+      )}
+
+      {isWrapupModalOpen && (
+        <ConsultWrapupModal
+          isOpen={isWrapupModalOpen}
+          onClose={() => setIsWrapupModalOpen(false)}
+          transcriptText={finalParagraphs.join('\n')}
+          selectedCustomer={selectedCustomer}
+          equipmentModel={cleanModelCode || 'J600T'}
+          detectedKeywords={detectedKeywordEntities}
+          checklist={actionChecklist}
+          assignedEngineer={assignedEngineer}
+          dispatchDate={dispatchDate}
+          onOpenPartsQuote={() => {
+            setIsWrapupModalOpen(false);
+            setIsPartsQuoteModalOpen(true);
+          }}
+          onOpenDispatchDoc={() => {
+            setIsWrapupModalOpen(false);
+            setIsDispatchDocModalOpen(true);
+          }}
+          onCompleteWrapup={(summaryNote) => {
+            setDispatchNote(summaryNote);
+          }}
+          onToast={(msg) => {
+            showToast(msg);
+            setTimeout(() => clearToast(), 3500);
           }}
         />
       )}
