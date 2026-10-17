@@ -777,7 +777,7 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
     >
       <div
         style={{
-          width: '1040px',
+          width: '1120px',
           maxWidth: '96vw',
           height: '88vh',
           backgroundColor: '#ffffff',
@@ -809,20 +809,21 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
         {/* 1. TOP HEADER BAR (Z-Pattern 좌상단 Scope & 우상단 Pipeline) */}
         <div
           style={{
-            padding: '12px 18px',
+            padding: '10px 16px',
             borderBottom: '1px solid #cbd5e1',
             backgroundColor: '#f8fafc',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            gap: '12px',
+            gap: '8px',
+            flexWrap: 'wrap',
             flexShrink: 0,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'nowrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flexShrink: 0 }}>
             <span
               style={{
-                fontSize: '15px',
+                fontSize: '14.5px',
                 fontWeight: 800,
                 color: '#0f172a',
                 whiteSpace: 'nowrap',
@@ -832,9 +833,9 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
             </span>
             <span
               style={{
-                fontSize: '11.5px',
+                fontSize: '11px',
                 fontWeight: 800,
-                padding: '3px 8px',
+                padding: '3px 7px',
                 borderRadius: '4px',
                 backgroundColor: isLoading
                   ? '#eff6ff'
@@ -854,7 +855,7 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
                 whiteSpace: 'nowrap',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '5px',
+                gap: '4px',
               }}
             >
               {isLoading ? (
@@ -863,33 +864,34 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
                     size={11}
                     style={{ animation: 'spaceWrapupSpin 1s linear infinite', flexShrink: 0 }}
                   />
-                  <span>Groq Cloud 분석중 · {(loadingElapsedMs / 1000).toFixed(1)}s</span>
+                  <span>Groq 분석중 · {(loadingElapsedMs / 1000).toFixed(1)}s</span>
                 </>
               ) : providerInfo.provider === 'groq_cloud' ? (
-                `Groq Cloud (${providerInfo.model}) · ${providerInfo.elapsedMs}ms`
+                `Groq (${providerInfo.model.replace(/^openai\//, '')}) · ${providerInfo.elapsedMs}ms`
               ) : (
-                `엔진: ${providerInfo.model} · ${providerInfo.elapsedMs}ms`
+                `${providerInfo.model} · ${providerInfo.elapsedMs}ms`
               )}
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0, marginLeft: 'auto' }}>
             {(
               [
-                'TECH_COUNSEL',
-                'SALES_QUOTE',
-                'DEMO_REQUEST',
-                'DELIVERY_ADJUST',
-                'AS_SCHEDULE',
-              ] as OutcomeType[]
-            ).map((oType) => {
+                { type: 'TECH_COUNSEL' as OutcomeType, shortLabel: '기술상담' },
+                { type: 'SALES_QUOTE' as OutcomeType, shortLabel: '영업문의' },
+                { type: 'DEMO_REQUEST' as OutcomeType, shortLabel: '데모시연' },
+                { type: 'DELIVERY_ADJUST' as OutcomeType, shortLabel: '납품일정' },
+                { type: 'AS_SCHEDULE' as OutcomeType, shortLabel: 'AS일정' },
+              ]
+            ).map(({ type: oType, shortLabel }) => {
               const meta = OUTCOME_META[oType];
               return (
                 <button
                   key={oType}
                   onClick={() => handleAddOutcome(oType)}
+                  title={`${shortLabel} 결론 카드 추가`}
                   style={{
-                    padding: '4px 8px',
+                    padding: '4px 7px',
                     borderRadius: '4px',
                     border: `1px solid ${meta.borderColor}`,
                     backgroundColor: meta.badgeBg,
@@ -899,12 +901,13 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
                     cursor: 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '3px',
+                    gap: '2px',
                     whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
-                  <Plus size={12} />
-                  <span>{meta.label.split(' ')[0]} 추가</span>
+                  <Plus size={11} />
+                  <span>{shortLabel}</span>
                 </button>
               );
             })}
@@ -913,22 +916,23 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
               onClick={runWrapupAnalysis}
               disabled={isLoading}
               style={{
-                padding: '5px 10px',
+                padding: '4px 9px',
                 borderRadius: '4px',
                 border: '1px solid #94a3b8',
                 backgroundColor: '#ffffff',
                 color: '#0f172a',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 700,
                 cursor: isLoading ? 'wait' : 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}
             >
               <RotateCcw
-                size={13}
+                size={12}
                 style={isLoading ? { animation: 'spaceWrapupSpin 1s linear infinite' } : undefined}
               />
               <span>{isLoading ? '분석중' : 'AI 재분석'}</span>
@@ -936,16 +940,22 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
 
             <button
               onClick={onClose}
+              title="모달 닫기"
               style={{
                 background: 'none',
-                border: 'none',
-                color: '#64748b',
+                border: '1px solid #cbd5e1',
+                borderRadius: '4px',
+                backgroundColor: '#ffffff',
+                color: '#475569',
                 cursor: 'pointer',
                 padding: '4px',
-                display: 'flex',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
               }}
             >
-              <X size={18} />
+              <X size={16} />
             </button>
           </div>
         </div>
