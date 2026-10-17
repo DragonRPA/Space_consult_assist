@@ -247,9 +247,14 @@ export const DOMAIN_CORRECTION_RULES: DomainRule[] = [
 
   // [K] 탱크 / 호스 / 배터리 구어체
   {
-    pattern: /해수\s*탱크|배수\s*탱크|회수\s*통|더러운\s*물통|폐수\s*통|오수\s*통/gi,
+    pattern: /패스\s*탱크|패스\s*통|해수\s*탱크|배수\s*탱크|회수\s*통|더러운\s*물통|폐수\s*통|오수\s*통/gi,
     replacement: '폐수탱크',
     category: '탱크계통'
+  },
+  {
+    pattern: /흡입\s*필터|흡기\s*필터|석션\s*필터|모터\s*필터/gi,
+    replacement: '흡입필터',
+    category: '구동/흡입'
   },
   {
     pattern: /깨끗한\s*물통|정수\s*통|세수\s*통|청수\s*통/gi,
