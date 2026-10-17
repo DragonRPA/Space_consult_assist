@@ -999,7 +999,7 @@ function LegacySttApp() {
     const PRE_ROLL_MAX = 7200; // 0.45초 (16kHz 기준, 첫 자음/음절 유실 방지)
 
     const flushMicSamplesToClova = async (samples16k: number[], startSec: number) => {
-      if (samples16k.length < 16000 * 0.55) return;
+      if (samples16k.length < 16000 * 0.35) return;
       const capturedSessionId = audioSessionIdRef.current;
       const floatArr = new Float32Array(samples16k);
       const wavBlob = encodeWav16kMono(floatArr, 16000);
@@ -1050,13 +1050,13 @@ function LegacySttApp() {
           hasCommittedFirst = true;
           processIncomingSpeechUtterance(`${chunkHeader} ${combinedChunkBody}`);
         } else {
-          // 동일 1개 오디오 청크 내에서 세부 세그먼트가 나뉜 경우 해당 청크 줄을 제자리 갱신
+          // 동일 1개 오디오 청크(chunkHeader 일치) 내에서 세부 세그먼트가 추가 도착한 경우 제자리 갱신 (다른 청크 덮어쓰기 절대 방지)
           const storeState = useCounselStore.getState();
           const fParas = [...storeState.finalParagraphs];
           const rParas = [...storeState.rawParagraphs];
           let targetIdx = -1;
           for (let i = fParas.length - 1; i >= 0; i--) {
-            if (fParas[i].startsWith(chunkHeader) || fParas[i].startsWith(chunkTs)) {
+            if (fParas[i].startsWith(chunkHeader)) {
               targetIdx = i;
               break;
             }
@@ -1244,10 +1244,11 @@ function LegacySttApp() {
               }
               const rms = Math.sqrt(sumSq / Math.max(1, outLen));
 
-              if (!micInSpeech && rms < 150) {
-                micNoiseFloor = micNoiseFloor * 0.95 + Math.max(40, rms) * 0.05;
+              // 노이즈 플로어 폭주 방지: 75 이하로 클램핑하여 나지막한 목소리도 절대 누락하지 않음
+              if (!micInSpeech && rms < 110) {
+                micNoiseFloor = Math.max(35, Math.min(75, micNoiseFloor * 0.97 + Math.max(35, rms) * 0.03));
               }
-              const threshold = Math.max(52, Math.min(140, micNoiseFloor * 1.52));
+              const threshold = Math.max(45, Math.min(90, micNoiseFloor * 1.35));
               const tp = tempoProfileRef.current;
 
               if (rms > threshold) {
@@ -1263,7 +1264,7 @@ function LegacySttApp() {
                   const audioEl = globalAudioRef.current;
                   micSpeechStartSec =
                     state.activeAudioFile && audioEl && audioEl.currentTime > 0
-                      ? Math.max(0, audioEl.currentTime - 0.5)
+                      ? Math.max(0, audioEl.currentTime - 0.4)
                       : state.callSeconds;
                   micSpeechSamples = isClovaActive ? [...micPreRollSamples] : [];
                 } else if (micSilenceChunks >= 2) {
@@ -1305,13 +1306,13 @@ function LegacySttApp() {
                 setInterimSttText('듣는중');
 
                 // 소프트 에너지 골짜기 절단(Soft Valley Split):
-                // softMaxChunkSec(기본 8.5s) 이후 에너지가 순간 낮아지는 음절 골짜기에서 자연 절단하거나 hardMaxChunkSec(기본 11.0s) 도달 시 절단
+                // softMaxChunkSec(4.0s) 이후 에너지가 순간 낮아지는 음절 골짜기에서 자연 절단하거나 hardMaxChunkSec(5.5s) 도달 시 강제 절단하여 타임아웃 원천 차단
                 const uttDurSec = micSpeechSamples.length / 16000;
                 const isEnergyValley = rms < threshold * 1.22;
                 if (uttDurSec >= tp.hardMaxChunkSec || (uttDurSec >= tp.softMaxChunkSec && isEnergyValley)) {
                   const toSend = micSpeechSamples;
                   const startToSend = micSpeechStartSec;
-                  micPreRollSamples = toSend.slice(-Math.min(toSend.length, 5600));
+                  micPreRollSamples = toSend.slice(-Math.min(toSend.length, 4800));
                   micSpeechSamples = [];
                   micInSpeech = false;
                   micSilenceChunks = 0;
@@ -1346,36 +1347,36 @@ function LegacySttApp() {
                     recentVoicedRms.length > 0
                       ? recentVoicedRms.reduce((a, b) => a + b, 0) / recentVoicedRms.length
                       : meanVoicedRms;
-                  // 말을 생각하느라 모음을 끌거나 높은 에너지에서 갑자기 멈춘 경우(+0.18s 대기), 문장 끝 억양이 자연 하강한 경우(-0.06s)
+                  // 말을 생각하느라 모음을 끌거나 높은 에너지에서 갑자기 멈춘 경우(+0.15s 대기), 문장 끝 억양이 자연 하강한 경우(-0.06s)
                   const hesitationBonusSec =
-                    tailVoicedRms > meanVoicedRms * 1.04 ? 0.18 : tailVoicedRms < meanVoicedRms * 0.78 ? -0.06 : 0;
+                    tailVoicedRms > meanVoicedRms * 1.04 ? 0.15 : tailVoicedRms < meanVoicedRms * 0.78 ? -0.06 : 0;
 
                   // 4단계 발화 길이에 따른 적응형 침묵 절단 임계시간 계산
                   let requiredSilenceSec: number;
-                  if (uttDurSec < 2.3) {
-                    // Stage 1: 도입부 / 전화번호·모델명 끊어 읽기 보호 구간 (성급한 단어 파편화 방지)
-                    requiredSilenceSec = tp.targetSilenceSec * 1.28 + Math.max(0, hesitationBonusSec);
-                  } else if (uttDurSec < 5.8) {
+                  if (uttDurSec < 1.8) {
+                    // Stage 1: 초단문 / 맞장구 / 단답형 구간 (빠른 종결로 청크 지연 방지)
+                    requiredSilenceSec = Math.max(0.48, tp.targetSilenceSec * 0.82 + Math.max(0, hesitationBonusSec));
+                  } else if (uttDurSec < 3.5) {
                     // Stage 2: 표준 대화 문장 구간 (화자 맞춤형 템포 기준 적용)
-                    requiredSilenceSec = Math.max(0.65, tp.targetSilenceSec + hesitationBonusSec);
+                    requiredSilenceSec = Math.max(0.55, tp.targetSilenceSec + hesitationBonusSec);
                   } else if (uttDurSec < tp.softMaxChunkSec) {
-                    // Stage 3: 5.8초 이상 장문 발화 구간 (구절 호흡 휴지에서 자연스럽게 절단)
+                    // Stage 3: 3.5초 이상 장문 발화 구간 (구절 호흡 휴지에서 자연스럽게 절단)
                     requiredSilenceSec = tp.targetClauseSec;
                   } else {
-                    // Stage 4: 8.5초 이상 초장문 구간 (미세 호흡만 감지되어도 즉시 절단)
-                    requiredSilenceSec = 0.18;
+                    // Stage 4: 4.0초 이상 초장문 구간 (미세 호흡만 감지되어도 즉시 절단)
+                    requiredSilenceSec = 0.16;
                   }
 
                   if (silenceDurSec >= requiredSilenceSec) {
                     const toSend = micSpeechSamples;
                     const startToSend = micSpeechStartSec;
-                    micPreRollSamples = toSend.slice(-Math.min(toSend.length, 5600));
+                    micPreRollSamples = toSend.slice(-Math.min(toSend.length, 4800));
                     micSpeechSamples = [];
                     micInSpeech = false;
                     micSilenceChunks = 0;
                     micVoicedChunks = 0;
                     if (isClovaActive) {
-                      if (voicedDurSec >= 0.25 && toSend.length >= 16000 * 0.55) {
+                      if (voicedDurSec >= 0.18 && toSend.length >= 16000 * 0.35) {
                         flushMicSamplesToClova(toSend, startToSend);
                       } else if (clovaInflightCountRef.current === 0) {
                         setInterimSttText('');
@@ -1413,8 +1414,8 @@ function LegacySttApp() {
       if (
         useCounselStore.getState().sttEngine === 'naver_clova' &&
         micInSpeech &&
-        micVoicedChunks >= 3 &&
-        micSpeechSamples.length >= 16000 * 0.55
+        micVoicedChunks >= 2 &&
+        micSpeechSamples.length >= 16000 * 0.35
       ) {
         flushMicSamplesToClova(micSpeechSamples, micSpeechStartSec);
         micSpeechSamples = [];
