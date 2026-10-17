@@ -971,6 +971,14 @@ function LegacySttApp() {
     void (async () => {
       try {
         const curEngine = useCounselStore.getState().sttEngine;
+        const engineLabel =
+          curEngine === 'whisper_large_v3'
+            ? 'Groq Whisper (whisper-large-v3-turbo)'
+            : curEngine === 'web_speech'
+              ? '웹 음성 STT (Web Speech API)'
+              : '네이버 클로바 STT (CLOVA Speech)';
+        const now = new Date();
+        const kstStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
         const { data: insRow, error: insErr } = await supabase
           .from('stt_audio_archives')
           .insert([
@@ -979,7 +987,10 @@ function LegacySttApp() {
               file_size_bytes: file.size || 0,
               audio_duration_sec: 0,
               stt_engine: curEngine,
+              stt_engine_label: engineLabel,
               stt_lab_options: sttLabOptionsRef.current,
+              work_datetime: now.toISOString(),
+              work_datetime_kst: kstStr,
               stt_text: '',
               stt_paragraphs: [],
               paragraph_count: 0,
@@ -1034,12 +1045,25 @@ function LegacySttApp() {
         const rawMod = selectedCustomer?.assetModel || '';
         const modMatch = rawMod.match(/\b(J600T?|J800|S12L?|S7P?|S5|S3|S2|S1|R3|XD80|XD60|S800|M100|Q45)\b/i);
         const eqMod = modMatch ? modMatch[1].toUpperCase() : rawMod;
+        const engineLabel =
+          sttEngine === 'whisper_large_v3'
+            ? 'Groq Whisper (whisper-large-v3-turbo)'
+            : sttEngine === 'web_speech'
+              ? '웹 음성 STT (Web Speech API)'
+              : '네이버 클로바 STT (CLOVA Speech)';
+        const now = new Date();
+        const nowIso = now.toISOString();
+        const kstStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
         const payload: Record<string, unknown> = {
           file_name: activeAudioFile?.name || '실시간 마이크 수음',
           file_size_bytes: activeAudioFile?.size || 0,
           audio_duration_sec: Number((audioDuration || callSeconds || 0).toFixed(2)),
           stt_engine: sttEngine,
+          stt_engine_label: engineLabel,
           stt_lab_options: sttLabOptionsRef.current,
+          work_datetime: nowIso,
+          work_datetime_kst: kstStr,
+          stt_completed_at: nowIso,
           stt_text: joinedText,
           stt_paragraphs: finalParagraphs,
           paragraph_count: finalParagraphs.length,
@@ -1053,7 +1077,7 @@ function LegacySttApp() {
           phone: selectedCustomer?.phone || '',
           address: `${selectedCustomer?.address || ''} ${selectedCustomer?.addressDetail || ''}`.trim(),
           equipment_model: eqMod || '',
-          updated_at: new Date().toISOString(),
+          updated_at: nowIso,
         };
 
         const curArchiveId = activeArchiveIdRef.current;

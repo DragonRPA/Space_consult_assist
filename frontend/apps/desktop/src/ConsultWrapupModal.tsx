@@ -321,12 +321,26 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
         const paras = Array.isArray(sttParagraphs) && sttParagraphs.length > 0
           ? sttParagraphs
           : (transcriptText || '').split('\n').filter(Boolean);
+        const engKey = sttEngine || 'whisper_large_v3';
+        const engineLabel =
+          engKey === 'whisper_large_v3'
+            ? 'Groq Whisper (whisper-large-v3-turbo)'
+            : engKey === 'web_speech'
+              ? '웹 음성 STT (Web Speech API)'
+              : '네이버 클로바 STT (CLOVA Speech)';
+        const now = new Date();
+        const nowIso = now.toISOString();
+        const kstStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
         const archivePayload = {
           file_name: audioFileName || '실시간 마이크 수음',
           file_size_bytes: audioFileSize || 0,
           audio_duration_sec: Number((audioDurationSec || 0).toFixed(2)),
-          stt_engine: sttEngine || 'whisper_large_v3',
+          stt_engine: engKey,
+          stt_engine_label: engineLabel,
           stt_lab_options: sttLabOptions || {},
+          work_datetime: nowIso,
+          work_datetime_kst: kstStr,
+          ai_analyzed_at: nowIso,
           stt_text: transcriptText || '',
           stt_paragraphs: paras,
           paragraph_count: paras.length,
@@ -346,7 +360,7 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
           ai_outcomes: mappedOutcomes,
           ai_provider: `${provStr}:${modStr}`,
           status: 'AI_ANALYZED',
-          updated_at: new Date().toISOString(),
+          updated_at: nowIso,
         };
 
         if (archiveId) {
@@ -662,12 +676,26 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
       const paras = Array.isArray(sttParagraphs) && sttParagraphs.length > 0
         ? sttParagraphs
         : (transcriptText || '').split('\n').filter(Boolean);
+      const engKey = sttEngine || 'whisper_large_v3';
+      const engineLabel =
+        engKey === 'whisper_large_v3'
+          ? 'Groq Whisper (whisper-large-v3-turbo)'
+          : engKey === 'web_speech'
+            ? '웹 음성 STT (Web Speech API)'
+            : '네이버 클로바 STT (CLOVA Speech)';
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const kstStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
       const confirmedArchivePayload = {
         file_name: audioFileName || '실시간 마이크 수음',
         file_size_bytes: audioFileSize || 0,
         audio_duration_sec: Number((audioDurationSec || 0).toFixed(2)),
-        stt_engine: sttEngine || 'whisper_large_v3',
+        stt_engine: engKey,
+        stt_engine_label: engineLabel,
         stt_lab_options: sttLabOptions || {},
+        work_datetime: nowIso,
+        work_datetime_kst: kstStr,
+        ai_analyzed_at: nowIso,
         stt_text: transcriptText || '',
         stt_paragraphs: paras,
         paragraph_count: paras.length,
@@ -688,7 +716,7 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
         ai_provider: `${providerInfo.provider}:${providerInfo.model}`,
         consult_id: consultId || null,
         status: 'CONFIRMED',
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       };
 
       if (archiveId) {

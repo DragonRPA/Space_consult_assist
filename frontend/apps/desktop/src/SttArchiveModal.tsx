@@ -8,7 +8,12 @@ export interface SttAudioArchiveRow {
   file_size_bytes: number;
   audio_duration_sec: number;
   stt_engine: string;
+  stt_engine_label?: string;
   stt_lab_options: Record<string, boolean>;
+  work_datetime?: string;
+  work_datetime_kst?: string;
+  stt_completed_at?: string | null;
+  ai_analyzed_at?: string | null;
   stt_text: string;
   stt_paragraphs: string[];
   paragraph_count: number;
@@ -81,7 +86,7 @@ export const SttArchiveModal: React.FC<SttArchiveModalProps> = ({
       const { data, error } = await supabase
         .from('stt_audio_archives')
         .select('*')
-        .order('opened_at', { ascending: false })
+        .order('work_datetime', { ascending: false })
         .limit(100);
 
       if (error) {
@@ -110,13 +115,13 @@ export const SttArchiveModal: React.FC<SttArchiveModalProps> = ({
   const filteredRecords = records.filter((r) => {
     const q = searchKeyword.trim().toLowerCase();
     if (!q) return true;
-    const hay = `${r.file_name} ${r.customer_name} ${r.equipment_model} ${r.stt_text} ${r.ai_summary_issue} ${r.ai_summary_conclusion}`.toLowerCase();
+    const hay = `${r.file_name} ${r.stt_engine_label || ''} ${r.stt_engine} ${r.work_datetime_kst || ''} ${r.customer_name} ${r.equipment_model} ${r.stt_text} ${r.ai_summary_issue} ${r.ai_summary_conclusion}`.toLowerCase();
     return hay.includes(q);
   });
 
   const activeRecord = filteredRecords.find((r) => r.id === selectedId) || filteredRecords[0] || null;
 
-  const formatDateTime = (iso: string) => {
+  const formatDateTime = (iso?: string | null) => {
     if (!iso) return '-';
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
@@ -127,6 +132,14 @@ export const SttArchiveModal: React.FC<SttArchiveModalProps> = ({
     const mi = String(d.getMinutes()).padStart(2, '0');
     const ss = String(d.getSeconds()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+  };
+
+  const formatEngineDisplay = (row: SttAudioArchiveRow) => {
+    if (row.stt_engine_label && row.stt_engine_label.trim()) return row.stt_engine_label;
+    if (row.stt_engine === 'whisper_large_v3') return 'Groq Whisper (whisper-large-v3-turbo)';
+    if (row.stt_engine === 'web_speech') return '웹 음성 STT (Web Speech API)';
+    if (row.stt_engine === 'naver_clova') return '네이버 클로바 STT (CLOVA Speech)';
+    return row.stt_engine || '-';
   };
 
   const formatSize = (bytes: number) => {
@@ -158,8 +171,8 @@ export const SttArchiveModal: React.FC<SttArchiveModalProps> = ({
       .join('\n');
     const fullCopy = [
       `[파일명] ${activeRecord.file_name}`,
-      `[일시] ${formatDateTime(activeRecord.opened_at)}`,
-      `[엔진] ${activeRecord.stt_engine}`,
+      `[작업일시] ${activeRecord.work_datetime_kst || formatDateTime(activeRecord.work_datetime || activeRecord.opened_at)}`,
+      `[추출엔진] ${formatEngineDisplay(activeRecord)}`,
       `[고객/장비] ${activeRecord.customer_name || '-'} / ${activeRecord.equipment_model || '-'}`,
       ``,
       `--- [추출된 STT 텍스트 (${activeRecord.paragraph_count || 0}문단)] ---`,
@@ -177,7 +190,7 @@ export const SttArchiveModal: React.FC<SttArchiveModalProps> = ({
     navigator.clipboard.writeText(fullCopy);
     setCopiedFlag(true);
     setTimeout(() => setCopiedFlag(false), 2000);
-    onToast('파일명 + STT 전문 + AI 결론 세트가 클립보드에 복사되었습니다.');
+    onToast('파일명 + 추출엔진 + 작업일시 + STT 전문 + AI 결론 세트가 클립보드에 복사되었습니다.');
   };
 
   return (
@@ -421,14 +434,9 @@ export const SttArchiveModal: React.FC<SttArchiveModalProps> = ({
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        <span>{formatDateTime(row.opened_at)}</span>
-                        <span>
-                          {row.stt_engine === 'whisper_large_v3'
-                            ? 'Groq Whisper'
-                            : row.stt_engine === 'web_speech'
-                              ? '웹 음성 STT'
-                              : row.stt_engine}{' '}
-                          · {row.paragraph_count || 0}문단
+                        <span>작업일시: {row.work_datetime_kst || formatDateTime(row.work_datetime || row.opened_at)}</span>
+                        <span style={{ fontWeight: 700, color: '#334155' }}>
+                          {formatEngineDisplay(row)} · {row.paragraph_count || 0}문단
                         </span>
                       </div>
 
@@ -493,7 +501,14 @@ export const SttArchiveModal: React.FC<SttArchiveModalProps> = ({
                       </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11.5px', color: '#475569', whiteSpace: 'nowrap' }}>
-                      <span>열람일시: {formatDateTime(activeRecord.opened_at)}</span>
+                      <span>
+                        <strong>작업일시:</strong>{' '}
+                        {activeRecord.work_datetime_kst || formatDateTime(activeRecord.work_datetime || activeRecord.opened_at)}
+                      </span>
+                      <span>|</span>
+                      <span>
+                        <strong>추출엔진:</strong> {formatEngineDisplay(activeRecord)}
+                      </span>
                       <span>|</span>
                       <span>고객사: {activeRecord.customer_name || '미식별'}</span>
                       <span>|</span>
@@ -565,7 +580,7 @@ export const SttArchiveModal: React.FC<SttArchiveModalProps> = ({
                   {/* 1. Active Switches Snapshot */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#334155' }}>
-                      1. 적용된 STT 엔진 및 전처리 스위치 구성
+                      1. 추출 STT 엔진 · 작업일시 · 전처리 스위치 구성
                     </span>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                       <span
@@ -579,7 +594,20 @@ export const SttArchiveModal: React.FC<SttArchiveModalProps> = ({
                           fontWeight: 800,
                         }}
                       >
-                        엔진: {activeRecord.stt_engine}
+                        추출 엔진: {formatEngineDisplay(activeRecord)}
+                      </span>
+                      <span
+                        style={{
+                          padding: '2px 7px',
+                          borderRadius: '4px',
+                          backgroundColor: '#e0f2fe',
+                          border: '1px solid #7dd3fc',
+                          color: '#0369a1',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                        }}
+                      >
+                        작업일시: {activeRecord.work_datetime_kst || formatDateTime(activeRecord.work_datetime || activeRecord.opened_at)}
                       </span>
                       {Object.entries(SWITCH_LABEL_MAP).map(([k, label]) => {
                         const on = Boolean(activeRecord.stt_lab_options?.[k]);
