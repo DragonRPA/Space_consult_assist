@@ -304,7 +304,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
     manualOverrideKeyword: ''
   }),
 
-  sttEngine: 'naver_clova',
+  sttEngine: 'whisper_large_v3',
   setSttEngine: (engine) => set({ sttEngine: engine }),
 
   isContextCorrectionEnabled: false,

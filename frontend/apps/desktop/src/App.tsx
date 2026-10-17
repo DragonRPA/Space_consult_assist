@@ -233,6 +233,12 @@ function LegacySttApp() {
     sttLabOptionsRef.current = sttLabOptions;
   }, [sttLabOptions]);
 
+  useEffect(() => {
+    if (sttEngine === 'naver_clova') {
+      setSttEngine('whisper_large_v3');
+    }
+  }, [sttEngine, setSttEngine]);
+
   const toggleSttLabOption = useCallback((key: keyof typeof sttLabOptions) => {
     setSttLabOptions((prev) => {
       const next = { ...prev, [key]: !prev[key] };
@@ -2485,27 +2491,6 @@ function LegacySttApp() {
             </button>
             <button
               onClick={() => {
-                if (recognitionRef.current) {
-                  try { recognitionRef.current.stop(); } catch (_) {}
-                }
-                setSttEngine('naver_clova');
-              }}
-              style={{
-                padding: '3px 8px',
-                fontSize: '11.5px',
-                fontWeight: 700,
-                color: sttEngine === 'naver_clova' ? '#fff' : '#334155',
-                backgroundColor: sttEngine === 'naver_clova' ? '#059669' : 'transparent',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              클로바 STT
-            </button>
-            <button
-              onClick={() => {
                 setSttEngine('web_speech');
                 setInterimSttText('');
                 if (isAudioPlaying && recognitionRef.current) {
@@ -2525,6 +2510,24 @@ function LegacySttApp() {
               }}
             >
               웹 음성 STT
+            </button>
+            <button
+              disabled
+              title="클로바 STT 비활성화됨"
+              style={{
+                padding: '3px 8px',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                color: '#94a3b8',
+                backgroundColor: 'transparent',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'not-allowed',
+                opacity: 0.55,
+                whiteSpace: 'nowrap'
+              }}
+            >
+              클로바 STT
             </button>
           </div>
 
