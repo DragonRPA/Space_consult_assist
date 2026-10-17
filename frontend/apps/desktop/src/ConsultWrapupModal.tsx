@@ -161,12 +161,26 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [loadingElapsedMs, setLoadingElapsedMs] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [providerInfo, setProviderInfo] = useState<{ provider: string; model: string; elapsedMs: number }>({
     provider: 'groq_cloud',
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-120b',
     elapsedMs: 0,
   });
+
+  useEffect(() => {
+    if (!isLoading && !isSaving) {
+      setLoadingElapsedMs(0);
+      return;
+    }
+    const startAt = Date.now();
+    setLoadingElapsedMs(0);
+    const timer = window.setInterval(() => {
+      setLoadingElapsedMs(Date.now() - startAt);
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [isLoading, isSaving]);
 
   const [overallSummary, setOverallSummary] = useState<OverallSummary>({
     issue: '',
@@ -613,8 +627,25 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
+          position: 'relative',
         }}
       >
+        <style>{`
+          @keyframes spaceWrapupSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          @keyframes spaceWrapupReverseSpin {
+            0% { transform: rotate(360deg); }
+            100% { transform: rotate(0deg); }
+          }
+          @keyframes spaceWrapupLogoTurn {
+            0% { transform: perspective(400px) rotateY(0deg) scale(1); }
+            50% { transform: perspective(400px) rotateY(180deg) scale(1.04); }
+            100% { transform: perspective(400px) rotateY(360deg) scale(1); }
+          }
+        `}</style>
+
         {/* 1. TOP HEADER BAR (Z-Pattern 좌상단 Scope & 우상단 Pipeline) */}
         <div
           style={{
@@ -645,19 +676,40 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
                 fontWeight: 800,
                 padding: '3px 8px',
                 borderRadius: '4px',
-                backgroundColor:
-                  providerInfo.provider === 'groq_cloud' ? '#dcfce7' : '#fef3c7',
-                color: providerInfo.provider === 'groq_cloud' ? '#166534' : '#92400e',
-                border:
-                  providerInfo.provider === 'groq_cloud'
+                backgroundColor: isLoading
+                  ? '#eff6ff'
+                  : providerInfo.provider === 'groq_cloud'
+                    ? '#dcfce7'
+                    : '#fef3c7',
+                color: isLoading
+                  ? '#1d4ed8'
+                  : providerInfo.provider === 'groq_cloud'
+                    ? '#166534'
+                    : '#92400e',
+                border: isLoading
+                  ? '1px solid #93c5fd'
+                  : providerInfo.provider === 'groq_cloud'
                     ? '1px solid #86efac'
                     : '1px solid #fcd34d',
                 whiteSpace: 'nowrap',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
               }}
             >
-              {providerInfo.provider === 'groq_cloud'
-                ? `Groq Cloud (${providerInfo.model}) · ${providerInfo.elapsedMs}ms`
-                : `엔진: ${providerInfo.model} · ${providerInfo.elapsedMs}ms`}
+              {isLoading ? (
+                <>
+                  <RotateCcw
+                    size={11}
+                    style={{ animation: 'spaceWrapupSpin 1s linear infinite', flexShrink: 0 }}
+                  />
+                  <span>Groq Cloud 분석중 · {(loadingElapsedMs / 1000).toFixed(1)}s</span>
+                </>
+              ) : providerInfo.provider === 'groq_cloud' ? (
+                `Groq Cloud (${providerInfo.model}) · ${providerInfo.elapsedMs}ms`
+              ) : (
+                `엔진: ${providerInfo.model} · ${providerInfo.elapsedMs}ms`
+              )}
             </span>
           </div>
 
@@ -715,8 +767,11 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
                 whiteSpace: 'nowrap',
               }}
             >
-              <RotateCcw size={13} />
-              <span>AI 재분석</span>
+              <RotateCcw
+                size={13}
+                style={isLoading ? { animation: 'spaceWrapupSpin 1s linear infinite' } : undefined}
+              />
+              <span>{isLoading ? '분석중' : 'AI 재분석'}</span>
             </button>
 
             <button
@@ -938,14 +993,140 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
           {isLoading ? (
             <div
               style={{
-                padding: '48px 20px',
-                textAlign: 'center',
-                color: '#334155',
-                fontSize: '14px',
-                fontWeight: 700,
+                flex: 1,
+                minHeight: '300px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '18px',
+                padding: '36px 20px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
               }}
             >
-              Groq Cloud LPU 엔진이 통화 녹취록과 감지 키워드를 기반으로 결론 카드를 생성하고 있습니다...
+              {/* SPACE 로고 이중 회전 궤도 스피너 */}
+              <div
+                style={{
+                  position: 'relative',
+                  width: '132px',
+                  height: '132px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {/* 외곽 시계방향 고속 회전 링 */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    borderRadius: '50%',
+                    border: '4px solid #e2e8f0',
+                    borderTopColor: '#2563eb',
+                    borderRightColor: '#3b82f6',
+                    animation: 'spaceWrapupSpin 1.05s linear infinite',
+                  }}
+                />
+                {/* 내측 반시계방향 회전 링 */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: '11px',
+                    borderRadius: '50%',
+                    border: '2.5px dashed #93c5fd',
+                    borderBottomColor: '#1d4ed8',
+                    animation: 'spaceWrapupReverseSpin 1.8s linear infinite',
+                  }}
+                />
+                {/* 중앙 SPACE 회사 로고 원형 배지 */}
+                <div
+                  style={{
+                    width: '88px',
+                    height: '88px',
+                    borderRadius: '50%',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    boxShadow: '0 4px 14px rgba(37, 99, 235, 0.14)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '10px',
+                  }}
+                >
+                  <img
+                    src="/SPACE_logo.png"
+                    alt="SPACE"
+                    style={{
+                      width: '68px',
+                      height: 'auto',
+                      objectFit: 'contain',
+                      animation: 'spaceWrapupLogoTurn 2.4s ease-in-out infinite',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                <div
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: 800,
+                    color: '#0f172a',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  통화 녹취록 기반 결론 분류 및 일정 추출 중 ({(loadingElapsedMs / 1000).toFixed(1)}s)
+                </div>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#475569',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      backgroundColor: '#eff6ff',
+                      color: '#1d4ed8',
+                      border: '1px solid #bfdbfe',
+                    }}
+                  >
+                    1. 통화녹취·키워드 전송
+                  </span>
+                  <span>➔</span>
+                  <span
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      backgroundColor: loadingElapsedMs >= 600 ? '#eff6ff' : '#f1f5f9',
+                      color: loadingElapsedMs >= 600 ? '#1d4ed8' : '#64748b',
+                      border: loadingElapsedMs >= 600 ? '1px solid #bfdbfe' : '1px solid #cbd5e1',
+                    }}
+                  >
+                    2. 고객·장비·희망일시 추출
+                  </span>
+                  <span>➔</span>
+                  <span
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      backgroundColor: loadingElapsedMs >= 1400 ? '#eff6ff' : '#f1f5f9',
+                      color: loadingElapsedMs >= 1400 ? '#1d4ed8' : '#64748b',
+                      border: loadingElapsedMs >= 1400 ? '1px solid #bfdbfe' : '1px solid #cbd5e1',
+                    }}
+                  >
+                    3. 5대 결론 카드 구성
+                  </span>
+                </div>
+              </div>
             </div>
           ) : outcomes.length === 0 ? (
             <div
