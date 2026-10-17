@@ -150,6 +150,28 @@ export const DOMAIN_CORRECTION_RULES: DomainRule[] = [
     category: '소모품/스퀴지'
   },
 
+  // [D-1] 바닥 잔수 / 오수 흡입 구어체 및 오인식 치환
+  {
+    pattern: /(?:물이?\s*)흥분/gi,
+    replacement: '물이 흥건',
+    category: '바닥잔수/오음인식'
+  },
+  {
+    pattern: /스폰지\s*왕|스펀지\s*왕/gi,
+    replacement: '스폰지 망',
+    category: '오수탱크/필터'
+  },
+  {
+    pattern: /소홀한\s*소홀하고|소홀하고/gi,
+    replacement: '솔하고',
+    category: '브러시/구어체'
+  },
+  {
+    pattern: /경관\s*등(?=\s*달려|\s*뚜껑|\s*커버)/gi,
+    replacement: '경광등',
+    category: '외장/전장'
+  },
+
   // [E] 흡입 모터 / 진공압 (흐빕모터, 흡입모타, 석션모터, 바큠모터 등)
   {
     pattern: /흡입\s*모타|흐빕\s*모터|흡입\s*못터|흡잉\s*모터|흡기\s*모타|석션\s*모터|석션\s*모타|셕션\s*모터|바큠\s*모터|바쿰\s*모터|진공\s*모타|진공\s*모터/gi,
