@@ -10,7 +10,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { createEvent, type Category, type ScheduleEventCreate } from './scheduleApi';
+import { supabase, createEvent, type Category, type ScheduleEventCreate } from './scheduleApi';
 import type { CustomerInfo } from './store';
 import type { KeywordEntity } from './keywordAssist';
 
@@ -384,8 +384,56 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
     setIsSaving(true);
     setErrorMsg(null);
     let savedScheduleCount = 0;
+    let savedVisitCount = 0;
+    let savedSalesCount = 0;
 
     try {
+      const hasAsVisit = checkedOutcomes.some((o) => o.outcomeType === 'AS_SCHEDULE');
+      const primaryKeyword =
+        checkedOutcomes[0]?.fields?.symptomCategory ||
+        detectedKeywords[0]?.keyword ||
+        checkedOutcomes.map((o) => o.outcomeType).join(',');
+
+      // 1. 상담 마스터 이력 저장 (public.consult_logs)
+      const { data: consultRow, error: consultErr } = await supabase
+        .from('consult_logs')
+        .insert([
+          {
+            customer_name: customerDraft.companyName,
+            manager: `${customerDraft.managerName} ${customerDraft.phone}`.trim(),
+            serial_number: customerDraft.serialNumber || '',
+            model_name: customerDraft.equipmentModel || 'J600T',
+            keyword: primaryKeyword,
+            symptom: `[문의/증상] ${overallSummary.issue}\n[통화녹취] ${(transcriptText || '').slice(0, 1500)}`,
+            action: `[진단/안내] ${overallSummary.guidance}\n[합의결론] ${overallSummary.conclusion}`,
+            is_completed: !hasAsVisit,
+            is_visit_required: hasAsVisit,
+          },
+        ])
+        .select('id')
+        .single();
+
+      if (consultErr) {
+        throw new Error(`상담 이력(consult_logs) 저장 실패: ${consultErr.message}`);
+      }
+      const consultId: string | undefined = consultRow?.id;
+
+      // 2. AI 요약 감사 로그 저장 (public.llm_logs)
+      await supabase.from('llm_logs').insert([
+        {
+          consult_id: consultId || null,
+          model_name: `${providerInfo.provider}:${providerInfo.model}`,
+          prompt_hash: `wrapup-${Date.now()}`,
+          prompt_text: (transcriptText || '상담 요약 요청').slice(0, 2000),
+          response_text: JSON.stringify({ overallSummary, outcomes: checkedOutcomes }),
+          latency_ms: providerInfo.elapsedMs || 0,
+          is_error: false,
+          cache_hit: false,
+          client_type: 'desktop_web',
+        },
+      ]);
+
+      // 3. 결론 유형별 후속 테이블 저장 (schedule_events, visits, sales_inquiries)
       for (const item of checkedOutcomes) {
         if (item.outcomeType === 'TECH_COUNSEL') {
           continue;
@@ -454,16 +502,77 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
           ],
           extra: extraData,
           attachments: [],
+          consult_id: consultId,
         };
 
-        await createEvent(payload);
+        const createdEvent = await createEvent(payload);
         savedScheduleCount += 1;
+
+        // 3-A. AS 방문일정/출장접수인 경우 public.visits 배차 대장에도 동시 기록
+        if (item.outcomeType === 'AS_SCHEDULE') {
+          const { data: visitRow, error: visitErr } = await supabase
+            .from('visits')
+            .insert([
+              {
+                customer_name: customerDraft.companyName,
+                manager: customerDraft.managerName,
+                phone: customerDraft.phone,
+                address: customerDraft.address,
+                consult_id: consultId || null,
+                schedule_event_id: createdEvent?.id || null,
+                request_note: `${item.title} / 증상: ${item.fields.symptomCategory || ''} / 지참부품: ${item.fields.nextVisitParts || ''}`,
+                status: item.fields.isReschedule ? '일정변경' : '배차접수',
+                note: item.fields.actionMemo || '',
+                process_staff: item.fields.assignedEngineer
+                  ? [item.fields.assignedEngineer.split(' ')[0]]
+                  : ['김철수'],
+                site_managers: [customerDraft.managerName].filter(Boolean),
+                call_done: true,
+              },
+            ])
+            .select('id')
+            .single();
+
+          if (!visitErr && visitRow?.id && consultId) {
+            savedVisitCount += 1;
+            await supabase
+              .from('consult_logs')
+              .update({ visit_id: visitRow.id })
+              .eq('id', consultId);
+          }
+        }
+
+        // 3-B. 영업문의(구매/견적) 또는 데모시연인 경우 public.sales_inquiries 영업 대장에도 동시 기록
+        if (item.outcomeType === 'SALES_QUOTE' || item.outcomeType === 'DEMO_REQUEST') {
+          const itemsStr = (item.fields.requestedItems || [])
+            .map((r) => `${r.name}(${r.qty})`)
+            .join(', ');
+          const { error: salesErr } = await supabase.from('sales_inquiries').insert([
+            {
+              inquiry_type:
+                item.outcomeType === 'DEMO_REQUEST'
+                  ? '데모시연 요청'
+                  : item.fields.quoteType || '부품·소모품 견적',
+              customer_name: customerDraft.companyName,
+              manager: customerDraft.managerName,
+              manager_phone: customerDraft.phone,
+              request_note: `${item.title} / 요청품목: ${itemsStr || customerDraft.equipmentModel} / 메모: ${item.fields.actionMemo || ''}`,
+              is_completed: false,
+              client_type: 'desktop_web',
+            },
+          ]);
+          if (!salesErr) {
+            savedSalesCount += 1;
+          }
+        }
       }
 
       const finalSummaryNote = `[AI 결론 확정] ${checkedOutcomes.map((o) => o.title).join(' / ')}`;
       onCompleteWrapup(finalSummaryNote);
       onToast(
-        `결론 ${checkedOutcomes.length}건 확정 완료 (일정 캘린더 DB ${savedScheduleCount}건 저장됨)`
+        `DB 저장 완료: 상담이력(consult_logs) 1건 · 일정캘린더 ${savedScheduleCount}건${
+          savedVisitCount > 0 ? ` · 출장배차 ${savedVisitCount}건` : ''
+        }${savedSalesCount > 0 ? ` · 영업대장 ${savedSalesCount}건` : ''}`
       );
       onClose();
     } catch (err: any) {

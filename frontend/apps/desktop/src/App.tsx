@@ -3743,6 +3743,18 @@ function LegacySttApp() {
           }}
           onCompleteWrapup={(summaryNote) => {
             setDispatchNote(summaryNote);
+            const curCust = useCounselStore.getState().selectedCustomer;
+            if (curCust) {
+              const todayStr = new Date().toISOString().slice(0, 10);
+              const updatedCust = {
+                ...curCust,
+                historyTimeline: [
+                  { date: `방금 (${todayStr})`, title: summaryNote },
+                  ...(curCust.historyTimeline || []),
+                ],
+              };
+              selectCustomer(updatedCust);
+            }
           }}
           onToast={(msg) => {
             showToast(msg);
