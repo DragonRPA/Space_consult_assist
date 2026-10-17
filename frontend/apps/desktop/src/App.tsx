@@ -217,8 +217,9 @@ function LegacySttApp() {
   const webSpeechAcousticFlushRef = useRef<((measuredDurSec?: number) => void) | null>(null);
   const lastRecognizedSentenceRef = useRef<string>('');
 
-  // ── STT 전처리·문맥·음색 개별 ON/OFF 실험 스위치 (실시간 A/B 품질 비교용) ──
-  const [sttLabOptions, setSttLabOptions] = useState({
+  // ── STT 전처리·문맥·음색 개별 ON/OFF 실험 스위치 (로컬스토리지 상태 보존) ──
+  const STT_LAB_STORAGE_KEY = 'space_stt_lab_options_v1';
+  const defaultSttLabOptions = {
     lowCut85Hz: true,           // 1. 저역 노이즈 차단 (85Hz High-Pass Filter)
     highBoostConsonant: false,  // 2. 고역 자음 증폭 (2.5~5.5kHz 프리엠퍼시스 부스트)
     dualSpeakerBalance: true,   // 3. 2화자 음색·성량 밸런서 (먹먹한 저음 화자 틸트 보정 + 로컬 볼륨 평탄화)
@@ -227,10 +228,34 @@ function LegacySttApp() {
     wavPeakNormalize: true,     // 6. 음량 정규화 (DC 오프셋 제거 + -1.4dBFS 볼륨 증폭)
     boxcarAntiAliasing: true,   // 7. 안티에일리어싱 필터 (48kHz->16kHz 구간 평균 LPF)
     dynamicEnvelopeVad: true,   // 8. 호흡 적응형 절단 (상대 포락선 낙폭 VAD vs 고정 5.5초 주기 절단)
+  };
+  const [sttLabOptions, setSttLabOptions] = useState<typeof defaultSttLabOptions>(() => {
+    try {
+      const saved = window.localStorage.getItem(STT_LAB_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            lowCut85Hz: typeof parsed.lowCut85Hz === 'boolean' ? parsed.lowCut85Hz : defaultSttLabOptions.lowCut85Hz,
+            highBoostConsonant: typeof parsed.highBoostConsonant === 'boolean' ? parsed.highBoostConsonant : defaultSttLabOptions.highBoostConsonant,
+            dualSpeakerBalance: typeof parsed.dualSpeakerBalance === 'boolean' ? parsed.dualSpeakerBalance : defaultSttLabOptions.dualSpeakerBalance,
+            rollingPrevSentence: typeof parsed.rollingPrevSentence === 'boolean' ? parsed.rollingPrevSentence : defaultSttLabOptions.rollingPrevSentence,
+            domainWordBoost: typeof parsed.domainWordBoost === 'boolean' ? parsed.domainWordBoost : defaultSttLabOptions.domainWordBoost,
+            wavPeakNormalize: typeof parsed.wavPeakNormalize === 'boolean' ? parsed.wavPeakNormalize : defaultSttLabOptions.wavPeakNormalize,
+            boxcarAntiAliasing: typeof parsed.boxcarAntiAliasing === 'boolean' ? parsed.boxcarAntiAliasing : defaultSttLabOptions.boxcarAntiAliasing,
+            dynamicEnvelopeVad: typeof parsed.dynamicEnvelopeVad === 'boolean' ? parsed.dynamicEnvelopeVad : defaultSttLabOptions.dynamicEnvelopeVad,
+          };
+        }
+      }
+    } catch (_) {}
+    return defaultSttLabOptions;
   });
   const sttLabOptionsRef = useRef(sttLabOptions);
   useEffect(() => {
     sttLabOptionsRef.current = sttLabOptions;
+    try {
+      window.localStorage.setItem(STT_LAB_STORAGE_KEY, JSON.stringify(sttLabOptions));
+    } catch (_) {}
   }, [sttLabOptions]);
 
   useEffect(() => {
@@ -239,10 +264,13 @@ function LegacySttApp() {
     }
   }, [sttEngine, setSttEngine]);
 
-  const toggleSttLabOption = useCallback((key: keyof typeof sttLabOptions) => {
+  const toggleSttLabOption = useCallback((key: keyof typeof defaultSttLabOptions) => {
     setSttLabOptions((prev) => {
       const next = { ...prev, [key]: !prev[key] };
       sttLabOptionsRef.current = next;
+      try {
+        window.localStorage.setItem(STT_LAB_STORAGE_KEY, JSON.stringify(next));
+      } catch (_) {}
       return next;
     });
   }, []);
@@ -282,6 +310,9 @@ function LegacySttApp() {
               dynamicEnvelopeVad: true,
             };
     sttLabOptionsRef.current = next;
+    try {
+      window.localStorage.setItem(STT_LAB_STORAGE_KEY, JSON.stringify(next));
+    } catch (_) {}
     setSttLabOptions(next);
   }, []);
 

@@ -304,8 +304,23 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
     manualOverrideKeyword: ''
   }),
 
-  sttEngine: 'whisper_large_v3',
-  setSttEngine: (engine) => set({ sttEngine: engine }),
+  sttEngine: (() => {
+    try {
+      const saved = typeof window !== 'undefined' ? window.localStorage.getItem('space_stt_engine_v1') : null;
+      if (saved === 'whisper_large_v3' || saved === 'web_speech') {
+        return saved;
+      }
+    } catch (_) {}
+    return 'whisper_large_v3';
+  })(),
+  setSttEngine: (engine) => {
+    try {
+      if (typeof window !== 'undefined' && (engine === 'whisper_large_v3' || engine === 'web_speech')) {
+        window.localStorage.setItem('space_stt_engine_v1', engine);
+      }
+    } catch (_) {}
+    set({ sttEngine: engine });
+  },
 
   isContextCorrectionEnabled: false,
   correctionHistory: [],
