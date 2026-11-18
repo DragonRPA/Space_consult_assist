@@ -4,6 +4,7 @@ from .base import BaseSTTProvider, BaseLLMProvider
 from .stt_mock import MockSTTProvider
 from .stt_openai import OpenAIWhisperProvider
 from .stt_groq import GroqWhisperProvider
+from .llm_groq import GroqLLMProvider
 from .llm_openai import OpenAILLMProvider
 from .llm_ollama import OllamaLLMProvider
 
@@ -29,7 +30,12 @@ def get_llm_provider() -> BaseLLMProvider:
     settings = get_settings()
     provider_type = settings.llm_provider.lower()
 
-    if provider_type == "openai":
+    if provider_type == "groq":
+        return GroqLLMProvider(
+            api_key=settings.groq_api_key,
+            model=settings.groq_llm_model
+        )
+    elif provider_type == "openai":
         return OpenAILLMProvider(
             api_key=settings.openai_api_key,
             model=settings.openai_llm_model

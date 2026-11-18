@@ -1,6 +1,6 @@
 import psycopg
 
-conn_str = 'postgresql://postgres.eknwzjcbchbefdlykqgl:jUHGAmVsSeXc1jdR@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres'
+conn_str = 'postgresql://postgres.lkohpffieaanwhohttbu:BKK5s3E1ydVKx6qJ@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres'
 
 sql_statements = [
     # 1. Bucket
@@ -12,7 +12,7 @@ sql_statements = [
 
     # 2. Table
     """
-    CREATE TABLE IF NOT EXISTS public.symptom_guide_photos (
+    CREATE TABLE IF NOT EXISTS public.space_symptom_guide_photos (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         equipment_model VARCHAR(50) NOT NULL,
         symptom_id VARCHAR(100) NOT NULL,
@@ -27,11 +27,11 @@ sql_statements = [
     """,
 
     # 3. Table RLS
-    "ALTER TABLE public.symptom_guide_photos ENABLE ROW LEVEL SECURITY;",
-    "DROP POLICY IF EXISTS \"Allow public read symptom_guide_photos\" ON public.symptom_guide_photos;",
-    "CREATE POLICY \"Allow public read symptom_guide_photos\" ON public.symptom_guide_photos FOR SELECT TO anon, authenticated USING (true);",
-    "DROP POLICY IF EXISTS \"Allow public all symptom_guide_photos\" ON public.symptom_guide_photos;",
-    "CREATE POLICY \"Allow public all symptom_guide_photos\" ON public.symptom_guide_photos FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);",
+    "ALTER TABLE public.space_symptom_guide_photos ENABLE ROW LEVEL SECURITY;",
+    "DROP POLICY IF EXISTS \"Allow public read symptom_guide_photos\" ON public.space_symptom_guide_photos;",
+    "CREATE POLICY \"Allow public read symptom_guide_photos\" ON public.space_symptom_guide_photos FOR SELECT TO anon, authenticated USING (true);",
+    "DROP POLICY IF EXISTS \"Allow public all symptom_guide_photos\" ON public.space_symptom_guide_photos;",
+    "CREATE POLICY \"Allow public all symptom_guide_photos\" ON public.space_symptom_guide_photos FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);",
 
     # 4. Storage Policies
     "DROP POLICY IF EXISTS \"Public Access symptom-guide-photos\" ON storage.objects;",

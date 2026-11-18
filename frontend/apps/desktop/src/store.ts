@@ -1,20 +1,8 @@
 import { create } from 'zustand';
 import type { CorrectionEvent } from './contextCorrector';
-import type { KeywordEntity } from './keywordAssist';
+import type { CustomerInfo, KeywordEntity } from './keywordRegistryData';
 
-export interface CustomerInfo {
-  id: string;
-  name: string;
-  manager: string;
-  phone: string;
-  address: string;
-  addressDetail: string;
-  assetModel: string;
-  serialNumber: string;
-  salesType: string;
-  warrantyRemaining: string;
-  historyTimeline: { date: string; title: string; isWarning?: boolean }[];
-}
+export type { CustomerInfo };
 
 export interface ChecklistItem {
   id: number;
@@ -43,12 +31,10 @@ interface CounselWorkstationState {
   activeAudioFile: File | null;
   activeAudioUrl: string | null;
   isAudioPlaying: boolean;
-  isAudioPlayerOpen: boolean;
   audioCurrentTime: number;
   audioDuration: number;
   setActiveAudioFile: (file: File) => void;
   clearAudioFile: () => void;
-  setIsAudioPlayerOpen: (open: boolean) => void;
   setIsAudioPlaying: (playing: boolean) => void;
   setAudioTime: (current: number, duration: number) => void;
   resetSessionForNewAudio: () => void;
@@ -261,7 +247,6 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
   activeAudioFile: null,
   activeAudioUrl: null,
   isAudioPlaying: false,
-  isAudioPlayerOpen: false,
   audioCurrentTime: 0,
   audioDuration: 0,
   setActiveAudioFile: (file: File) => {
@@ -274,7 +259,6 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
       activeAudioFile: file, 
       activeAudioUrl: newUrl,
       isAudioPlaying: true,
-      isAudioPlayerOpen: false,
       audioCurrentTime: 0,
       audioDuration: 0
     });
@@ -284,7 +268,6 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
     if (currentUrl) URL.revokeObjectURL(currentUrl);
     set({ activeAudioFile: null, activeAudioUrl: null, isAudioPlaying: false, audioCurrentTime: 0, audioDuration: 0 });
   },
-  setIsAudioPlayerOpen: (open: boolean) => set({ isAudioPlayerOpen: open }),
   setIsAudioPlaying: (playing: boolean) => set({ isAudioPlaying: playing }),
   setAudioTime: (current: number, duration: number) => set({ audioCurrentTime: current, audioDuration: duration }),
 
@@ -310,7 +293,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
       if (saved === 'whisper_large_v3' || saved === 'web_speech') {
         return saved;
       }
-    } catch (_) {}
+    } catch {}
     return 'whisper_large_v3';
   })(),
   setSttEngine: (engine) => {
@@ -318,7 +301,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
       if (typeof window !== 'undefined' && (engine === 'whisper_large_v3' || engine === 'web_speech')) {
         window.localStorage.setItem('space_stt_engine_v1', engine);
       }
-    } catch (_) {}
+    } catch {}
     set({ sttEngine: engine });
   },
 
@@ -433,7 +416,7 @@ export const useCounselStore = create<CounselWorkstationState>((set, get) => ({
         .replace(/^\[\d+(?:\.\d+)?s\s*·\s*[^\]]+\]\s*/, '')
         .trim();
 
-    const normChars = (s: string): string => s.replace(/[\s.,?!~·\-]/g, '');
+    const normChars = (s: string): string => s.replace(/[\s.,?!~·-]/g, '');
 
     // 단일 줄 내부에서 동일 구절이 연속 2회 반복된 경우("A A B" -> "A B") 정화
     const dedupImmediateRepeat = (body: string): string => {

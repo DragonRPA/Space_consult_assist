@@ -46,7 +46,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 12590378,
     "file_size_label": "12.0MB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_25.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_25.pdf",
     "source_board_url": "https://space-dust.com/manual/25",
     "description": "(주)스페이스 전 라인업 습식/건식 청소장비 및 로봇청소기 종합 사양 카탈로그 (V202509)"
   },
@@ -64,7 +64,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 2213755,
     "file_size_label": "2.1MB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_24.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_24.pdf",
     "source_board_url": "https://space-dust.com/manual/24",
     "description": "SPARKOZ 자율주행 상업용 청소로봇(Sparky 시리즈) 제품 사양 및 도입 안내 카탈로그"
   },
@@ -97,7 +97,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 1991851,
     "file_size_label": "1.9MB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_22.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_22.pdf",
     "source_board_url": "https://space-dust.com/manual/22",
     "description": "R3 VAC 건식 자율주행 청소로봇 상세 제원 및 운용 카탈로그"
   },
@@ -113,7 +113,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 1773400,
     "file_size_label": "1.7MB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_21.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_21.pdf",
     "source_board_url": "https://space-dust.com/manual/21",
     "description": "R3 SCP 습식 자율주행 청소로봇 상세 제원 및 운용 카탈로그"
   },
@@ -136,7 +136,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 1081505,
     "file_size_label": "1.0MB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_20.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_20.pdf",
     "source_board_url": "https://space-dust.com/manual/20",
     "description": "JC(JINCLEAN) 보행식·탑승식 습식 청소장비 시리즈 통합 카탈로그"
   },
@@ -153,7 +153,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 643025,
     "file_size_label": "628.0KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_19.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_19.pdf",
     "source_board_url": "https://space-dust.com/manual/19",
     "description": "J1900CAR 캐빈형 대형 탑승식 청소장비 공식 사용자 매뉴얼 (조작법·일일점검·비상조치)"
   },
@@ -170,7 +170,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 651210,
     "file_size_label": "635.9KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_18.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_18.pdf",
     "source_board_url": "https://space-dust.com/manual/18",
     "description": "J1900 대형 탑승식 습식 청소장비 공식 사용자 매뉴얼 (운전조작·스퀴지/브러시 관리·정비)"
   },
@@ -186,7 +186,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 611898,
     "file_size_label": "597.6KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_17.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_17.pdf",
     "source_board_url": "https://space-dust.com/manual/17",
     "description": "J1300 중대형 탑승식 습식 청소장비 공식 사용자 매뉴얼 (운전조작·소모품 교체·점검표)"
   },
@@ -202,7 +202,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 2313216,
     "file_size_label": "2.2MB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_16.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_16.pdf",
     "source_board_url": "https://space-dust.com/manual/16",
     "description": "J900 탑승식 습식 청소장비 공식 사용자 매뉴얼 (계기판 조작·배수/충전·자가점검 가이드)"
   },
@@ -218,7 +218,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 1521210,
     "file_size_label": "1.5MB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_15.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_15.pdf",
     "source_board_url": "https://space-dust.com/manual/15",
     "description": "J800 탑승식 습식 청소장비 공식 사용자 매뉴얼 (계기판 조작·스퀴지/브러시 교체·관리)"
   },
@@ -234,7 +234,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 1901107,
     "file_size_label": "1.8MB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_14.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_14.pdf",
     "source_board_url": "https://space-dust.com/manual/14",
     "description": "J700 보행식 습식 청소장비 공식 사용자 매뉴얼 (운전 조작법·오수탱크 세척·자가진단)"
   },
@@ -251,7 +251,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 573336,
     "file_size_label": "559.9KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_13.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_13.pdf",
     "source_board_url": "https://space-dust.com/manual/13",
     "description": "J600 / J600T 보행식 습식 청소장비 공식 사용자 매뉴얼 (작동 순서·소모품 교환·주의사항)"
   },
@@ -277,7 +277,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 6262313,
     "file_size_label": "6.0MB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_12.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_12.pdf",
     "source_board_url": "https://space-dust.com/manual/12",
     "description": "SP 시리즈 보행식·탑승식 습식 청소장비 전 라인업 비교 및 제원 카탈로그"
   },
@@ -293,7 +293,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 943399,
     "file_size_label": "921.3KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_11.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_11.pdf",
     "source_board_url": "https://space-dust.com/manual/11",
     "description": "W15 대용량 산업용 진공청소기 공식 사용자 매뉴얼 (필터 관리·흡입력 점검·안전수칙)"
   },
@@ -309,7 +309,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 764307,
     "file_size_label": "746.4KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_10.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_10.pdf",
     "source_board_url": "https://space-dust.com/manual/10",
     "description": "W12 건습식 산업용 진공청소기 공식 사용자 매뉴얼 (흡입호스·필터 세척·작동 가이드)"
   },
@@ -326,7 +326,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 587860,
     "file_size_label": "574.1KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_09.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_09.pdf",
     "source_board_url": "https://space-dust.com/manual/9",
     "description": "S12 탑승식 습식 청소장비 공식 사용자 매뉴얼 (운전 조작·배터리 충전·에러코드 조치)"
   },
@@ -344,7 +344,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 602672,
     "file_size_label": "588.5KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_08.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_08.pdf",
     "source_board_url": "https://space-dust.com/manual/8",
     "description": "The New S7P 신형 탑승식 습식 청소장비 공식 사용자 매뉴얼 (조작부·스퀴지 조절·일일관리)"
   },
@@ -362,7 +362,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 613197,
     "file_size_label": "598.8KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_07.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_07.pdf",
     "source_board_url": "https://space-dust.com/manual/7",
     "description": "S7P 탑승식 습식 청소장비 공식 사용자 매뉴얼 (운전 방법·정기 점검·소모품 교체)"
   },
@@ -378,7 +378,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 664194,
     "file_size_label": "648.6KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_06.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_06.pdf",
     "source_board_url": "https://space-dust.com/manual/6",
     "description": "S5 보행식 습식 청소장비 공식 사용자 매뉴얼 (작동법·스퀴지/브러시 장착·배터리 관리)"
   },
@@ -395,7 +395,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 643725,
     "file_size_label": "628.6KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_05.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_05.pdf",
     "source_board_url": "https://space-dust.com/manual/5",
     "description": "S3 / S3P 보행식 습식 청소장비 공식 사용자 매뉴얼 (운전 순서·오수 배출·트러블슈팅)"
   },
@@ -412,7 +412,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 670535,
     "file_size_label": "654.8KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_04.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_04.pdf",
     "source_board_url": "https://space-dust.com/manual/4",
     "description": "S3mini 컴팩트 보행식 습식 청소장비 공식 사용자 매뉴얼 (조작 방법·충전 및 보관 관리)"
   },
@@ -429,7 +429,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 753799,
     "file_size_label": "736.1KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_03.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_03.pdf",
     "source_board_url": "https://space-dust.com/manual/3",
     "description": "S2 소형 보행식 습식 청소장비 공식 사용자 매뉴얼 (핸들 조작·브러시/스퀴지 세척)"
   },
@@ -446,7 +446,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 1908439,
     "file_size_label": "1.8MB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_02.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_02.pdf",
     "source_board_url": "https://space-dust.com/manual/2",
     "description": "Floor Dr.(플로어닥터) 다목적 바닥 세척기 공식 사용자 매뉴얼 (조작 및 유지보수 가이드)"
   },
@@ -463,7 +463,7 @@ export const SPACE_DUST_OFFICIAL_MANUALS: EquipmentManualItem[] = [
     ],
     "file_size_bytes": 676200,
     "file_size_label": "660.4KB",
-    "file_url": "https://eknwzjcbchbefdlykqgl.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_01.pdf",
+    "file_url": "https://lkohpffieaanwhohttbu.supabase.co/storage/v1/object/public/equipment-manuals/space_manual_01.pdf",
     "source_board_url": "https://space-dust.com/manual/1",
     "description": "Dr. Orbit(닥터오비트) 오비탈 바닥 연마·세척기 공식 사용자 매뉴얼 (패드 장착·안전 조작법)"
   }

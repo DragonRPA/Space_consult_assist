@@ -40,7 +40,7 @@ def seed_drafts():
             script_json = json.dumps(checklist, ensure_ascii=False)
             
             # Update all symptom_rules with this part_code
-            sql = text("UPDATE symptom_rules SET action_script = :script WHERE part_code = :pcode")
+            sql = text("UPDATE space_symptom_rules SET action_script = :script WHERE part_code = :pcode")
             res = conn.execute(sql, {"script": script_json, "pcode": pcode})
             print(f"[{pcode}] Updated {res.rowcount} rules.")
     print("Action script drafts generated.")

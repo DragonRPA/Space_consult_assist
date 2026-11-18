@@ -174,7 +174,7 @@ def run_mining():
                 
                 query = f"""
                     SELECT file_name, equipment_model, summary, action_items, stt_text
-                    FROM consult_knowledge
+                    FROM space_consult_knowledge
                     WHERE call_type = '증상수리'
                       AND ({like_clauses})
                       AND file_name IS NOT NULL

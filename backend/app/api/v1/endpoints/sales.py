@@ -28,7 +28,7 @@ async def create_sales_inquiry(req: SalesInquiryCreate, db: AsyncSession = Depen
     emp_id = None
     if req.counselor_name:
         emp_res = await db.execute(
-            text("SELECT id FROM employees WHERE name = :name LIMIT 1"),
+            text("SELECT id FROM space_employees WHERE name = :name LIMIT 1"),
             {"name": req.counselor_name.strip()}
         )
         emp_row = emp_res.fetchone()
@@ -36,7 +36,7 @@ async def create_sales_inquiry(req: SalesInquiryCreate, db: AsyncSession = Depen
             emp_id = emp_row.id
 
     query = text("""
-        INSERT INTO sales_inquiries (id, inquiry_type, customer_name, manager, manager_phone, request_note, is_completed, client_type, timestamp)
+        INSERT INTO space_sales_inquiries (id, inquiry_type, customer_name, manager, manager_phone, request_note, is_completed, client_type, timestamp)
         VALUES (:id, :itype, :cname, :mgr, :phone, :note, false, :client_type, CURRENT_TIMESTAMP)
         RETURNING id
     """)
@@ -53,7 +53,7 @@ async def create_sales_inquiry(req: SalesInquiryCreate, db: AsyncSession = Depen
 
     # 감사 로그 기록 (changed_by 무누락 연동)
     audit_q = text("""
-        INSERT INTO audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
+        INSERT INTO space_audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
         VALUES (:aid, 'sales_inquiries', :rid, 'INSERT', :emp_id, CURRENT_TIMESTAMP)
     """)
     await db.execute(audit_q, {"aid": uuid.uuid4(), "rid": inquiry_id, "emp_id": emp_id})

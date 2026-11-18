@@ -1,15 +1,16 @@
-import { useState, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useState, useEffect, useMemo } from 'react';
 import {
   X, Send, Check, Copy, Image as ImageIcon, Package, Wrench, CheckCircle2
 } from 'lucide-react';
 import type { DispatchChannelType } from './PartsOrderQuotationModal';
-import { SymptomPhotoManagerModal } from './SymptomPhotoManagerModal';
 import { type SymptomPhotoItem, getSymptomPhotos } from './symptomPhotoApi';
 import {
   MODEL_KEYS,
   resolveModelKey,
   getModelCatalogBundle,
 } from './modelCatalogVisuals';
+
+const SymptomPhotoManagerModal = lazy(() => import('./SymptomPhotoManagerModal'));
 
 export interface GuideStepItem {
   stepNo: number;
@@ -1035,15 +1036,17 @@ export function SelfActionGuideModal({
       </div>
 
       {isPhotoManagerOpen && (
-        <SymptomPhotoManagerModal
-          equipmentModel={selectedModel}
-          symptomId={symptomTitle || 'general'}
-          symptomTitle={symptomTitle || '점검'}
-          onClose={() => {
-            setIsPhotoManagerOpen(false);
-            getSymptomPhotos(selectedModel, symptomTitle || 'general').then(setSymptomPhotos);
-          }}
-        />
+        <Suspense fallback={null}>
+          <SymptomPhotoManagerModal
+            equipmentModel={selectedModel}
+            symptomId={symptomTitle || 'general'}
+            symptomTitle={symptomTitle || '점검'}
+            onClose={() => {
+              setIsPhotoManagerOpen(false);
+              getSymptomPhotos(selectedModel, symptomTitle || 'general').then(setSymptomPhotos);
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

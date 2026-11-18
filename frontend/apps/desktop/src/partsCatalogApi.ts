@@ -3,64 +3,12 @@
  * 부품 카탈로그 DB 연동 (Supabase PostgreSQL `parts_catalog` & `parts_orders` + 로컬 캐시 폴백)
  */
 
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://eknwzjcbchbefdlykqgl.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_y7xsEQsIj_lFTYiHtYOr5Q_44z2fM-Z';
-
-export const supabase = createClient(SUPABASE_URL || '', SUPABASE_KEY || '');
-
-export interface CatalogPartItem {
-  id: string;
-  part_code: string;
-  part_name: string;
-  category: '스퀴지/고무' | '브러시/패드' | '호스/필터' | '배터리/전원' | '모터/밸브' | '세제/소모품' | string;
-  applicable_models: string[];
-  unit_price: number;
-  spec: string;
-  description: string;
-  image_url: string;
-  in_stock: boolean;
-  lead_time_days: number;
-  is_recommended: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface CartItem {
-  part: CatalogPartItem;
-  quantity: number;
-}
-
-export interface PartsOrderRecord {
-  order_id: string;
-  doc_no: string;
-  customer_name: string;
-  manager: string;
-  phone: string;
-  site_company?: string;
-  site_worker_name?: string;
-  site_worker_phone?: string;
-  primary_recipient: 'WORKER' | 'MANAGER';
-  dispatch_channel: 'KAKAO' | 'SMS' | 'EMAIL';
-  equipment_model: string;
-  items: {
-    part_code: string;
-    part_name: string;
-    unit_price: number;
-    qty: number;
-    total: number;
-  }[];
-  supply_total: number;
-  shipping_fee: number;
-  vat: number;
-  grand_total: number;
-  order_status?: string;
-  shipping_address?: string;
-  created_at?: string;
-}
-
+import { supabase } from './supabaseClient';
 import { SPACE_DUST_OFFICIAL_CATALOG } from './spaceDustCatalogSeed';
+import type { CatalogPartItem, CartItem, PartsOrderRecord } from './partsCatalogTypes';
+
+export { supabase };
+export type { CatalogPartItem, CartItem, PartsOrderRecord };
 
 const LOCAL_CATALOG_KEY = 'space_parts_catalog_cache_v2';
 const LOCAL_ORDERS_KEY = 'space_parts_orders_cache';
@@ -70,7 +18,7 @@ export async function getAllPartsCatalog(): Promise<CatalogPartItem[]> {
   const seedList = getFallbackCatalog();
   try {
     const { data, error } = await supabase
-      .from('parts_catalog')
+      .from('space_parts_catalog')
       .select('*')
       .order('is_recommended', { ascending: false })
       .order('category', { ascending: true });
@@ -121,7 +69,7 @@ export async function saveCatalogPart(part: CatalogPartItem): Promise<CatalogPar
 
   try {
     const { data, error } = await supabase
-      .from('parts_catalog')
+      .from('space_parts_catalog')
       .upsert(payload, { onConflict: 'id' })
       .select()
       .single();
@@ -148,7 +96,7 @@ export async function submitPartsOrder(order: PartsOrderRecord): Promise<{ succe
 
   try {
     const { error } = await supabase
-      .from('parts_orders')
+      .from('space_parts_orders')
       .insert([payload]);
 
     if (error) {

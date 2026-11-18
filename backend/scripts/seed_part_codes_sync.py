@@ -38,7 +38,7 @@ def seed():
         with conn.cursor() as cur:
             for code, desc in PART_CODES:
                 cur.execute(
-                    "INSERT INTO part_codes (code, description) VALUES (%s, %s) ON CONFLICT (code) DO NOTHING",
+                    "INSERT INTO space_part_codes (code, description) VALUES (%s, %s) ON CONFLICT (code) DO NOTHING",
                     (code, desc)
                 )
             conn.commit()

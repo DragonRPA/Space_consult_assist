@@ -22,7 +22,7 @@ CHECKPOINT   = r'D:\스페이스_테스트\batch_checkpoint.json'
 ERROR_LOG    = r'D:\스페이스_테스트\batch_errors.jsonl'
 OLLAMA_URL   = 'http://localhost:11434/api/generate'
 MODEL        = 'gemma3:12b'
-DB_URL       = 'postgresql://postgres.eknwzjcbchbefdlykqgl:jUHGAmVsSeXc1jdR@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres'
+DB_URL       = 'postgresql://postgres.lkohpffieaanwhohttbu:BKK5s3E1ydVKx6qJ@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres'
 MIN_SIZE_B   = 300     # 300B 미만 노이즈 파일 건너뜀
 TIMEOUT_SEC  = 90      # Ollama 응답 제한
 
@@ -157,7 +157,7 @@ def log_error(file_name, error):
 # DB upsert
 # ─────────────────────────────────────────────
 UPSERT_SQL = """
-INSERT INTO consult_knowledge
+INSERT INTO space_consult_knowledge
     (file_name, call_date, call_time, caller_id, stt_text,
      call_type, equipment_model, urgency, symptoms, parts_mentioned,
      action_items, summary, analyzed_by)
@@ -286,7 +286,7 @@ def main():
     # DB 저장 건수 확인
     conn2 = psycopg.connect(DB_URL)
     cur2  = conn2.cursor()
-    cur2.execute("SELECT call_type, COUNT(*) FROM consult_knowledge GROUP BY call_type ORDER BY COUNT(*) DESC")
+    cur2.execute("SELECT call_type, COUNT(*) FROM space_consult_knowledge GROUP BY call_type ORDER BY COUNT(*) DESC")
     log.info("DB 저장 현황:")
     for row in cur2.fetchall():
         log.info(f"  {row[0]}: {row[1]:,}건")

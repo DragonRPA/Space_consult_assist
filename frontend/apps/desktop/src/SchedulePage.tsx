@@ -9,14 +9,15 @@
  * - 완료 처리, 중요 토글
  */
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Plus, ChevronLeft, ChevronRight, RotateCcw, Star } from 'lucide-react';
 import {
   fetchEvents, fetchCategories, createEvent, updateEvent, deleteEvent, fetchEmployees,
   type ScheduleEvent, type CategoryMeta, type ScheduleEventCreate, type Employee
 } from './scheduleApi';
-import { EventFormModal } from './EventFormModal';
-import { EventDetailModal } from './EventDetailModal';
+
+const EventFormModal = lazy(() => import('./EventFormModal'));
+const EventDetailModal = lazy(() => import('./EventDetailModal'));
 
 // ─── 유틸 ────────────────────────────────────────────────────────────────────
 
@@ -821,27 +822,29 @@ export default function SchedulePage() {
         </main>
 
       {/* 업무 등록/수정 모달 */}
-      {formOpen && (
-        <EventFormModal
-          event={editingEvent}
-          defaultDate={defaultDate}
-          cats={cats}
-          onSave={handleSave}
-          onClose={() => { setFormOpen(false); setEditingEvent(null); }}
-        />
-      )}
+      <Suspense fallback={null}>
+        {formOpen && (
+          <EventFormModal
+            event={editingEvent}
+            defaultDate={defaultDate}
+            cats={cats}
+            onSave={handleSave}
+            onClose={() => { setFormOpen(false); setEditingEvent(null); }}
+          />
+        )}
 
-      {/* 상세보기 모달 */}
-      {detailEvent && (
-        <EventDetailModal
-          event={detailEvent}
-          cats={cats}
-          onClose={() => setDetailEvent(null)}
-          onEdit={() => { setEditingEvent(detailEvent); setDetailEvent(null); setFormOpen(true); }}
-          onDelete={() => handleDelete(detailEvent)}
-          onToggleDone={() => handleToggleDone(detailEvent)}
-        />
-      )}
+        {/* 상세보기 모달 */}
+        {detailEvent && (
+          <EventDetailModal
+            event={detailEvent}
+            cats={cats}
+            onClose={() => setDetailEvent(null)}
+            onEdit={() => { setEditingEvent(detailEvent); setDetailEvent(null); setFormOpen(true); }}
+            onDelete={() => handleDelete(detailEvent)}
+            onToggleDone={() => handleToggleDone(detailEvent)}
+          />
+        )}
+      </Suspense>
 
       </div> {/* End flex row */}
 

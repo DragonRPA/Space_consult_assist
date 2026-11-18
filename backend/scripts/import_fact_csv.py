@@ -78,7 +78,7 @@ def run_import():
         })
     
     with engine.connect() as conn:
-        existing = pd.read_sql("SELECT keyword, part_code FROM symptom_rules", conn)
+        existing = pd.read_sql("SELECT keyword, part_code FROM space_symptom_rules", conn)
         existing_set = set(zip(existing['keyword'], existing['part_code']))
     
     missing_params = [p for p in params_list if (p['keyword'], p['part_code']) not in existing_set]
@@ -91,7 +91,7 @@ def run_import():
         try:
             with engine.begin() as conn:
                 sql = text("""
-                    INSERT INTO symptom_rules 
+                    INSERT INTO space_symptom_rules 
                     (keyword, part_code, category_l1, category_l2, action_category, action_detail, cost_type, source_count, confidence_tier, priority, is_active, source_engine, action_script)
                     VALUES 
                     (:keyword, :part_code, :cat1, :cat2, :act_cat, :act_det, :cost, :cnt, :confidence, :priority, :is_active, :source_engine, :action_script)

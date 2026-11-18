@@ -128,7 +128,7 @@ def main():
     conn = psycopg.connect(DB_URL)
     cur = conn.cursor()
 
-    cur.execute("SELECT COUNT(*) FROM consult_knowledge WHERE call_type='증상수리' AND embedding_bge IS NULL")
+    cur.execute("SELECT COUNT(*) FROM space_consult_knowledge WHERE call_type='증상수리' AND embedding_bge IS NULL")
     total = cur.fetchone()[0]
     log.info(f"남은 임베딩 대상: {total:,}건")
     if total == 0:
@@ -141,7 +141,7 @@ def main():
     while True:
         cur.execute("""
             SELECT id, summary, symptoms, parts_mentioned, equipment_model
-            FROM consult_knowledge
+            FROM space_consult_knowledge
             WHERE call_type = '증상수리' AND embedding_bge IS NULL
             ORDER BY created_at LIMIT %s
         """, (BATCH_SIZE,))
@@ -159,7 +159,7 @@ def main():
 
             for rec, emb in zip(records, embeddings):
                 vec_str = "[" + ",".join(f"{v:.8f}" for v in emb) + "]"
-                cur.execute("UPDATE consult_knowledge SET embedding_bge = %s::vector WHERE id = %s", (vec_str, rec["id"]))
+                cur.execute("UPDATE space_consult_knowledge SET embedding_bge = %s::vector WHERE id = %s", (vec_str, rec["id"]))
             conn.commit()
 
             processed += len(records)
@@ -182,17 +182,17 @@ def main():
                 try:
                     emb = generate_single_embedding(text_val)
                     vec_str = "[" + ",".join(f"{v:.8f}" for v in emb) + "]"
-                    cur.execute("UPDATE consult_knowledge SET embedding_bge = %s::vector WHERE id = %s", (vec_str, rec["id"]))
+                    cur.execute("UPDATE space_consult_knowledge SET embedding_bge = %s::vector WHERE id = %s", (vec_str, rec["id"]))
                     conn.commit()
                     processed += 1
                 except Exception as inner_e:
                     log.error(f"ID {rec['id']} 완전 실패: {inner_e} -> 0벡터 격리")
                     zero_vec = "[" + ",".join("0.00000000" for _ in range(1024)) + "]"
-                    cur.execute("UPDATE consult_knowledge SET embedding_bge = %s::vector WHERE id = %s", (zero_vec, rec["id"]))
+                    cur.execute("UPDATE space_consult_knowledge SET embedding_bge = %s::vector WHERE id = %s", (zero_vec, rec["id"]))
                     conn.commit()
                     processed += 1
 
-    cur.execute("SELECT COUNT(*) FROM consult_knowledge WHERE embedding_bge IS NOT NULL")
+    cur.execute("SELECT COUNT(*) FROM space_consult_knowledge WHERE embedding_bge IS NOT NULL")
     done = cur.fetchone()[0]
     total_sec = int(time.time() - t_start)
     log.info("=" * 60)

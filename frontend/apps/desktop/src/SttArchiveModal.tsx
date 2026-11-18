@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { X, FileAudio, RotateCcw, Copy, Check, Trash2, Search } from 'lucide-react';
-import { supabase } from './scheduleApi';
+import { supabase } from './supabaseClient';
 
 export interface SttAudioArchiveRow {
   id: string;
@@ -84,7 +84,7 @@ export const SttArchiveModal: React.FC<SttArchiveModalProps> = ({
     setIsLoading(true);
     try {
       const { data, error } = await supabase
-        .from('stt_audio_archives')
+        .from('space_stt_audio_archives')
         .select('*')
         .order('work_datetime', { ascending: false })
         .limit(100);
@@ -151,7 +151,7 @@ export const SttArchiveModal: React.FC<SttArchiveModalProps> = ({
   const handleDeleteRecord = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const { error } = await supabase.from('stt_audio_archives').delete().eq('id', id);
+      const { error } = await supabase.from('space_stt_audio_archives').delete().eq('id', id);
       if (error) throw error;
       const next = records.filter((r) => r.id !== id);
       setRecords(next);
@@ -764,3 +764,5 @@ export const SttArchiveModal: React.FC<SttArchiveModalProps> = ({
     </div>
   );
 };
+
+export default SttArchiveModal;

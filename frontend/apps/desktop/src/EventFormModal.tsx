@@ -307,9 +307,10 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
 
   // 업무 변경 시 탭 자동 변경
   useEffect(() => {
-    const nextTab = getAutoTab(category, worktype, activeTabs);
-    if (nextTab && nextTab !== activeTab) {
-      setActiveTab(nextTab);
+    const tabs = CATEGORY_SCHEMAS[category]?.tabs ?? [];
+    const nextTab = getAutoTab(category, worktype, tabs);
+    if (nextTab) {
+      setActiveTab((prev) => (nextTab !== prev ? nextTab : prev));
     }
   }, [worktype, category]);
 
@@ -528,3 +529,5 @@ export function EventFormModal({ event, defaultDate, cats, onSave, onClose }: Pr
     </div>
   );
 }
+
+export default EventFormModal;

@@ -1,6 +1,6 @@
 import psycopg
 
-DATABASE_URL = "postgresql://postgres.eknwzjcbchbefdlykqgl:jUHGAmVsSeXc1jdR@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres"
+DATABASE_URL = "postgresql://postgres.lkohpffieaanwhohttbu:BKK5s3E1ydVKx6qJ@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
 
 try:
     with psycopg.connect(DATABASE_URL) as conn:
@@ -13,7 +13,7 @@ try:
                     SELECT 1 FROM information_schema.columns 
                     WHERE table_name='employees' AND column_name='is_active'
                 ) THEN
-                    ALTER TABLE employees ADD COLUMN is_active boolean DEFAULT true;
+                    ALTER TABLE space_employees ADD COLUMN is_active boolean DEFAULT true;
                 END IF;
             END
             \;

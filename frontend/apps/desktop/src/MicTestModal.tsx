@@ -130,7 +130,7 @@ export const MicTestModal: React.FC<MicTestModalProps> = ({ isOpen, onClose }) =
     if (testRecognitionRef.current) {
       try {
         testRecognitionRef.current.stop();
-      } catch (e) {}
+      } catch {}
       testRecognitionRef.current = null;
     }
     setIsTestListening(false);
@@ -352,3 +352,5 @@ export const MicTestModal: React.FC<MicTestModalProps> = ({ isOpen, onClose }) =
     </div>
   );
 };
+
+export default MicTestModal;

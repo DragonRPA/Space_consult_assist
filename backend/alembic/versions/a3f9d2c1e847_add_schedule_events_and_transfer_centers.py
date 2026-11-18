@@ -19,7 +19,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     # 1. transfer_centers 이관센터 마스터 테이블
     op.execute("""
-        CREATE TABLE IF NOT EXISTS transfer_centers (
+        CREATE TABLE IF NOT EXISTS space_transfer_centers (
             id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             name    VARCHAR(100) NOT NULL,
             address TEXT,
@@ -29,7 +29,7 @@ def upgrade() -> None:
 
     # 2. schedule_events 업무 일정 핵심 테이블
     op.execute("""
-        CREATE TABLE IF NOT EXISTS schedule_events (
+        CREATE TABLE IF NOT EXISTS space_schedule_events (
             id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             category         VARCHAR(30)  NOT NULL,
             worktype         VARCHAR(100),
@@ -59,27 +59,27 @@ def upgrade() -> None:
             updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
     """)
-    op.execute("CREATE INDEX IF NOT EXISTS idx_se_start_at ON schedule_events (start_at DESC);")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_se_category ON schedule_events (category);")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_se_done_start ON schedule_events (is_done, start_at);")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_se_start_at ON space_schedule_events (start_at DESC);")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_se_category ON space_schedule_events (category);")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_se_done_start ON space_schedule_events (is_done, start_at);")
 
     # 3. visits 테이블 보완 컬럼
-    op.execute("ALTER TABLE visits ADD COLUMN IF NOT EXISTS display_order SMALLINT DEFAULT 0;")
-    op.execute("ALTER TABLE visits ADD COLUMN IF NOT EXISTS process_staff JSONB;")
-    op.execute("ALTER TABLE visits ADD COLUMN IF NOT EXISTS site_managers JSONB;")
-    op.execute("ALTER TABLE visits ADD COLUMN IF NOT EXISTS call_done BOOLEAN DEFAULT FALSE;")
-    op.execute("ALTER TABLE visits ADD COLUMN IF NOT EXISTS schedule_event_id UUID REFERENCES schedule_events(id) ON DELETE SET NULL;")
+    op.execute("ALTER TABLE space_visits ADD COLUMN IF NOT EXISTS display_order SMALLINT DEFAULT 0;")
+    op.execute("ALTER TABLE space_visits ADD COLUMN IF NOT EXISTS process_staff JSONB;")
+    op.execute("ALTER TABLE space_visits ADD COLUMN IF NOT EXISTS site_managers JSONB;")
+    op.execute("ALTER TABLE space_visits ADD COLUMN IF NOT EXISTS call_done BOOLEAN DEFAULT FALSE;")
+    op.execute("ALTER TABLE space_visits ADD COLUMN IF NOT EXISTS schedule_event_id UUID REFERENCES schedule_events(id) ON DELETE SET NULL;")
 
     # 4. customers 테이블 보완 컬럼 (사용업체 분리)
-    op.execute("ALTER TABLE customers ADD COLUMN IF NOT EXISTS use_company_name VARCHAR(100);")
+    op.execute("ALTER TABLE space_customers ADD COLUMN IF NOT EXISTS use_company_name VARCHAR(100);")
 
 
 def downgrade() -> None:
-    op.execute("ALTER TABLE customers DROP COLUMN IF EXISTS use_company_name;")
-    op.execute("ALTER TABLE visits DROP COLUMN IF EXISTS schedule_event_id;")
-    op.execute("ALTER TABLE visits DROP COLUMN IF EXISTS call_done;")
-    op.execute("ALTER TABLE visits DROP COLUMN IF EXISTS site_managers;")
-    op.execute("ALTER TABLE visits DROP COLUMN IF EXISTS process_staff;")
-    op.execute("ALTER TABLE visits DROP COLUMN IF EXISTS display_order;")
+    op.execute("ALTER TABLE space_customers DROP COLUMN IF EXISTS use_company_name;")
+    op.execute("ALTER TABLE space_visits DROP COLUMN IF EXISTS schedule_event_id;")
+    op.execute("ALTER TABLE space_visits DROP COLUMN IF EXISTS call_done;")
+    op.execute("ALTER TABLE space_visits DROP COLUMN IF EXISTS site_managers;")
+    op.execute("ALTER TABLE space_visits DROP COLUMN IF EXISTS process_staff;")
+    op.execute("ALTER TABLE space_visits DROP COLUMN IF EXISTS display_order;")
     op.execute("DROP TABLE IF EXISTS schedule_events;")
     op.execute("DROP TABLE IF EXISTS transfer_centers;")

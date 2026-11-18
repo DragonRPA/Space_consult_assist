@@ -2,7 +2,7 @@
 import psycopg
 import uuid
 
-DATABASE_URL = "postgresql://postgres.eknwzjcbchbefdlykqgl:jUHGAmVsSeXc1jdR@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres"
+DATABASE_URL = "postgresql://postgres.lkohpffieaanwhohttbu:BKK5s3E1ydVKx6qJ@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
 
 names = [
     "김성열",
@@ -30,19 +30,19 @@ try:
                     SELECT 1 FROM information_schema.columns 
                     WHERE table_name='employees' AND column_name='display_order'
                 ) THEN
-                    ALTER TABLE employees ADD COLUMN display_order integer DEFAULT 999;
+                    ALTER TABLE space_employees ADD COLUMN display_order integer DEFAULT 999;
                 END IF;
             END
             $$;
             """)
             
             # 2. Delete all rows
-            cur.execute("DELETE FROM employees")
+            cur.execute("DELETE FROM space_employees")
             
             # 3. Insert real rows
             for idx, name in enumerate(names, 1):
                 cur.execute(
-                    "INSERT INTO employees (id, name, display_order) VALUES (%s, %s, %s)",
+                    "INSERT INTO space_employees (id, name, display_order) VALUES (%s, %s, %s)",
                     (str(uuid.uuid4()), name, idx)
                 )
         conn.commit()

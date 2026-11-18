@@ -16,7 +16,7 @@ def get_detailed_symptoms():
             for m in models:
                 cur.execute("""
                     SELECT symptoms, summary, action_items, parts_mentioned, urgency
-                    FROM consult_knowledge
+                    FROM space_consult_knowledge
                     WHERE call_type = '증상수리'
                       AND equipment_model ILIKE %s
                     LIMIT 400;

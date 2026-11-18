@@ -34,9 +34,9 @@ def step1_check_nomic_done():
     """nomic 임베딩 완료 여부 확인"""
     conn = psycopg.connect(DB_URL)
     cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM consult_knowledge WHERE call_type='증상수리' AND embedding IS NULL")
+    cur.execute("SELECT COUNT(*) FROM space_consult_knowledge WHERE call_type='증상수리' AND embedding IS NULL")
     remaining = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM consult_knowledge WHERE call_type='증상수리' AND embedding IS NOT NULL")
+    cur.execute("SELECT COUNT(*) FROM space_consult_knowledge WHERE call_type='증상수리' AND embedding IS NOT NULL")
     done = cur.fetchone()[0]
     conn.close()
     log.info(f"nomic 임베딩 현황: 완료 {done:,}건 / 미완료 {remaining:,}건")

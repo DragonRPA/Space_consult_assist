@@ -250,3 +250,5 @@ export function EventDetailModal({ event: ev, cats, onClose, onEdit, onDelete: _
     </div>
   );
 }
+
+export default EventDetailModal;

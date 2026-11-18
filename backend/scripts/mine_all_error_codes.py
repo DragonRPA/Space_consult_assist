@@ -16,7 +16,7 @@ def mine_all_codes():
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT id, equipment_model, summary, stt_text 
-                FROM consult_knowledge 
+                FROM space_consult_knowledge 
                 WHERE stt_text ~* '(에러|오류|코드|알람)'
             """)
             rows = cur.fetchall()

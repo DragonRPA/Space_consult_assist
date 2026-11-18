@@ -81,7 +81,7 @@ for i, row in grouped.iterrows():
     
     # When chunk is full or it's the last row
     if len(current_values) >= chunk_size or i == len(grouped) - 1:
-        sql_lines.append("""INSERT INTO symptom_rules 
+        sql_lines.append("""INSERT INTO space_symptom_rules 
 (keyword, part_code, category_l1, category_l2, action_category, action_detail, cost_type, source_count, confidence_tier, priority, is_active, source_engine, action_script)
 VALUES""")
         sql_lines.append(",\n".join(current_values))

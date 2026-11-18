@@ -38,7 +38,7 @@ async def seed():
     async with AsyncSessionLocal() as session:
         for code, desc in PART_CODES:
             await session.execute(
-                text("INSERT INTO part_codes (code, description) VALUES (:code, :desc) ON CONFLICT (code) DO NOTHING"),
+                text("INSERT INTO space_part_codes (code, description) VALUES (:code, :desc) ON CONFLICT (code) DO NOTHING"),
                 {"code": code, "desc": desc}
             )
         await session.commit()

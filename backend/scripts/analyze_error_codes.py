@@ -29,7 +29,7 @@ def analyze_errors():
             # 2. '에러', '오류', '코드', '경고', '불빛', '점멸' 관련 레코드 검색
             search_query = """
                 SELECT id, equipment_model, symptoms, summary, stt_text, action_items
-                FROM consult_knowledge
+                FROM space_consult_knowledge
                 WHERE stt_text ~* '(에러|오류|코드|알람|경고음|점멸|깜빡|디스플레이|계기판|e[0-9]|eh|al[0-9]|err)'
                    OR summary ~* '(에러|오류|코드|알람|경고음|점멸|깜빡|디스플레이|계기판|e[0-9]|eh|al[0-9]|err)'
                    OR array_to_string(symptoms, ' ') ~* '(에러|오류|코드|알람|점멸|깜빡)'

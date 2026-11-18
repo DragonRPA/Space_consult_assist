@@ -22,7 +22,7 @@ def create_index():
             t0 = time.time()
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_ck_embedding_bge 
-                ON consult_knowledge 
+                ON space_consult_knowledge 
                 USING hnsw (embedding_bge vector_cosine_ops) 
                 WITH (m = 16, ef_construction = 64);
             """)

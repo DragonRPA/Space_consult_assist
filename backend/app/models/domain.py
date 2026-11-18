@@ -8,12 +8,12 @@ from .base import Base
 # --- Master Tables ---
 
 class PartCode(Base):
-    __tablename__ = "part_codes"
+    __tablename__ = "space_part_codes"
     code: Mapped[str] = mapped_column(String(40), primary_key=True)
     description: Mapped[str] = mapped_column(String(200), nullable=True)
 
 class Part(Base):
-    __tablename__ = "parts"
+    __tablename__ = "space_parts"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     compatible_models: Mapped[str] = mapped_column(String(200), nullable=True)
@@ -23,7 +23,7 @@ class Part(Base):
     expected_lifespan: Mapped[str] = mapped_column(String(100), nullable=True)
 
 class Employee(Base):
-    __tablename__ = "employees"
+    __tablename__ = "space_employees"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     phone: Mapped[str] = mapped_column(String(20), nullable=True)
@@ -31,7 +31,7 @@ class Employee(Base):
 # --- Core Entities ---
 
 class Asset(Base):
-    __tablename__ = "assets"
+    __tablename__ = "space_assets"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     model_name: Mapped[str] = mapped_column(String(100), nullable=False)
     serial_number: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
@@ -41,7 +41,7 @@ class Asset(Base):
     warranty_period: Mapped[str] = mapped_column(String(100), nullable=True)
 
 class Customer(Base):
-    __tablename__ = "customers"
+    __tablename__ = "space_customers"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     manager: Mapped[str] = mapped_column(String(50), nullable=True)
@@ -49,10 +49,10 @@ class Customer(Base):
     email: Mapped[str] = mapped_column(String(100), nullable=True)
     address: Mapped[str] = mapped_column(String(200), nullable=True)
     address_detail: Mapped[str] = mapped_column(String(200), nullable=True)
-    asset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("assets.id"), nullable=True)
+    asset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_assets.id"), nullable=True)
 
 class AssetHistory(Base):
-    __tablename__ = "asset_history"
+    __tablename__ = "space_asset_history"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     serial_number: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -61,12 +61,12 @@ class AssetHistory(Base):
     symptom: Mapped[str] = mapped_column(Text, nullable=True)
     action_type: Mapped[str] = mapped_column(String(100), nullable=True)
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False)
-    used_part_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("parts.id"), nullable=True)
+    used_part_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_parts.id"), nullable=True)
 
 # --- Process Entities ---
 
 class ConsultLog(Base):
-    __tablename__ = "consult_logs"
+    __tablename__ = "space_consult_logs"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     customer_name: Mapped[str] = mapped_column(String(100), nullable=True)
@@ -77,28 +77,28 @@ class ConsultLog(Base):
     symptom: Mapped[str] = mapped_column(Text, nullable=True)
     action: Mapped[str] = mapped_column(Text, nullable=True)
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False)
-    receiver_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"), nullable=True)
+    receiver_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_employees.id"), nullable=True)
     is_visit_required: Mapped[bool] = mapped_column(Boolean, default=False)
     visit_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=True) # Will set FK later if needed
 
 class Visit(Base):
-    __tablename__ = "visits"
+    __tablename__ = "space_visits"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    employee_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"), nullable=True)
-    customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customers.id"), nullable=True)
+    employee_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_employees.id"), nullable=True)
+    customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_customers.id"), nullable=True)
     customer_name: Mapped[str] = mapped_column(String(100), nullable=True)
     manager: Mapped[str] = mapped_column(String(50), nullable=True)
     phone: Mapped[str] = mapped_column(String(20), nullable=True)
     address: Mapped[str] = mapped_column(String(200), nullable=True)
     address_detail: Mapped[str] = mapped_column(String(200), nullable=True)
-    consult_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("consult_logs.id"), nullable=True)
+    consult_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_consult_logs.id"), nullable=True)
     request_note: Mapped[str] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default='접수') # '접수', '진행중', '완료', '취소', '재방문'
     note: Mapped[str] = mapped_column(Text, nullable=True)
 
 class SalesInquiry(Base):
-    __tablename__ = "sales_inquiries"
+    __tablename__ = "space_sales_inquiries"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     inquiry_type: Mapped[str] = mapped_column(String(50), nullable=True)
@@ -112,11 +112,11 @@ class SalesInquiry(Base):
 # --- New Tables (v3.0.0) ---
 
 class SymptomRule(Base):
-    __tablename__ = "symptom_rules"
+    __tablename__ = "space_symptom_rules"
     __table_args__ = (UniqueConstraint('keyword', 'part_code', name='uq_keyword_part_code'),)
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     keyword: Mapped[str] = mapped_column(Text, nullable=False)
-    part_code: Mapped[str] = mapped_column(ForeignKey("part_codes.code"), nullable=False)
+    part_code: Mapped[str] = mapped_column(ForeignKey("space_part_codes.code"), nullable=False)
     category_l1: Mapped[str] = mapped_column(Text, nullable=False)
     category_l2: Mapped[str] = mapped_column(Text, nullable=True)
     action_category: Mapped[str] = mapped_column(Text, nullable=False)
@@ -132,15 +132,15 @@ class SymptomRule(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 class ConsultKeyword(Base):
-    __tablename__ = "consult_keywords"
+    __tablename__ = "space_consult_keywords"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    consult_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("consult_logs.id"), nullable=False)
+    consult_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_consult_logs.id"), nullable=False)
     keyword: Mapped[str] = mapped_column(String(100), nullable=False)
 
 class LlmLog(Base):
-    __tablename__ = "llm_logs"
+    __tablename__ = "space_llm_logs"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    consult_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("consult_logs.id"), nullable=True)
+    consult_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_consult_logs.id"), nullable=True)
     called_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     model_name: Mapped[str] = mapped_column(Text, nullable=False)
     prompt_hash: Mapped[str] = mapped_column(Text, nullable=False)
@@ -154,46 +154,46 @@ class LlmLog(Base):
     client_type: Mapped[str] = mapped_column(String(20), default='desktop')
 
 class VisitStatusHistory(Base):
-    __tablename__ = "visit_status_history"
+    __tablename__ = "space_visit_status_history"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    visit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("visits.id"), nullable=False)
+    visit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_visits.id"), nullable=False)
     old_status: Mapped[str] = mapped_column(Text, nullable=True)
     new_status: Mapped[str] = mapped_column(Text, nullable=False)
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    changed_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"), nullable=True)
+    changed_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_employees.id"), nullable=True)
     client_type: Mapped[str] = mapped_column(String(20), default='desktop')
 
 class AuditLogMinimal(Base):
-    __tablename__ = "audit_log_minimal"
+    __tablename__ = "space_audit_log_minimal"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     table_name: Mapped[str] = mapped_column(String(50), nullable=False)
     record_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     action: Mapped[str] = mapped_column(String(20), nullable=False)
-    changed_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"), nullable=True)
+    changed_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_employees.id"), nullable=True)
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 class ClassificationAttempt(Base):
-    __tablename__ = "classification_attempts"
+    __tablename__ = "space_classification_attempts"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    consult_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("consult_logs.id"), nullable=True)
+    consult_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_consult_logs.id"), nullable=True)
     input_text: Mapped[str] = mapped_column(Text, nullable=False)
     matched_keyword: Mapped[str] = mapped_column(Text, nullable=True)
     is_successful: Mapped[bool] = mapped_column(Boolean, default=False)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 class VisitPart(Base):
-    __tablename__ = "visit_parts"
+    __tablename__ = "space_visit_parts"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    visit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("visits.id"), nullable=False)
-    part_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("parts.id"), nullable=False)
+    visit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_visits.id"), nullable=False)
+    part_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_parts.id"), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, default=1)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 class VehicleInventory(Base):
-    __tablename__ = "vehicle_inventories"
+    __tablename__ = "space_vehicle_inventories"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    employee_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"), nullable=False)
-    part_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("parts.id"), nullable=False)
+    employee_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_employees.id"), nullable=False)
+    part_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_parts.id"), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -202,7 +202,7 @@ class VehicleInventory(Base):
 
 class TransferCenter(Base):
     """이관센터 마스터"""
-    __tablename__ = "transfer_centers"
+    __tablename__ = "space_transfer_centers"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     address: Mapped[str] = mapped_column(Text, nullable=True)
@@ -216,7 +216,7 @@ class ScheduleEvent(Base):
     장비 목록(호차별 관리)은 equipment_rows JSONB.
     첨부파일 URL 목록은 attachments JSONB.
     """
-    __tablename__ = "schedule_events"
+    __tablename__ = "space_schedule_events"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     category: Mapped[str] = mapped_column(String(30), nullable=False)          # 'sales-demo'|'equip-ship'|...
     worktype: Mapped[str] = mapped_column(String(100), nullable=True)
@@ -239,9 +239,9 @@ class ScheduleEvent(Base):
     extra: Mapped[dict] = mapped_column(Text, nullable=True)                    # 카테고리별 동적 필드 JSONB
     attachments: Mapped[dict] = mapped_column(Text, nullable=True)              # [{url, type, name}]
     # 연결 키
-    consult_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("consult_logs.id"), nullable=True)
-    visit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("visits.id"), nullable=True)
-    customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customers.id"), nullable=True)
-    created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("employees.id"), nullable=True)
+    consult_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_consult_logs.id"), nullable=True)
+    visit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_visits.id"), nullable=True)
+    customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_customers.id"), nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("space_employees.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

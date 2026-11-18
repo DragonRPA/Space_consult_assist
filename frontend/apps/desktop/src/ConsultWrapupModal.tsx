@@ -1,69 +1,29 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   X,
-  CheckSquare,
-  Square,
   RotateCcw,
   CheckCircle2,
-  FileText,
-  Package,
   Plus,
-  Trash2,
 } from 'lucide-react';
-import { supabase, createEvent, type Category, type ScheduleEventCreate } from './scheduleApi';
+import type { Category } from './scheduleApi';
 import type { CustomerInfo } from './store';
-import type { KeywordEntity } from './keywordAssist';
+import type { KeywordEntity } from './keywordRegistryData';
+import {
+  confirmAndSaveConsultWrapup,
+  upsertAnalyzedSttArchive,
+} from './sttArchiveSync';
+import { WrapupOutcomeCard } from './ConsultWrapupOutcomeCard';
+import {
+  OUTCOME_META,
+  getTomorrowAfternoonIso,
+  type OutcomeType,
+  type WrapupOutcomeFields,
+  type WrapupOutcomeItem,
+  type OverallSummary,
+} from './consultWrapupTypes';
 
-export type OutcomeType =
-  | 'TECH_COUNSEL'
-  | 'SALES_QUOTE'
-  | 'DEMO_REQUEST'
-  | 'DELIVERY_ADJUST'
-  | 'AS_SCHEDULE';
-
-export interface RequestedItem {
-  name: string;
-  qty: number;
-  note?: string;
-}
-
-export interface WrapupOutcomeFields {
-  symptomCategory?: string;
-  symptomDetail?: string;
-  resolutionStatus?: string;
-  checkedStepsSummary?: string;
-  quoteType?: string;
-  requestedItems?: RequestedItem[];
-  quoteDeliveryMethod?: string;
-  industry?: string;
-  floorSpec?: string;
-  contaminant?: string;
-  recommendedModel?: string;
-  isReschedule?: boolean;
-  originalDateText?: string;
-  requestedDateIso?: string;
-  requestedDateLabel?: string;
-  assignedEngineer?: string;
-  shipMethod?: string;
-  nextVisitParts?: string;
-  actionMemo?: string;
-}
-
-export interface WrapupOutcomeItem {
-  id: string;
-  checked: boolean;
-  outcomeType: OutcomeType;
-  title: string;
-  confidence: number;
-  scheduleCategory: Category;
-  worktype: string;
-  fields: WrapupOutcomeFields;
-}
-
-export interface OverallSummary {
-  issue: string;
-  guidance: string;
-  conclusion: string;
+function createManualOutcomeId(): string {
+  return `outcome-manual-${Date.now()}`;
 }
 
 interface ConsultWrapupModalProps {
@@ -88,68 +48,6 @@ interface ConsultWrapupModalProps {
   onOpenDispatchDoc: () => void;
   onCompleteWrapup: (summaryNote: string) => void;
   onToast: (msg: string) => void;
-}
-
-const OUTCOME_META: Record<
-  OutcomeType,
-  {
-    label: string;
-    badgeBg: string;
-    badgeColor: string;
-    borderColor: string;
-    defaultCategory: Category;
-    defaultWorktype: string;
-  }
-> = {
-  TECH_COUNSEL: {
-    label: '기술상담 (증상별)',
-    badgeBg: '#dcfce7',
-    badgeColor: '#166534',
-    borderColor: '#86efac',
-    defaultCategory: 'other',
-    defaultWorktype: '기타',
-  },
-  SALES_QUOTE: {
-    label: '영업문의 (구매/견적)',
-    badgeBg: '#fef3c7',
-    badgeColor: '#92400e',
-    borderColor: '#fcd34d',
-    defaultCategory: 'part-ship',
-    defaultWorktype: '부품예정',
-  },
-  DEMO_REQUEST: {
-    label: '데모시연 접수',
-    badgeBg: '#e0f2fe',
-    badgeColor: '#075985',
-    borderColor: '#7dd3fc',
-    defaultCategory: 'sales-demo',
-    defaultWorktype: '시연',
-  },
-  DELIVERY_ADJUST: {
-    label: '납품일정 조정',
-    badgeBg: '#ede9fe',
-    badgeColor: '#5b21b6',
-    borderColor: '#c4b5fd',
-    defaultCategory: 'equip-ship',
-    defaultWorktype: '출고예정',
-  },
-  AS_SCHEDULE: {
-    label: 'AS 방문일정·출장접수',
-    badgeBg: '#fee2e2',
-    badgeColor: '#991b1b',
-    borderColor: '#fca5a5',
-    defaultCategory: 'as-service',
-    defaultWorktype: '현장수리',
-  },
-};
-
-function getTomorrowAfternoonIso(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}T14:00`;
 }
 
 export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
@@ -318,62 +216,24 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
 
       // AI 결론 도출 즉시 public.stt_audio_archives 테이블에 (파일명 + STT 텍스트 + AI 결론) 세트 자동 기록
       try {
-        const paras = Array.isArray(sttParagraphs) && sttParagraphs.length > 0
-          ? sttParagraphs
-          : (transcriptText || '').split('\n').filter(Boolean);
-        const engKey = sttEngine || 'whisper_large_v3';
-        const engineLabel =
-          engKey === 'whisper_large_v3'
-            ? 'Groq Whisper (whisper-large-v3-turbo)'
-            : engKey === 'web_speech'
-              ? '웹 음성 STT (Web Speech API)'
-              : '네이버 클로바 STT (CLOVA Speech)';
-        const now = new Date();
-        const nowIso = now.toISOString();
-        const kstStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-        const archivePayload = {
-          file_name: audioFileName || '실시간 마이크 수음',
-          file_size_bytes: audioFileSize || 0,
-          audio_duration_sec: Number((audioDurationSec || 0).toFixed(2)),
-          stt_engine: engKey,
-          stt_engine_label: engineLabel,
-          stt_lab_options: sttLabOptions || {},
-          work_datetime: nowIso,
-          work_datetime_kst: kstStr,
-          ai_analyzed_at: nowIso,
-          stt_text: transcriptText || '',
-          stt_paragraphs: paras,
-          paragraph_count: paras.length,
-          detected_keywords: detectedKeywords.map((k) => ({
-            id: k.id,
-            keyword: k.keyword,
-            category: k.category,
-          })),
-          customer_name: nextCustomer.companyName,
-          manager_name: nextCustomer.managerName,
-          phone: nextCustomer.phone,
-          address: nextCustomer.address,
-          equipment_model: nextCustomer.equipmentModel,
-          ai_summary_issue: nextSummary.issue,
-          ai_summary_guidance: nextSummary.guidance,
-          ai_summary_conclusion: nextSummary.conclusion,
-          ai_outcomes: mappedOutcomes,
-          ai_provider: `${provStr}:${modStr}`,
-          status: 'AI_ANALYZED',
-          updated_at: nowIso,
-        };
-
-        if (archiveId) {
-          await supabase.from('stt_audio_archives').update(archivePayload).eq('id', archiveId);
-        } else {
-          const { data: insertedRow } = await supabase
-            .from('stt_audio_archives')
-            .insert([archivePayload])
-            .select('id')
-            .single();
-          if (insertedRow?.id && onArchiveIdChange) {
-            onArchiveIdChange(insertedRow.id);
-          }
+        const insertedId = await upsertAnalyzedSttArchive({
+          archiveId,
+          fileName: audioFileName,
+          fileSizeBytes: audioFileSize,
+          audioDurationSec,
+          sttEngine,
+          sttLabOptions,
+          sttParagraphs,
+          transcriptText,
+          detectedKeywords,
+          customerDraft: nextCustomer,
+          overallSummary: nextSummary,
+          mappedOutcomes,
+          providerStr: provStr,
+          modelStr: modStr,
+        });
+        if (insertedId && onArchiveIdChange) {
+          onArchiveIdChange(insertedId);
         }
       } catch (archiveErr) {
         console.warn('stt_audio_archives AI_ANALYZED update notice:', archiveErr);
@@ -407,8 +267,6 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
     }
   }, [isOpen, runWrapupAnalysis]);
 
-  if (!isOpen) return null;
-
   const handleToggleOutcome = (id: string) => {
     setOutcomes((prev) => prev.map((o) => (o.id === id ? { ...o, checked: !o.checked } : o)));
   };
@@ -422,7 +280,7 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
     const defaultIso = getTomorrowAfternoonIso();
     const symptomStr = detectedKeywords.map((k) => k.keyword).join(', ') || '기본 점검';
     const newItem: WrapupOutcomeItem = {
-      id: `outcome-manual-${Date.now()}`,
+      id: createManualOutcomeId(),
       checked: true,
       outcomeType: oType,
       title: `[${meta.label}] ${customerDraft.companyName} (${customerDraft.equipmentModel})`,
@@ -488,257 +346,31 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
 
     setIsSaving(true);
     setErrorMsg(null);
-    let savedScheduleCount = 0;
-    let savedVisitCount = 0;
-    let savedSalesCount = 0;
 
     try {
-      const hasAsVisit = checkedOutcomes.some((o) => o.outcomeType === 'AS_SCHEDULE');
-      const primaryKeyword =
-        checkedOutcomes[0]?.fields?.symptomCategory ||
-        detectedKeywords[0]?.keyword ||
-        checkedOutcomes.map((o) => o.outcomeType).join(',');
+      const {
+        newArchiveId,
+        savedScheduleCount,
+        savedVisitCount,
+        savedSalesCount,
+      } = await confirmAndSaveConsultWrapup({
+        checkedOutcomes,
+        detectedKeywords,
+        customerDraft,
+        overallSummary,
+        transcriptText,
+        providerInfo,
+        archiveId,
+        audioFileName,
+        audioFileSize,
+        audioDurationSec,
+        sttEngine,
+        sttLabOptions,
+        sttParagraphs,
+      });
 
-      // 1. 상담 마스터 이력 저장 (public.consult_logs)
-      const { data: consultRow, error: consultErr } = await supabase
-        .from('consult_logs')
-        .insert([
-          {
-            customer_name: customerDraft.companyName,
-            manager: `${customerDraft.managerName} ${customerDraft.phone}`.trim(),
-            serial_number: customerDraft.serialNumber || '',
-            model_name: customerDraft.equipmentModel || 'J600T',
-            keyword: primaryKeyword,
-            symptom: `[문의/증상] ${overallSummary.issue}\n[통화녹취] ${(transcriptText || '').slice(0, 1500)}`,
-            action: `[진단/안내] ${overallSummary.guidance}\n[합의결론] ${overallSummary.conclusion}`,
-            is_completed: !hasAsVisit,
-            is_visit_required: hasAsVisit,
-          },
-        ])
-        .select('id')
-        .single();
-
-      if (consultErr) {
-        throw new Error(`상담 이력(consult_logs) 저장 실패: ${consultErr.message}`);
-      }
-      const consultId: string | undefined = consultRow?.id;
-
-      // 2. AI 요약 감사 로그 저장 (public.llm_logs)
-      await supabase.from('llm_logs').insert([
-        {
-          consult_id: consultId || null,
-          model_name: `${providerInfo.provider}:${providerInfo.model}`,
-          prompt_hash: `wrapup-${Date.now()}`,
-          prompt_text: (transcriptText || '상담 요약 요청').slice(0, 2000),
-          response_text: JSON.stringify({ overallSummary, outcomes: checkedOutcomes }),
-          latency_ms: providerInfo.elapsedMs || 0,
-          is_error: false,
-          cache_hit: false,
-          client_type: 'desktop_web',
-        },
-      ]);
-
-      // 3. 결론 유형별 후속 테이블 저장 (schedule_events, visits, sales_inquiries)
-      for (const item of checkedOutcomes) {
-        if (item.outcomeType === 'TECH_COUNSEL') {
-          continue;
-        }
-
-        const startIso = item.fields.requestedDateIso
-          ? new Date(item.fields.requestedDateIso).toISOString()
-          : new Date().toISOString();
-
-        const extraData: Record<string, unknown> = {
-          consultSummaryIssue: overallSummary.issue,
-          consultSummaryGuidance: overallSummary.guidance,
-          consultSummaryConclusion: overallSummary.conclusion,
-          outcomeType: item.outcomeType,
-          memo: item.fields.actionMemo || item.title,
-        };
-
-        if (item.outcomeType === 'AS_SCHEDULE') {
-          extraData.symptomChips = [item.fields.symptomCategory || '기타'];
-          extraData.symptomDetail = item.fields.symptomDetail || item.fields.actionMemo || '';
-          extraData.repairType = '점검';
-          extraData.nextVisitParts = item.fields.nextVisitParts || '';
-          extraData.isReschedule = Boolean(item.fields.isReschedule);
-        } else if (item.outcomeType === 'DEMO_REQUEST') {
-          extraData.industry = item.fields.industry || '';
-          extraData.floorSpec = item.fields.floorSpec || '';
-          extraData.contaminant = item.fields.contaminant || '';
-          extraData.memoReceive = item.fields.actionMemo || '';
-        } else if (item.outcomeType === 'DELIVERY_ADJUST') {
-          extraData.shipMethod = item.fields.shipMethod || '직배송';
-          extraData.deliveryDate = (item.fields.requestedDateIso || '').slice(0, 10);
-          extraData.memo = `[납품일정 조정] ${item.fields.actionMemo || ''}`;
-        } else if (item.outcomeType === 'SALES_QUOTE') {
-          extraData.quoteType = '견적서';
-          extraData.memoReceive = `[${item.fields.quoteType}] ${(item.fields.requestedItems || [])
-            .map((r) => `${r.name} x${r.qty}`)
-            .join(', ')} / ${item.fields.actionMemo || ''}`;
-        }
-
-        const payload: ScheduleEventCreate = {
-          category: item.scheduleCategory,
-          worktype: item.worktype,
-          use_company: customerDraft.companyName,
-          contract_company: customerDraft.companyName,
-          location: customerDraft.address,
-          site_managers: [
-            [customerDraft.managerName, customerDraft.phone].filter(Boolean).join(' '),
-          ].filter(Boolean),
-          receive_staff: '상담실 AI접수',
-          receive_date: new Date().toISOString().slice(0, 10),
-          process_staff: item.fields.assignedEngineer
-            ? [item.fields.assignedEngineer.split(' ')[0]]
-            : ['김철수'],
-          display_order: 0,
-          call_done: true,
-          is_allday: false,
-          is_done: false,
-          is_important: item.outcomeType === 'AS_SCHEDULE' || item.outcomeType === 'DELIVERY_ADJUST',
-          start_at: startIso,
-          title: item.title,
-          equipment_rows: [
-            {
-              name: customerDraft.equipmentModel || 'J600T',
-              serial: customerDraft.serialNumber || '',
-            },
-          ],
-          extra: extraData,
-          attachments: [],
-          consult_id: consultId,
-        };
-
-        const createdEvent = await createEvent(payload);
-        savedScheduleCount += 1;
-
-        // 3-A. AS 방문일정/출장접수인 경우 public.visits 배차 대장에도 동시 기록
-        if (item.outcomeType === 'AS_SCHEDULE') {
-          const { data: visitRow, error: visitErr } = await supabase
-            .from('visits')
-            .insert([
-              {
-                customer_name: customerDraft.companyName,
-                manager: customerDraft.managerName,
-                phone: customerDraft.phone,
-                address: customerDraft.address,
-                consult_id: consultId || null,
-                schedule_event_id: createdEvent?.id || null,
-                request_note: `${item.title} / 증상: ${item.fields.symptomCategory || ''} / 지참부품: ${item.fields.nextVisitParts || ''}`,
-                status: item.fields.isReschedule ? '일정변경' : '배차접수',
-                note: item.fields.actionMemo || '',
-                process_staff: item.fields.assignedEngineer
-                  ? [item.fields.assignedEngineer.split(' ')[0]]
-                  : ['김철수'],
-                site_managers: [customerDraft.managerName].filter(Boolean),
-                call_done: true,
-              },
-            ])
-            .select('id')
-            .single();
-
-          if (!visitErr && visitRow?.id && consultId) {
-            savedVisitCount += 1;
-            await supabase
-              .from('consult_logs')
-              .update({ visit_id: visitRow.id })
-              .eq('id', consultId);
-          }
-        }
-
-        // 3-B. 영업문의(구매/견적) 또는 데모시연인 경우 public.sales_inquiries 영업 대장에도 동시 기록
-        if (item.outcomeType === 'SALES_QUOTE' || item.outcomeType === 'DEMO_REQUEST') {
-          const itemsStr = (item.fields.requestedItems || [])
-            .map((r) => `${r.name}(${r.qty})`)
-            .join(', ');
-          const { error: salesErr } = await supabase.from('sales_inquiries').insert([
-            {
-              inquiry_type:
-                item.outcomeType === 'DEMO_REQUEST'
-                  ? '데모시연 요청'
-                  : item.fields.quoteType || '부품·소모품 견적',
-              customer_name: customerDraft.companyName,
-              manager: customerDraft.managerName,
-              manager_phone: customerDraft.phone,
-              request_note: `${item.title} / 요청품목: ${itemsStr || customerDraft.equipmentModel} / 메모: ${item.fields.actionMemo || ''}`,
-              is_completed: false,
-              client_type: 'desktop_web',
-            },
-          ]);
-          if (!salesErr) {
-            savedSalesCount += 1;
-          }
-        }
-      }
-
-      // 4. 음성파일 + 추출텍스트 + AI 결론 세트 최종 확정 저장 (public.stt_audio_archives)
-      const paras = Array.isArray(sttParagraphs) && sttParagraphs.length > 0
-        ? sttParagraphs
-        : (transcriptText || '').split('\n').filter(Boolean);
-      const engKey = sttEngine || 'whisper_large_v3';
-      const engineLabel =
-        engKey === 'whisper_large_v3'
-          ? 'Groq Whisper (whisper-large-v3-turbo)'
-          : engKey === 'web_speech'
-            ? '웹 음성 STT (Web Speech API)'
-            : '네이버 클로바 STT (CLOVA Speech)';
-      const now = new Date();
-      const nowIso = now.toISOString();
-      const kstStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-      const confirmedArchivePayload = {
-        file_name: audioFileName || '실시간 마이크 수음',
-        file_size_bytes: audioFileSize || 0,
-        audio_duration_sec: Number((audioDurationSec || 0).toFixed(2)),
-        stt_engine: engKey,
-        stt_engine_label: engineLabel,
-        stt_lab_options: sttLabOptions || {},
-        work_datetime: nowIso,
-        work_datetime_kst: kstStr,
-        ai_analyzed_at: nowIso,
-        stt_text: transcriptText || '',
-        stt_paragraphs: paras,
-        paragraph_count: paras.length,
-        detected_keywords: detectedKeywords.map((k) => ({
-          id: k.id,
-          keyword: k.keyword,
-          category: k.category,
-        })),
-        customer_name: customerDraft.companyName,
-        manager_name: customerDraft.managerName,
-        phone: customerDraft.phone,
-        address: customerDraft.address,
-        equipment_model: customerDraft.equipmentModel,
-        ai_summary_issue: overallSummary.issue,
-        ai_summary_guidance: overallSummary.guidance,
-        ai_summary_conclusion: overallSummary.conclusion,
-        ai_outcomes: checkedOutcomes,
-        ai_provider: `${providerInfo.provider}:${providerInfo.model}`,
-        consult_id: consultId || null,
-        status: 'CONFIRMED',
-        updated_at: nowIso,
-      };
-
-      if (archiveId) {
-        const { error: archUpdErr } = await supabase
-          .from('stt_audio_archives')
-          .update(confirmedArchivePayload)
-          .eq('id', archiveId);
-        if (archUpdErr) {
-          throw new Error(`파일·STT·AI 세트(stt_audio_archives) 확정 저장 실패: ${archUpdErr.message}`);
-        }
-      } else {
-        const { data: archInsRow, error: archInsErr } = await supabase
-          .from('stt_audio_archives')
-          .insert([confirmedArchivePayload])
-          .select('id')
-          .single();
-        if (archInsErr) {
-          throw new Error(`파일·STT·AI 세트(stt_audio_archives) 신규 저장 실패: ${archInsErr.message}`);
-        }
-        if (archInsRow?.id && onArchiveIdChange) {
-          onArchiveIdChange(archInsRow.id);
-        }
+      if (newArchiveId && onArchiveIdChange) {
+        onArchiveIdChange(newArchiveId);
       }
 
       const finalSummaryNote = `[AI 결론 확정] ${checkedOutcomes.map((o) => o.title).join(' / ')}`;
@@ -755,6 +387,8 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
       setIsSaving(false);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div
@@ -1310,460 +944,18 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
               추출된 결론 항목이 없습니다. 상단 [+ 추가] 버튼으로 결론 카드를 추가하세요.
             </div>
           ) : (
-            outcomes.map((item) => {
-              const meta = OUTCOME_META[item.outcomeType];
-              return (
-                <div
-                  key={item.id}
-                  style={{
-                    backgroundColor: '#ffffff',
-                    border: item.checked ? `2px solid ${meta.borderColor}` : '1px solid #cbd5e1',
-                    borderRadius: '8px',
-                    padding: '12px 14px',
-                    opacity: item.checked ? 1 : 0.6,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px',
-                    flexShrink: 0,
-                  }}
-                >
-                  {/* 카드 상단 헤더 */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      gap: '10px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                      <button
-                        onClick={() => handleToggleOutcome(item.id)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: item.checked ? '#2563eb' : '#94a3b8',
-                          cursor: 'pointer',
-                          padding: 0,
-                          display: 'flex',
-                        }}
-                      >
-                        {item.checked ? <CheckSquare size={18} /> : <Square size={18} />}
-                      </button>
-
-                      <span
-                        style={{
-                          padding: '3px 8px',
-                          borderRadius: '4px',
-                          backgroundColor: meta.badgeBg,
-                          color: meta.badgeColor,
-                          border: `1px solid ${meta.borderColor}`,
-                          fontSize: '12px',
-                          fontWeight: 800,
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {meta.label}
-                      </span>
-
-                      <input
-                        type="text"
-                        value={item.title}
-                        onChange={(e) => updateOutcomeTitle(item.id, e.target.value)}
-                        style={{
-                          flex: 1,
-                          padding: '5px 8px',
-                          fontSize: '13.5px',
-                          fontWeight: 800,
-                          color: '#0f172a',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '4px',
-                        }}
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                      <span
-                        style={{
-                          fontSize: '11.5px',
-                          fontWeight: 700,
-                          color: '#475569',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        일정분류: <strong>{item.worktype}</strong>
-                      </span>
-
-                      {item.outcomeType === 'SALES_QUOTE' && (
-                        <button
-                          onClick={onOpenPartsQuote}
-                          style={{
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            border: '1px solid #f59e0b',
-                            backgroundColor: '#fffbeb',
-                            color: '#92400e',
-                            fontSize: '11.5px',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          <Package size={12} />
-                          <span>부품 견적서 열기</span>
-                        </button>
-                      )}
-
-                      {item.outcomeType === 'AS_SCHEDULE' && (
-                        <button
-                          onClick={onOpenDispatchDoc}
-                          style={{
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            border: '1px solid #3b82f6',
-                            backgroundColor: '#eff6ff',
-                            color: '#1d4ed8',
-                            fontSize: '11.5px',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          <FileText size={12} />
-                          <span>출장 안내문 조립</span>
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => handleRemoveOutcome(item.id)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#94a3b8',
-                          cursor: 'pointer',
-                          padding: '2px',
-                          display: 'flex',
-                        }}
-                        title="결론 카드 삭제"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 카테고리별 맞춤 필드 그리드 (상하 세로 스택 레이아웃 준수) */}
-                  {item.outcomeType === 'TECH_COUNSEL' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.5fr 1.5fr', gap: '10px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          증상 분류 (복합어 우선)
-                        </label>
-                        <input
-                          type="text"
-                          value={item.fields.symptomCategory || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'symptomCategory', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          처리 상태
-                        </label>
-                        <select
-                          value={item.fields.resolutionStatus || '자가조치완료'}
-                          onChange={(e) => updateOutcomeField(item.id, 'resolutionStatus', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        >
-                          <option value="자가조치완료">자가조치완료</option>
-                          <option value="경과관찰">경과관찰</option>
-                          <option value="출장전환">출장전환</option>
-                          <option value="견적전환">견적전환</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          수행 완료 점검 단계
-                        </label>
-                        <input
-                          type="text"
-                          value={item.fields.checkedStepsSummary || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'checkedStepsSummary', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          상담 이력 저장 메모
-                        </label>
-                        <input
-                          type="text"
-                          value={item.fields.actionMemo || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'actionMemo', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {item.outcomeType === 'SALES_QUOTE' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '0.9fr 1.6fr 0.9fr 1.6fr', gap: '10px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          문의 유형
-                        </label>
-                        <select
-                          value={item.fields.quoteType || '부품·소모품 견적'}
-                          onChange={(e) => updateOutcomeField(item.id, 'quoteType', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        >
-                          <option value="부품·소모품 견적">부품·소모품 견적</option>
-                          <option value="신규 렌탈 견적">신규 렌탈 견적</option>
-                          <option value="장비 구매 견적">장비 구매 견적</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          요청 품목 / 모델명
-                        </label>
-                        <input
-                          type="text"
-                          value={(item.fields.requestedItems || []).map((r) => `${r.name} (${r.qty}개)`).join(', ')}
-                          onChange={(e) =>
-                            updateOutcomeField(item.id, 'requestedItems', [
-                              { name: e.target.value, qty: 1, note: '' },
-                            ])
-                          }
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          발송 목표 일시
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={item.fields.requestedDateIso || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'requestedDateIso', e.target.value)}
-                          style={{ padding: '5px 8px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          견적 전달 메모
-                        </label>
-                        <input
-                          type="text"
-                          value={item.fields.actionMemo || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'actionMemo', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {item.outcomeType === 'DEMO_REQUEST' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 0.9fr 1.1fr 1.4fr', gap: '10px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          현장 업종
-                        </label>
-                        <input
-                          type="text"
-                          value={item.fields.industry || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'industry', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          바닥 면적 / 재질
-                        </label>
-                        <input
-                          type="text"
-                          value={item.fields.floorSpec || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'floorSpec', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          시연 장비 모델
-                        </label>
-                        <input
-                          type="text"
-                          value={item.fields.recommendedModel || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'recommendedModel', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          시연 희망 일시
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={item.fields.requestedDateIso || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'requestedDateIso', e.target.value)}
-                          style={{ padding: '5px 8px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          시연 특이사항 메모
-                        </label>
-                        <input
-                          type="text"
-                          value={item.fields.actionMemo || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'actionMemo', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {item.outcomeType === 'DELIVERY_ADJUST' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.8fr 1fr 2.1fr', gap: '10px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          변경 납품 일시
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={item.fields.requestedDateIso || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'requestedDateIso', e.target.value)}
-                          style={{ padding: '5px 8px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          출고 방식
-                        </label>
-                        <select
-                          value={item.fields.shipMethod || '직배송'}
-                          onChange={(e) => updateOutcomeField(item.id, 'shipMethod', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        >
-                          <option value="직배송">직배송</option>
-                          <option value="화물">화물</option>
-                          <option value="택배">택배</option>
-                          <option value="내방">내방</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          기존 일정 참고
-                        </label>
-                        <input
-                          type="text"
-                          value={item.fields.originalDateText || '기존 예정일'}
-                          onChange={(e) => updateOutcomeField(item.id, 'originalDateText', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          납품 조정 사유 및 수령자 메모
-                        </label>
-                        <input
-                          type="text"
-                          value={item.fields.actionMemo || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'actionMemo', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {item.outcomeType === 'AS_SCHEDULE' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 1.1fr 1.1fr 1.1fr 1.4fr', gap: '10px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          접수 구분
-                        </label>
-                        <select
-                          value={item.fields.isReschedule ? 'RESCHEDULE' : 'NEW'}
-                          onChange={(e) =>
-                            updateOutcomeField(item.id, 'isReschedule', e.target.value === 'RESCHEDULE')
-                          }
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        >
-                          <option value="NEW">신규 출장접수</option>
-                          <option value="RESCHEDULE">방문일정 변경</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          방문 희망 일시
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={item.fields.requestedDateIso || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'requestedDateIso', e.target.value)}
-                          style={{ padding: '5px 8px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          배정 정비기사
-                        </label>
-                        <input
-                          type="text"
-                          value={item.fields.assignedEngineer || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'assignedEngineer', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          지참 필요 부품
-                        </label>
-                        <input
-                          type="text"
-                          value={item.fields.nextVisitParts || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'nextVisitParts', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                          기사 전달 메모
-                        </label>
-                        <input
-                          type="text"
-                          value={item.fields.actionMemo || ''}
-                          onChange={(e) => updateOutcomeField(item.id, 'actionMemo', e.target.value)}
-                          style={{ padding: '6px 8px', fontSize: '12.5px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })
+            outcomes.map((item) => (
+              <WrapupOutcomeCard
+                key={item.id}
+                item={item}
+                onToggle={handleToggleOutcome}
+                onUpdateTitle={updateOutcomeTitle}
+                onUpdateField={updateOutcomeField}
+                onRemove={handleRemoveOutcome}
+                onOpenPartsQuote={onOpenPartsQuote}
+                onOpenDispatchDoc={onOpenDispatchDoc}
+              />
+            ))
           )}
         </div>
 
@@ -1839,3 +1031,6 @@ export const ConsultWrapupModal: React.FC<ConsultWrapupModalProps> = ({
     </div>
   );
 };
+
+
+export default ConsultWrapupModal;

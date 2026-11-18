@@ -142,7 +142,7 @@ async def _resolve_employee_id(name: Optional[str], db: AsyncSession) -> Optiona
     if not name:
         return None
     res = await db.execute(
-        text("SELECT id FROM employees WHERE name = :name LIMIT 1"),
+        text("SELECT id FROM space_employees WHERE name = :name LIMIT 1"),
         {"name": name.strip()}
     )
     row = res.fetchone()
@@ -187,7 +187,7 @@ async def list_schedule_events(
                display_order, call_done, is_allday, is_done, is_important,
                start_at, end_at, title, equipment_rows, extra, attachments,
                consult_id, visit_id, customer_id, created_by, created_at, updated_at
-        FROM schedule_events
+        FROM space_schedule_events
         {where}
         ORDER BY start_at DESC
         LIMIT :limit OFFSET :offset
@@ -206,7 +206,7 @@ async def get_schedule_event(event_id: str, db: AsyncSession = Depends(get_db)):
                display_order, call_done, is_allday, is_done, is_important,
                start_at, end_at, title, equipment_rows, extra, attachments,
                consult_id, visit_id, customer_id, created_by, created_at, updated_at
-        FROM schedule_events WHERE id = :eid
+        FROM space_schedule_events WHERE id = :eid
     """)
     result = await db.execute(q, {"eid": event_id})
     row = result.fetchone()
@@ -225,7 +225,7 @@ async def create_schedule_event(req: ScheduleEventCreate, db: AsyncSession = Dep
     new_id = uuid.uuid4()
 
     ins = text("""
-        INSERT INTO schedule_events (
+        INSERT INTO space_schedule_events (
             id, category, worktype, use_company, contract_company, location,
             site_managers, receive_staff, receive_date, process_staff,
             display_order, call_done, is_allday, is_done, is_important,
@@ -284,7 +284,7 @@ async def create_schedule_event(req: ScheduleEventCreate, db: AsyncSession = Dep
 
     # 감사 로그 무누락 기록
     await db.execute(text("""
-        INSERT INTO audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
+        INSERT INTO space_audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
         VALUES (:aid, 'schedule_events', :rid, 'INSERT', :emp_id, NOW())
     """), {"aid": uuid.uuid4(), "rid": new_id, "emp_id": emp_id})
 
@@ -300,7 +300,7 @@ async def update_schedule_event(
 ):
     """업무 일정 수정"""
     # 존재 확인
-    chk = await db.execute(text("SELECT id FROM schedule_events WHERE id = :eid"), {"eid": event_id})
+    chk = await db.execute(text("SELECT id FROM space_schedule_events WHERE id = :eid"), {"eid": event_id})
     if not chk.fetchone():
         raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
 
@@ -312,7 +312,7 @@ async def update_schedule_event(
         return json.dumps(v, ensure_ascii=False)
 
     upd = text("""
-        UPDATE schedule_events SET
+        UPDATE space_schedule_events SET
             category         = COALESCE(:category, category),
             worktype         = :worktype,
             use_company      = :use_company,
@@ -374,7 +374,7 @@ async def update_schedule_event(
 
     # 감사 로그
     await db.execute(text("""
-        INSERT INTO audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
+        INSERT INTO space_audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
         VALUES (:aid, 'schedule_events', :rid, 'UPDATE', :emp_id, NOW())
     """), {"aid": uuid.uuid4(), "rid": event_id, "emp_id": emp_id})
 
@@ -389,16 +389,16 @@ async def delete_schedule_event(
     db: AsyncSession = Depends(get_db)
 ):
     """업무 일정 삭제"""
-    chk = await db.execute(text("SELECT id FROM schedule_events WHERE id = :eid"), {"eid": event_id})
+    chk = await db.execute(text("SELECT id FROM space_schedule_events WHERE id = :eid"), {"eid": event_id})
     if not chk.fetchone():
         raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
 
     emp_id = await _resolve_employee_id(deleted_by_name, db)
-    await db.execute(text("DELETE FROM schedule_events WHERE id = :eid"), {"eid": event_id})
+    await db.execute(text("DELETE FROM space_schedule_events WHERE id = :eid"), {"eid": event_id})
 
     # 감사 로그
     await db.execute(text("""
-        INSERT INTO audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
+        INSERT INTO space_audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
         VALUES (:aid, 'schedule_events', :rid, 'DELETE', :emp_id, NOW())
     """), {"aid": uuid.uuid4(), "rid": event_id, "emp_id": emp_id})
 
@@ -482,8 +482,8 @@ async def search_customers(
         sql = text("""
             SELECT c.id, c.name, c.manager, c.manager_phone, c.address, c.address_detail,
                    c.use_company_name, a.model_name AS asset_model, a.serial_number, a.sales_type
-            FROM customers c
-            LEFT JOIN assets a ON c.asset_id = a.id
+            FROM space_customers c
+            LEFT JOIN space_assets a ON c.asset_id = a.id
             ORDER BY c.name ASC
         """)
         result = await db.execute(sql)

@@ -3,7 +3,7 @@
  * 공식 제품 매뉴얼 및 카탈로그 DB 연동 (Supabase PostgreSQL `equipment_manuals` + `equipment_manual_dispatches` + 로컬 폴백)
  */
 
-import { supabase } from './partsCatalogApi';
+import { supabase } from './supabaseClient';
 import { SPACE_DUST_OFFICIAL_MANUALS, type EquipmentManualItem } from './spaceDustManualsSeed';
 
 export type { EquipmentManualItem };
@@ -42,7 +42,7 @@ const LOCAL_DISPATCHES_KEY = 'space_manual_dispatches_v1';
 export async function fetchEquipmentManuals(): Promise<EquipmentManualItem[]> {
   try {
     const { data, error } = await supabase
-      .from('equipment_manuals')
+      .from('space_equipment_manuals')
       .select('*')
       .order('wr_id', { ascending: false });
 

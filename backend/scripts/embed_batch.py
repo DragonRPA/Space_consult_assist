@@ -77,7 +77,7 @@ def main():
     conn = psycopg.connect(DB_URL)
     cur = conn.cursor()
 
-    cur.execute("SELECT COUNT(*) FROM consult_knowledge WHERE call_type='증상수리' AND embedding IS NULL")
+    cur.execute("SELECT COUNT(*) FROM space_consult_knowledge WHERE call_type='증상수리' AND embedding IS NULL")
     total = cur.fetchone()[0]
     log.info(f"임베딩 대상: {total:,}건")
 
@@ -93,7 +93,7 @@ def main():
     while True:
         cur.execute("""
             SELECT id, summary, symptoms, parts_mentioned, equipment_model
-            FROM consult_knowledge
+            FROM space_consult_knowledge
             WHERE call_type = '증상수리' AND embedding IS NULL
             ORDER BY created_at
             LIMIT %s
@@ -114,7 +114,7 @@ def main():
             for rec, emb in zip(records, embeddings):
                 vec_str = "[" + ",".join(f"{v:.8f}" for v in emb) + "]"
                 cur.execute(
-                    "UPDATE consult_knowledge SET embedding = %s::vector WHERE id = %s",
+                    "UPDATE space_consult_knowledge SET embedding = %s::vector WHERE id = %s",
                     (vec_str, rec["id"])
                 )
             conn.commit()
@@ -141,7 +141,7 @@ def main():
             conn.rollback()
             time.sleep(3)
 
-    cur.execute("SELECT COUNT(*) FROM consult_knowledge WHERE embedding IS NOT NULL")
+    cur.execute("SELECT COUNT(*) FROM space_consult_knowledge WHERE embedding IS NOT NULL")
     done = cur.fetchone()[0]
     total_sec = int(time.time() - t_start)
 

@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 # Add backend directory to sys.path
 backend_dir = Path(__file__).resolve().parent.parent
@@ -10,6 +11,7 @@ sys.path.insert(0, str(backend_dir))
 from app.services.storage.local_storage import LocalStorageProvider
 from app.services.messaging.mock import MockMessagingProvider
 from app.services.messaging.sejong import SejongMessagingProvider
+from app.services.ai.base import BaseLLMProvider
 from app.services.ai.stt_mock import MockSTTProvider
 from app.services.telephony.generic_webhook import GenericWebhookTelephonyProvider
 
@@ -74,16 +76,31 @@ async def test_telephony_pipeline():
     assert event_res["status"] == "PROCESSED"
     print("  ✓ Call event OK")
 
-    # Process recording (Storage -> STT -> LLM)
+    # Process recording (Storage -> STT -> LLM) using offline deterministic providers
+    class _StubLLMProvider(BaseLLMProvider):
+        async def analyze_call(self, transcript: str, prompt_override: str | None = None) -> dict:
+            return {
+                "summary": f"요약: {transcript[:20]}",
+                "customer_intent": "TECH_COUNSEL",
+                "action_items": ["스퀴지 점검"],
+                "outcomes": [],
+                "error": None,
+            }
+
     mock_audio = b"MOCK_WAVE_HEADER_DATA"
-    pipeline_res = await telephony.process_recording(
-        call_id="call_abc_123",
-        audio_content=mock_audio,
-        filename="rec_123.wav"
-    )
+    with (
+        patch("app.services.telephony.generic_webhook.get_stt_provider", return_value=MockSTTProvider()),
+        patch("app.services.telephony.generic_webhook.get_llm_provider", return_value=_StubLLMProvider()),
+    ):
+        pipeline_res = await telephony.process_recording(
+            call_id="call_abc_123",
+            audio_content=mock_audio,
+            filename="rec_123.wav"
+        )
     assert pipeline_res["status"] == "COMPLETED"
     assert "audio_url" in pipeline_res
     assert len(pipeline_res["transcript"]) > 0
+    assert pipeline_res["analysis"].get("customer_intent") == "TECH_COUNSEL"
     print("  ✓ Pipeline OK -> Transcript:", pipeline_res["transcript"])
 
 async def test_groq_stt():
@@ -103,6 +120,26 @@ async def test_groq_stt():
     assert active_stt.model == "whisper-large-v3-turbo"
     print("  ✓ Active STT Provider is GroqWhisperProvider:", active_stt.model)
 
+async def test_groq_llm():
+    print("--- [5] GroqLLMProvider Test ---")
+    from app.core.config import get_settings
+    from app.services.ai.llm_groq import GroqLLMProvider
+    from app.services.ai import get_llm_provider
+
+    # 1. 빈 API 키 안전 폴백 검증
+    groq_llm = GroqLLMProvider(api_key="", model="openai/gpt-oss-120b")
+    res = await groq_llm.analyze_call("스퀴지 고무날 교체 문의")
+    assert res.get("error") is not None
+    assert res.get("summary") == "GROQ_API_KEY 미설정"
+    print("  ✓ GroqLLMProvider Interface & Empty-Key Fallback OK")
+
+    # 2. 설정 기반 팩토리 함수 주입 검증
+    settings = get_settings()
+    active_llm = get_llm_provider()
+    if settings.llm_provider.lower() == "groq":
+        assert isinstance(active_llm, GroqLLMProvider)
+        print("  ✓ Active LLM Provider is GroqLLMProvider:", active_llm.model)
+
 async def main():
     if sys.platform == "win32":
         try:
@@ -116,6 +153,7 @@ async def main():
     await test_messaging_mock()
     await test_telephony_pipeline()
     await test_groq_stt()
+    await test_groq_llm()
     print("==========================================")
     print("[SUCCESS] All Provider Tests Passed 100%")
     print("==========================================")

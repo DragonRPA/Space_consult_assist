@@ -43,7 +43,7 @@ async function main() {
   try {
     console.log('1️⃣ [테이블 준비] symptom_synonyms 테이블 및 인덱스 확인 중...');
     await client.query(`
-      CREATE TABLE IF NOT EXISTS symptom_synonyms (
+      CREATE TABLE IF NOT EXISTS space_symptom_synonyms (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           part_code VARCHAR(50) NOT NULL,
           category_l1 VARCHAR(100) NOT NULL,
@@ -56,7 +56,7 @@ async function main() {
       );
     `);
     await client.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm;`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_symptom_synonyms_phrase_trgm ON symptom_synonyms USING gin (phrase gin_trgm_ops);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_symptom_synonyms_phrase_trgm ON space_symptom_synonyms USING gin (phrase gin_trgm_ops);`);
     console.log('   ✅ 테이블 및 pg_trgm GIN 인덱스 준비 완료!');
 
     console.log('\n2️⃣ [분할 배치 주입 시작]...');
@@ -82,7 +82,7 @@ async function main() {
       }
 
       const insertQuery = `
-        INSERT INTO symptom_synonyms (part_code, category_l1, phrase, source, frequency_count)
+        INSERT INTO space_symptom_synonyms (part_code, category_l1, phrase, source, frequency_count)
         VALUES ${valuePlaceholders.join(', ')}
         ON CONFLICT (category_l1, phrase) DO UPDATE SET
           frequency_count = EXCLUDED.frequency_count,
@@ -101,7 +101,7 @@ async function main() {
     console.log(`\n\n🎉 [성공] 총 ${insertedCount.toLocaleString()}건의 실전 구어체가 DB에 무누락 100% 적재 완료되었습니다! (총 소요시간: ${totalElapsedSec}초)`);
 
     // Verification check
-    const countRes = await client.query(`SELECT COUNT(*) FROM symptom_synonyms;`);
+    const countRes = await client.query(`SELECT COUNT(*) FROM space_symptom_synonyms;`);
     console.log(`📊 DB symptom_synonyms 현재 총 레코드 수: ${parseInt(countRes.rows[0].count).toLocaleString()}건`);
 
   } catch (err) {

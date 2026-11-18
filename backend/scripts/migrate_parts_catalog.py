@@ -1,7 +1,7 @@
 import psycopg
 import json
 
-conn_str = 'postgresql://postgres.eknwzjcbchbefdlykqgl:jUHGAmVsSeXc1jdR@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres'
+conn_str = 'postgresql://postgres.lkohpffieaanwhohttbu:BKK5s3E1ydVKx6qJ@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres'
 
 # 기본 고품질 부품 시각화 SVG 목업 생성기
 def create_part_svg(name: str, code: str, category: str, color_accent: str = "#1d4ed8"):
@@ -278,7 +278,7 @@ INITIAL_PARTS = [
 sql_schema = [
     # 1. parts_catalog 테이블 생성
     """
-    CREATE TABLE IF NOT EXISTS public.parts_catalog (
+    CREATE TABLE IF NOT EXISTS public.space_parts_catalog (
         id VARCHAR(50) PRIMARY KEY,
         part_code VARCHAR(50) NOT NULL UNIQUE,
         part_name VARCHAR(200) NOT NULL,
@@ -298,7 +298,7 @@ sql_schema = [
 
     # 2. parts_orders 테이블 생성 (주문 내역 무누락 DB 저장)
     """
-    CREATE TABLE IF NOT EXISTS public.parts_orders (
+    CREATE TABLE IF NOT EXISTS public.space_parts_orders (
         order_id VARCHAR(50) PRIMARY KEY,
         doc_no VARCHAR(50),
         customer_name VARCHAR(100) NOT NULL,
@@ -322,17 +322,17 @@ sql_schema = [
     """,
 
     # 3. RLS 정책
-    "ALTER TABLE public.parts_catalog ENABLE ROW LEVEL SECURITY;",
-    "DROP POLICY IF EXISTS \"Allow public read parts_catalog\" ON public.parts_catalog;",
-    "CREATE POLICY \"Allow public read parts_catalog\" ON public.parts_catalog FOR SELECT TO anon, authenticated USING (true);",
-    "DROP POLICY IF EXISTS \"Allow public all parts_catalog\" ON public.parts_catalog;",
-    "CREATE POLICY \"Allow public all parts_catalog\" ON public.parts_catalog FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);",
+    "ALTER TABLE public.space_parts_catalog ENABLE ROW LEVEL SECURITY;",
+    "DROP POLICY IF EXISTS \"Allow public read parts_catalog\" ON public.space_parts_catalog;",
+    "CREATE POLICY \"Allow public read parts_catalog\" ON public.space_parts_catalog FOR SELECT TO anon, authenticated USING (true);",
+    "DROP POLICY IF EXISTS \"Allow public all parts_catalog\" ON public.space_parts_catalog;",
+    "CREATE POLICY \"Allow public all parts_catalog\" ON public.space_parts_catalog FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);",
 
-    "ALTER TABLE public.parts_orders ENABLE ROW LEVEL SECURITY;",
-    "DROP POLICY IF EXISTS \"Allow public read parts_orders\" ON public.parts_orders;",
-    "CREATE POLICY \"Allow public read parts_orders\" ON public.parts_orders FOR SELECT TO anon, authenticated USING (true);",
-    "DROP POLICY IF EXISTS \"Allow public all parts_orders\" ON public.parts_orders;",
-    "CREATE POLICY \"Allow public all parts_orders\" ON public.parts_orders FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);"
+    "ALTER TABLE public.space_parts_orders ENABLE ROW LEVEL SECURITY;",
+    "DROP POLICY IF EXISTS \"Allow public read parts_orders\" ON public.space_parts_orders;",
+    "CREATE POLICY \"Allow public read parts_orders\" ON public.space_parts_orders FOR SELECT TO anon, authenticated USING (true);",
+    "DROP POLICY IF EXISTS \"Allow public all parts_orders\" ON public.space_parts_orders;",
+    "CREATE POLICY \"Allow public all parts_orders\" ON public.space_parts_orders FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);"
 ]
 
 def main():
@@ -346,7 +346,7 @@ def main():
             
             # 시드 데이터 Upsert
             upsert_query = """
-            INSERT INTO public.parts_catalog (
+            INSERT INTO public.space_parts_catalog (
                 id, part_code, part_name, category, applicable_models,
                 unit_price, spec, description, image_url, in_stock,
                 lead_time_days, is_recommended, updated_at

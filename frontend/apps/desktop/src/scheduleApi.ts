@@ -3,16 +3,8 @@
  * 업무 일정 관리 API 클라이언트 (Serverless - Supabase Direct 연동)
  */
 
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://eknwzjcbchbefdlykqgl.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_y7xsEQsIj_lFTYiHtYOr5Q_44z2fM-Z';
-
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error("VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set in .env");
-}
-
-export const supabase = createClient(SUPABASE_URL || '', SUPABASE_KEY || '');
+import { supabase } from './supabaseClient';
+export { supabase };
 
 export type Category =
   | 'sales-demo' | 'equip-ship' | 'part-ship'
@@ -99,7 +91,7 @@ export interface FetchEventsParams {
 }
 
 export async function fetchEvents(params: FetchEventsParams = {}): Promise<ScheduleEvent[]> {
-  let query = supabase.from('schedule_events').select('*');
+  let query = supabase.from('space_schedule_events').select('*');
 
   if (params.start) {
     query = query.gte('start_at', params.start);
@@ -130,25 +122,25 @@ export async function fetchEvents(params: FetchEventsParams = {}): Promise<Sched
 }
 
 export async function fetchEvent(id: string): Promise<ScheduleEvent> {
-  const { data, error } = await supabase.from('schedule_events').select('*').eq('id', id).single();
+  const { data, error } = await supabase.from('space_schedule_events').select('*').eq('id', id).single();
   if (error) throw new Error(error.message);
   return data as ScheduleEvent;
 }
 
 export async function createEvent(data: ScheduleEventCreate): Promise<ScheduleEvent> {
-  const { data: created, error } = await supabase.from('schedule_events').insert([data]).select().single();
+  const { data: created, error } = await supabase.from('space_schedule_events').insert([data]).select().single();
   if (error) throw new Error(error.message);
   return created as ScheduleEvent;
 }
 
 export async function updateEvent(id: string, data: ScheduleEventUpdate): Promise<ScheduleEvent> {
-  const { data: updated, error } = await supabase.from('schedule_events').update(data).eq('id', id).select().single();
+  const { data: updated, error } = await supabase.from('space_schedule_events').update(data).eq('id', id).select().single();
   if (error) throw new Error(error.message);
   return updated as ScheduleEvent;
 }
 
 export async function deleteEvent(id: string, _deletedByName?: string): Promise<void> {
-  const { error } = await supabase.from('schedule_events').delete().eq('id', id);
+  const { error } = await supabase.from('space_schedule_events').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
@@ -157,7 +149,7 @@ export async function deleteEvent(id: string, _deletedByName?: string): Promise<
 export interface TransferCenter { id: string; name: string; address?: string; }
 
 export async function fetchTransferCenters(): Promise<TransferCenter[]> {
-  const { data, error } = await supabase.from('transfer_centers').select('*');
+  const { data, error } = await supabase.from('space_transfer_centers').select('*');
   if (error) throw new Error(error.message);
   return data as TransferCenter[];
 }
@@ -172,7 +164,7 @@ export interface Employee {
 }
 
 export async function fetchEmployees(): Promise<Employee[]> {
-  const { data, error } = await supabase.from('employees').select('*').eq('is_active', true).order('display_order');
+  const { data, error } = await supabase.from('space_employees').select('*').eq('is_active', true).order('display_order');
   if (error) throw new Error(error.message);
   return data as Employee[];
 }

@@ -71,7 +71,7 @@ async def list_visits(
     if status:
         query = text("""
             SELECT id, customer_name, manager, phone, address, address_detail, request_note, status, timestamp
-            FROM visits
+            FROM space_visits
             WHERE status = :status
             ORDER BY timestamp DESC
             LIMIT :limit OFFSET :offset
@@ -80,7 +80,7 @@ async def list_visits(
     else:
         query = text("""
             SELECT id, customer_name, manager, phone, address, address_detail, request_note, status, timestamp
-            FROM visits
+            FROM space_visits
             ORDER BY timestamp DESC
             LIMIT :limit OFFSET :offset
         """)
@@ -108,7 +108,7 @@ async def get_visit_detail(visit_id: str, db: AsyncSession = Depends(get_db)):
     query = text("""
         SELECT v.id, v.customer_name, v.manager, v.phone, v.address, v.address_detail, 
                v.request_note, v.status, v.timestamp, v.note
-        FROM visits v
+        FROM space_visits v
         WHERE v.id = :vid
     """)
     result = await db.execute(query, {"vid": visit_id})
@@ -119,8 +119,8 @@ async def get_visit_detail(visit_id: str, db: AsyncSession = Depends(get_db)):
     # 사용 부품 조회
     parts_query = text("""
         SELECT vp.id, vp.quantity, vp.timestamp, p.name as part_name, p.unit_price
-        FROM visit_parts vp
-        JOIN parts p ON vp.part_id = p.id
+        FROM space_visit_parts vp
+        JOIN space_parts p ON vp.part_id = p.id
         WHERE vp.visit_id = :vid
     """)
     parts_res = await db.execute(parts_query, {"vid": visit_id})
@@ -167,7 +167,7 @@ async def create_visit(req: VisitCreate, db: AsyncSession = Depends(get_db)):
     emp_id = None
     if req.assigned_engineer:
         emp_res = await db.execute(
-            text("SELECT id FROM employees WHERE name = :name LIMIT 1"),
+            text("SELECT id FROM space_employees WHERE name = :name LIMIT 1"),
             {"name": req.assigned_engineer.replace(" 정비기사", "").strip()}
         )
         emp_row = emp_res.fetchone()
@@ -175,7 +175,7 @@ async def create_visit(req: VisitCreate, db: AsyncSession = Depends(get_db)):
             emp_id = emp_row.id
 
     query = text("""
-        INSERT INTO visits (id, customer_id, consult_id, customer_name, manager, phone, address, address_detail, employee_id, request_note, status, timestamp)
+        INSERT INTO space_visits (id, customer_id, consult_id, customer_name, manager, phone, address, address_detail, employee_id, request_note, status, timestamp)
         VALUES (:id, :cid, :consult_id, :cname, :manager, :phone, :addr, :addr_det, :emp_id, :note, '접수', CURRENT_TIMESTAMP)
         RETURNING id
     """)
@@ -201,7 +201,7 @@ async def create_visit(req: VisitCreate, db: AsyncSession = Depends(get_db)):
     
     # 상태 변경 이력 테이블 무누락 기록
     history_query = text("""
-        INSERT INTO visit_status_history (id, visit_id, old_status, new_status, changed_by, client_type, changed_at)
+        INSERT INTO space_visit_status_history (id, visit_id, old_status, new_status, changed_by, client_type, changed_at)
         VALUES (:hid, :vid, NULL, '접수', :emp_id, :client_type, CURRENT_TIMESTAMP)
     """)
     await db.execute(history_query, {
@@ -213,7 +213,7 @@ async def create_visit(req: VisitCreate, db: AsyncSession = Depends(get_db)):
     
     # 감사 로그(audit_log_minimal) 기록
     audit_query = text("""
-        INSERT INTO audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
+        INSERT INTO space_audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
         VALUES (:aid, 'visits', :rid, 'INSERT', :emp_id, CURRENT_TIMESTAMP)
     """)
     await db.execute(audit_query, {"aid": uuid.uuid4(), "rid": visit_id, "emp_id": emp_id})
@@ -239,7 +239,7 @@ async def create_visit(req: VisitCreate, db: AsyncSession = Depends(get_db)):
 async def update_visit_status(visit_id: str, req: VisitStatusUpdate, db: AsyncSession = Depends(get_db)):
     """출장 상태 변경 및 이력/감사 로그 기록"""
     # 1. 이전 상태 조회
-    chk_q = text("SELECT status FROM visits WHERE id = :vid")
+    chk_q = text("SELECT status FROM space_visits WHERE id = :vid")
     chk_res = await db.execute(chk_q, {"vid": visit_id})
     row = chk_res.fetchone()
     if not row:
@@ -250,7 +250,7 @@ async def update_visit_status(visit_id: str, req: VisitStatusUpdate, db: AsyncSe
     emp_id = None
     if req.changed_by_name:
         emp_res = await db.execute(
-            text("SELECT id FROM employees WHERE name = :name LIMIT 1"),
+            text("SELECT id FROM space_employees WHERE name = :name LIMIT 1"),
             {"name": req.changed_by_name.replace(" 정비기사", "").strip()}
         )
         emp_row = emp_res.fetchone()
@@ -259,7 +259,7 @@ async def update_visit_status(visit_id: str, req: VisitStatusUpdate, db: AsyncSe
 
     # 3. 상태 업데이트
     upd_q = text("""
-        UPDATE visits 
+        UPDATE space_visits 
         SET status = :new_status, note = COALESCE(:note, note)
         WHERE id = :vid
     """)
@@ -267,7 +267,7 @@ async def update_visit_status(visit_id: str, req: VisitStatusUpdate, db: AsyncSe
 
     # 4. 이력 기록 (changed_by 무누락 바인딩)
     hist_q = text("""
-        INSERT INTO visit_status_history (id, visit_id, old_status, new_status, changed_by, client_type, changed_at)
+        INSERT INTO space_visit_status_history (id, visit_id, old_status, new_status, changed_by, client_type, changed_at)
         VALUES (:hid, :vid, :old_status, :new_status, :emp_id, :client_type, CURRENT_TIMESTAMP)
     """)
     await db.execute(hist_q, {
@@ -281,7 +281,7 @@ async def update_visit_status(visit_id: str, req: VisitStatusUpdate, db: AsyncSe
 
     # 5. 감사 로그 (changed_by 무누락 바인딩)
     audit_q = text("""
-        INSERT INTO audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
+        INSERT INTO space_audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
         VALUES (:aid, 'visits', :rid, 'UPDATE_STATUS', :emp_id, CURRENT_TIMESTAMP)
     """)
     await db.execute(audit_q, {"aid": uuid.uuid4(), "rid": visit_id, "emp_id": emp_id})
@@ -293,7 +293,7 @@ async def update_visit_status(visit_id: str, req: VisitStatusUpdate, db: AsyncSe
 async def add_visit_parts(visit_id: str, req: VisitPartCreate, db: AsyncSession = Depends(get_db)):
     """현장 출장 사용 부품 등록 및 재고(stock) 자동 차감 트랜잭션"""
     # 1. 부품 재고 확인
-    stock_q = text("SELECT stock, name FROM parts WHERE id = :pid FOR UPDATE")
+    stock_q = text("SELECT stock, name FROM space_parts WHERE id = :pid FOR UPDATE")
     stock_res = await db.execute(stock_q, {"pid": req.part_id})
     part_row = stock_res.fetchone()
     if not part_row:
@@ -308,7 +308,7 @@ async def add_visit_parts(visit_id: str, req: VisitPartCreate, db: AsyncSession 
     emp_id = None
     if req.engineer_name:
         emp_res = await db.execute(
-            text("SELECT id FROM employees WHERE name = :name LIMIT 1"),
+            text("SELECT id FROM space_employees WHERE name = :name LIMIT 1"),
             {"name": req.engineer_name.replace(" 정비기사", "").strip()}
         )
         emp_row = emp_res.fetchone()
@@ -318,7 +318,7 @@ async def add_visit_parts(visit_id: str, req: VisitPartCreate, db: AsyncSession 
     # 2. visit_parts 등록
     vp_id = uuid.uuid4()
     vp_q = text("""
-        INSERT INTO visit_parts (id, visit_id, part_id, quantity, timestamp)
+        INSERT INTO space_visit_parts (id, visit_id, part_id, quantity, timestamp)
         VALUES (:id, :vid, :pid, :qty, CURRENT_TIMESTAMP)
     """)
     await db.execute(vp_q, {
@@ -330,7 +330,7 @@ async def add_visit_parts(visit_id: str, req: VisitPartCreate, db: AsyncSession 
 
     # 3. parts 재고 차감
     dec_q = text("""
-        UPDATE parts 
+        UPDATE space_parts 
         SET stock = stock - :qty 
         WHERE id = :pid
     """)
@@ -338,13 +338,13 @@ async def add_visit_parts(visit_id: str, req: VisitPartCreate, db: AsyncSession 
 
     # 4. 감사 로그 2건 기록 (visit_parts 신규 생성 + parts 재고 차감)
     audit_vp = text("""
-        INSERT INTO audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
+        INSERT INTO space_audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
         VALUES (:aid, 'visit_parts', :rid, 'INSERT_VISIT_PART', :emp_id, CURRENT_TIMESTAMP)
     """)
     await db.execute(audit_vp, {"aid": uuid.uuid4(), "rid": vp_id, "emp_id": emp_id})
 
     audit_parts = text("""
-        INSERT INTO audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
+        INSERT INTO space_audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
         VALUES (:aid, 'parts', :pid, 'DEDUCT_STOCK', :emp_id, CURRENT_TIMESTAMP)
     """)
     await db.execute(audit_parts, {"aid": uuid.uuid4(), "pid": req.part_id, "emp_id": emp_id})
@@ -362,7 +362,7 @@ async def add_visit_parts(visit_id: str, req: VisitPartCreate, db: AsyncSession 
 async def complete_visit(visit_id: str, req: VisitComplete, db: AsyncSession = Depends(get_db)):
     """출장 완료 처리 및 고객 완료 알림톡 발송 (실제 이전 상태 및 정비사 ID 바인딩)"""
     # 1. 실제 현재 상태 조회 및 404 엄격 검증
-    chk_q = text("SELECT status FROM visits WHERE id = :vid")
+    chk_q = text("SELECT status FROM space_visits WHERE id = :vid")
     chk_res = await db.execute(chk_q, {"vid": visit_id})
     row = chk_res.fetchone()
     if not row:
@@ -373,7 +373,7 @@ async def complete_visit(visit_id: str, req: VisitComplete, db: AsyncSession = D
     emp_id = None
     if req.engineer_name:
         emp_res = await db.execute(
-            text("SELECT id FROM employees WHERE name = :name LIMIT 1"),
+            text("SELECT id FROM space_employees WHERE name = :name LIMIT 1"),
             {"name": req.engineer_name.replace(" 정비기사", "").strip()}
         )
         emp_row = emp_res.fetchone()
@@ -385,7 +385,7 @@ async def complete_visit(visit_id: str, req: VisitComplete, db: AsyncSession = D
     if req.signature_data:
         note_text += " [고객 서명 확인 완료]"
     upd_q = text("""
-        UPDATE visits 
+        UPDATE space_visits 
         SET status = '완료', note = COALESCE(:note, note)
         WHERE id = :vid
     """)
@@ -393,7 +393,7 @@ async def complete_visit(visit_id: str, req: VisitComplete, db: AsyncSession = D
 
     # 3. 상태 이력 기록 (실제 old_status 및 changed_by 보존)
     hist_q = text("""
-        INSERT INTO visit_status_history (id, visit_id, old_status, new_status, changed_by, client_type, changed_at)
+        INSERT INTO space_visit_status_history (id, visit_id, old_status, new_status, changed_by, client_type, changed_at)
         VALUES (:hid, :vid, :old_status, '완료', :emp_id, :client_type, CURRENT_TIMESTAMP)
     """)
     await db.execute(hist_q, {
@@ -406,7 +406,7 @@ async def complete_visit(visit_id: str, req: VisitComplete, db: AsyncSession = D
 
     # 4. 감사 로그
     audit_q = text("""
-        INSERT INTO audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
+        INSERT INTO space_audit_log_minimal (id, table_name, record_id, action, changed_by, changed_at)
         VALUES (:aid, 'visits', :rid, 'COMPLETE', :emp_id, CURRENT_TIMESTAMP)
     """)
     await db.execute(audit_q, {"aid": uuid.uuid4(), "rid": visit_id, "emp_id": emp_id})

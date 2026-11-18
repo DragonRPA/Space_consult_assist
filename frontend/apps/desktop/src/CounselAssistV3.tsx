@@ -1,80 +1,43 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Search, Wrench, AlertTriangle,
-  RotateCcw, Clock, History, FileText, BookOpen,
-  Smartphone, Package, Building2,
-  Cpu, X, Check, ArrowRight, ChevronDown, ChevronUp
+  Search, Wrench, RotateCcw, Clock, History,
+  Building2, Cpu, X, Check
 } from 'lucide-react';
+import { DEFAULT_MODEL_SPECS, type ModelSpec } from './modelSpecsData';
+import { DEFAULT_SYMPTOM_PRESETS } from './manualKnowledgeData';
+import { getModelErrorCodes } from './modelErrorCodesData';
 import {
-  DEFAULT_MODEL_SPECS,
-  DEFAULT_SYMPTOM_PRESETS,
-  getModelErrorCodes,
-  getModelErrorCodePanelTitle,
-  type ModelSpec
-} from './manualKnowledgeData';
-import {
-  DEFAULT_B2B_CUSTOMERS,
-  matchesChosungOrText,
-  calculateSymptomMatchScore,
   type Customer,
   type DiagnosticStep,
   type OfficialErrorCode,
   type SymptomSession,
-  type ConsultSessionRecord
-} from './CounselAssistV2';
+  type ConsultSessionRecord,
+  type SymptomPreset,
+} from './counselShared';
+import type {
+  DispatchDoc1st,
+  DispatchDoc2nd,
+  SelfActionEvidenceItem
+} from './dispatchDocTypes';
 import {
-  DispatchDocPackageModal,
-  type DispatchDoc1st,
-  type DispatchDoc2nd,
-  type SelfActionEvidenceItem
-} from './DispatchDocPackageModal';
-import { PartsOrderQuotationModal } from './PartsOrderQuotationModal';
-import { SelfActionGuideModal } from './SelfActionGuideModal';
-import { SymptomPhotoManagerModal } from './SymptomPhotoManagerModal';
-import { EquipmentManualModal } from './EquipmentManualModal';
-import { applyContextualCorrection } from './contextCorrector';
-import { extractCustomerAndAddressEntities } from './keywordAssist';
+  OmniSuggestDropdown,
+  SimpleSessionListModal,
+} from './CounselAssistV3Parts';
+import {
+  matchOmniExecutionEntities,
+  parseOmniQuery,
+  type OmniParsedResult,
+} from './omniQueryParser';
+import { CounselV3Workspace } from './CounselV3Workspace';
+
+const DispatchDocPackageModal = lazy(() => import('./DispatchDocPackageModal'));
+const PartsOrderQuotationModal = lazy(() => import('./PartsOrderQuotationModal'));
+const SelfActionGuideModal = lazy(() => import('./SelfActionGuideModal'));
+const EquipmentManualModal = lazy(() => import('./EquipmentManualModal'));
 
 const API = 'http://127.0.0.1:8000/api/v1';
 const PENDING_STORAGE_KEY = 'space_advisor_pending_sessions_v2';
 const HISTORY_STORAGE_KEY = 'space_advisor_history_records_v2';
-
-const EQUIPMENT_MODELS = ['J600T', 'J800', 'S7', 'S5', 'S1', 'S3', 'W12', 'W15', 'S2', 'S12', '쓰담'];
-
-interface SymptomPreset {
-  id?: string;
-  title: string;
-  symptom: string;
-  tag?: string;
-  urgency: string;
-  category?: string;
-  aliases?: string[];
-  part_code?: string;
-  official_error_codes?: OfficialErrorCode[];
-  action_plan?: {
-    keyword?: string;
-    part_code?: string;
-    urgency?: string;
-    can_self_resolve?: boolean;
-    call_script?: string;
-    steps?: (DiagnosticStep | string | any)[];
-  };
-}
-
-// ─── 단일 옴니 검색어 복합 파싱 결과 타입 ─────────────────────────────────────
-interface OmniParsedResult {
-  matchedCustomers: Customer[];
-  matchedModels: string[];
-  matchedErrorCodes: { codeObj: OfficialErrorCode; model: string }[];
-  matchedSymptoms: { preset: SymptomPreset; score: number }[];
-  compositePreview: {
-    customer?: Customer;
-    model?: string;
-    symptom?: SymptomPreset;
-    errorCode?: OfficialErrorCode;
-    tokenCount: number;
-  } | null;
-}
 
 export default function CounselAssistV3() {
   // ── 1. 단일 옴니 검색창 상태 ──────────────────────────────────────────────────
@@ -100,7 +63,6 @@ export default function CounselAssistV3() {
   const [showModelSpec, setShowModelSpec] = useState<boolean>(false);
 
   const [showSelfActionGuideModal, setShowSelfActionGuideModal] = useState<boolean>(false);
-  const [showPhotoManagerModal, setShowPhotoManagerModal] = useState<boolean>(false);
   const [showPartsOrderModal, setShowPartsOrderModal] = useState<boolean>(false);
   const [showEquipmentManualModal, setShowEquipmentManualModal] = useState<boolean>(false);
   const [showDispatchPackageModal, setShowDispatchPackageModal] = useState<boolean>(false);
@@ -232,206 +194,10 @@ export default function CounselAssistV3() {
   );
 
   // ── [핵심] 단일 검색창 다중 엔티티 파서 (고객전화번호 + 업체명 + 모델명 + 증상/에러코드) ──
-  const parsedOmni: OmniParsedResult = useMemo(() => {
-    const raw = omniQuery.trim();
-    if (!raw) {
-      return {
-        matchedCustomers: [],
-        matchedModels: [],
-        matchedErrorCodes: [],
-        matchedSymptoms: [],
-        compositePreview: null
-      };
-    }
-
-    const correctedRaw = applyContextualCorrection(raw).correctedText || raw;
-    const tokens = Array.from(new Set([...correctedRaw.split(/\s+/), ...raw.split(/\s+/)])).filter(Boolean);
-    const matchedCustomersMap = new Map<string, Customer>();
-    const matchedModelsSet = new Set<string>();
-    const matchedErrorCodesList: { codeObj: OfficialErrorCode; model: string }[] = [];
-    const symptomScoreMap = new Map<string, { preset: SymptomPreset; score: number }>();
-
-    let bestCustomer: Customer | undefined;
-    let bestModel: string | undefined;
-    let bestErrorCode: OfficialErrorCode | undefined;
-    let bestSymptom: SymptomPreset | undefined;
-    let bestSymptomScore = 0;
-
-    const currentCodes = getModelErrorCodes(effectiveModel);
-
-    for (const token of tokens) {
-      const tokenClean = token.toLowerCase();
-      const tokenDigits = token.replace(/\D/g, '');
-
-      // 1. 장비 모델명 매칭 (예: J600T, J800, S7, S5, S3, W12 등)
-      for (const m of EQUIPMENT_MODELS) {
-        const mLower = m.toLowerCase();
-        if (
-          mLower === tokenClean ||
-          (tokenClean.length >= 2 && mLower.startsWith(tokenClean)) ||
-          matchesChosungOrText(m, token)
-        ) {
-          matchedModelsSet.add(m);
-          if (!bestModel) bestModel = m;
-        }
-      }
-
-      // 2. 고객사 / 전화번호 / 담당자 / 도로명주소 / 상세위치 매칭 (일반 직함/광역지역/보편구역 불용어 토큰 제외)
-      const isGenericStopToken = /^(?:과장|시설과장|소장|관리소장|현장소장|팀장|미화팀장|기술팀장|대리|실장|관리실장|반장|미화반장|센터장|운영총괄|미화원|조장|대표|이사|담당자|아파트|관리사무소|관리지원센터|관리단|청소용역|미화팀|본사|직영|서울|서울시|경기|경기도|인천|인천시|경남|경북|충남|충북|부산|대구|대전|광주|울산|지하|지상|1층|2층|3층|B1층|B2층|A동|B동|101동|102동|1공장|2공장|본관|방재실|기전실|주차장|하역장|기계실|미화대기실|생산라인|여기는|저희는|현장명은|주소는|전화번호는|연락처는|\d{1,3})$/i.test(
-        token.replace(/(?:인데요|입니다|인데|이고요|이고|예요|이에요)$/g, '')
-      );
-      if (!isGenericStopToken) {
-        for (const c of DEFAULT_B2B_CUSTOMERS) {
-          const phoneDigits = (c.phone || '').replace(/\D/g, '');
-          const workerDigits = (c.siteWorkerPhone || '').replace(/\D/g, '');
-          const isPhoneMatch =
-            tokenDigits.length >= 4 &&
-            (phoneDigits.includes(tokenDigits) || workerDigits.includes(tokenDigits));
-          const isNameOrAddrMatch =
-            token.length >= 2 &&
-            (matchesChosungOrText(c.name, token) ||
-              matchesChosungOrText(c.manager, token) ||
-              (c.useCompany && matchesChosungOrText(c.useCompany, token)) ||
-              (c.siteWorkerName && matchesChosungOrText(c.siteWorkerName, token)) ||
-              (c.address && token.length >= 3 && matchesChosungOrText(c.address, token)) ||
-              (c.addressDetail && token.length >= 3 && matchesChosungOrText(c.addressDetail, token)));
-
-          if (isPhoneMatch || isNameOrAddrMatch) {
-            matchedCustomersMap.set(c.id, c);
-            if (!bestCustomer) bestCustomer = c;
-          }
-        }
-      }
-
-      // 3. 계기판 에러코드 매칭 (E01, E02, EL, EH, 888 등)
-      for (const ec of currentCodes) {
-        if (
-          ec.code.toLowerCase() === tokenClean ||
-          (tokenClean.length >= 2 && ec.code.toLowerCase().includes(tokenClean)) ||
-          matchesChosungOrText(ec.name, token)
-        ) {
-          if (!matchedErrorCodesList.some(x => x.codeObj.code === ec.code)) {
-            matchedErrorCodesList.push({ codeObj: ec, model: effectiveModel });
-          }
-          if (!bestErrorCode) bestErrorCode = ec;
-        }
-      }
-
-      // 4. 증상 프리셋 매칭
-      for (const preset of symptomPresets) {
-        const sc = calculateSymptomMatchScore(preset, token);
-        if (sc > 0) {
-          const prev = symptomScoreMap.get(preset.title);
-          const nextScore = (prev?.score || 0) + sc;
-          symptomScoreMap.set(preset.title, { preset, score: nextScore });
-          if (nextScore > bestSymptomScore) {
-            bestSymptomScore = nextScore;
-            bestSymptom = preset;
-          }
-        }
-      }
-    }
-
-    // 2-B. 자연어 5차원 고객·담당자·전화번호·도로명주소·상세위치 추출 연동
-    const extractedEntities = extractCustomerAndAddressEntities(correctedRaw);
-    const isExplicitNewCustomer =
-      Boolean(extractedEntities.customerName) &&
-      (!bestCustomer || !matchesChosungOrText(bestCustomer.name, extractedEntities.customerName!));
-
-    if (
-      (!bestCustomer || isExplicitNewCustomer) &&
-      (extractedEntities.customerName ||
-        extractedEntities.managerName ||
-        extractedEntities.phone ||
-        extractedEntities.roadOrLotAddress ||
-        extractedEntities.addressDetail)
-    ) {
-      const dynamicCust: Customer = {
-        id: 'cust-extracted-omni',
-        name: extractedEntities.customerName || '신규 현장 고객 (자동 추출)',
-        manager: extractedEntities.managerName || '현장 담당자',
-        phone: extractedEntities.phone || '',
-        address: extractedEntities.roadOrLotAddress || '',
-        addressDetail: extractedEntities.addressDetail || '',
-        useCompany: extractedEntities.useCompany || '',
-        assetModel: bestModel || effectiveModel,
-        serialNumber: `${bestModel || effectiveModel}-AUTO`,
-        salesType: '렌탈(임대)',
-        historyTimeline: []
-      };
-      matchedCustomersMap.set(dynamicCust.id, dynamicCust);
-      bestCustomer = dynamicCust;
-    } else if (bestCustomer) {
-      const extMgrCore = extractedEntities.managerName?.split(' ')[0] || '';
-      bestCustomer = {
-        ...bestCustomer,
-        phone: extractedEntities.phone || bestCustomer.phone,
-        manager:
-          extractedEntities.managerName && (!bestCustomer.manager || !bestCustomer.manager.includes(extMgrCore))
-            ? extractedEntities.managerName
-            : bestCustomer.manager,
-        address:
-          extractedEntities.roadOrLotAddress && (!bestCustomer.address || !bestCustomer.address.includes(extractedEntities.roadOrLotAddress))
-            ? extractedEntities.roadOrLotAddress
-            : bestCustomer.address,
-        addressDetail:
-          extractedEntities.addressDetail && (!bestCustomer.addressDetail || !bestCustomer.addressDetail.includes(extractedEntities.addressDetail))
-            ? extractedEntities.addressDetail
-            : bestCustomer.addressDetail
-      };
-      matchedCustomersMap.set(bestCustomer.id, bestCustomer);
-    }
-
-    // 전체 문자열 통째로도 증상 매칭 재검산
-    for (const preset of symptomPresets) {
-      const fullSc = calculateSymptomMatchScore(preset, raw);
-      if (fullSc > 0) {
-        const prev = symptomScoreMap.get(preset.title);
-        const nextScore = Math.max(prev?.score || 0, fullSc + 20);
-        symptomScoreMap.set(preset.title, { preset, score: nextScore });
-        if (nextScore > bestSymptomScore) {
-          bestSymptomScore = nextScore;
-          bestSymptom = preset;
-        }
-      }
-    }
-
-    // 만약 에러코드가 감지되었고 증상이 미지정이면 에러코드 진단 프리셋 자동 연결
-    if (bestErrorCode && !bestSymptom) {
-      const errPreset = symptomPresets.find(
-        s => s.id === 'EXT_ERROR_CODE' || s.category === '에러코드' || s.title.includes('에러')
-      );
-      if (errPreset) bestSymptom = errPreset;
-    }
-
-    const matchedSymptoms = Array.from(symptomScoreMap.values())
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 6);
-
-    const entityCount =
-      (bestCustomer ? 1 : 0) +
-      (bestModel ? 1 : 0) +
-      (bestSymptom ? 1 : 0) +
-      (bestErrorCode ? 1 : 0);
-
-    return {
-      matchedCustomers: Array.from(matchedCustomersMap.values()),
-      matchedModels: Array.from(matchedModelsSet),
-      matchedErrorCodes: matchedErrorCodesList.slice(0, 4),
-      matchedSymptoms,
-      compositePreview:
-        entityCount >= 1
-          ? {
-              customer: bestCustomer,
-              model: bestModel || bestCustomer?.assetModel,
-              symptom: bestSymptom,
-              errorCode: bestErrorCode,
-              tokenCount: tokens.length
-            }
-          : null
-    };
-  }, [omniQuery, symptomPresets, effectiveModel]);
-
+  const parsedOmni: OmniParsedResult = useMemo(
+    () => parseOmniQuery(omniQuery, symptomPresets, effectiveModel),
+    [omniQuery, symptomPresets, effectiveModel]
+  );
   // ── 고객 선택 적용 ───────────────────────────────────────────────────────────
   const applyCustomer = useCallback((c: Customer, explicitModel?: string) => {
     setSelectedCustomer(c);
@@ -447,85 +213,11 @@ export default function CounselAssistV3() {
       const q = (customQuery ?? omniQuery).trim();
       if (!q) return;
 
-      const correctedQ = applyContextualCorrection(q).correctedText || q;
-      const tokens = Array.from(new Set([...correctedQ.split(/\s+/), ...q.split(/\s+/)])).filter(Boolean);
-      let foundCust: Customer | undefined;
-      let foundModel: string | undefined;
-      let foundError: OfficialErrorCode | undefined;
-      let foundSymptom: SymptomPreset | undefined;
-      let topScore = 0;
-
-      for (const token of tokens) {
-        const tokenClean = token.toLowerCase();
-        const tokenDigits = token.replace(/\D/g, '');
-
-        for (const m of EQUIPMENT_MODELS) {
-          if (m.toLowerCase() === tokenClean || (tokenClean.length >= 2 && m.toLowerCase().startsWith(tokenClean))) {
-            if (!foundModel) foundModel = m;
-          }
-        }
-
-        for (const c of DEFAULT_B2B_CUSTOMERS) {
-          const pDigits = (c.phone || '').replace(/\D/g, '');
-          const wDigits = (c.siteWorkerPhone || '').replace(/\D/g, '');
-          if (
-            (tokenDigits.length >= 3 && (pDigits.includes(tokenDigits) || wDigits.includes(tokenDigits))) ||
-            matchesChosungOrText(c.name, token) ||
-            matchesChosungOrText(c.manager, token) ||
-            (c.useCompany && matchesChosungOrText(c.useCompany, token)) ||
-            (c.siteWorkerName && matchesChosungOrText(c.siteWorkerName, token)) ||
-            (c.address && matchesChosungOrText(c.address, token)) ||
-            (c.addressDetail && matchesChosungOrText(c.addressDetail, token))
-          ) {
-            if (!foundCust) foundCust = c;
-          }
-        }
-
-        const modelCodes = getModelErrorCodes(foundModel || foundCust?.assetModel || effectiveModel);
-        for (const ec of modelCodes) {
-          if (ec.code.toLowerCase() === tokenClean) {
-            if (!foundError) foundError = ec;
-          }
-        }
-
-        for (const preset of symptomPresets) {
-          const sc = calculateSymptomMatchScore(preset, token);
-          if (sc > topScore) {
-            topScore = sc;
-            foundSymptom = preset;
-          }
-        }
-      }
-
-      const extractedFromQ = extractCustomerAndAddressEntities(correctedQ);
-      if (
-        !foundCust &&
-        (extractedFromQ.customerName ||
-          extractedFromQ.managerName ||
-          extractedFromQ.phone ||
-          extractedFromQ.roadOrLotAddress ||
-          extractedFromQ.addressDetail)
-      ) {
-        foundCust = {
-          id: 'cust-extracted-omni',
-          name: extractedFromQ.customerName || '신규 현장 고객 (자동 추출)',
-          manager: extractedFromQ.managerName || '현장 담당자',
-          phone: extractedFromQ.phone || '',
-          address: extractedFromQ.roadOrLotAddress || '',
-          addressDetail: extractedFromQ.addressDetail || '',
-          useCompany: extractedFromQ.useCompany || '',
-          assetModel: foundModel || effectiveModel,
-          serialNumber: `${foundModel || effectiveModel}-AUTO`,
-          salesType: '렌탈(임대)',
-          historyTimeline: []
-        };
-      }
-
-      if (foundError && !foundSymptom) {
-        foundSymptom = symptomPresets.find(
-          s => s.id === 'EXT_ERROR_CODE' || s.category === '에러코드' || s.title.includes('에러')
-        );
-      }
+      const { foundCust, foundModel, foundError, foundSymptom } = matchOmniExecutionEntities(
+        q,
+        symptomPresets,
+        effectiveModel
+      );
 
       const appliedLabels: string[] = [];
       if (foundCust) {
@@ -1319,876 +1011,118 @@ export default function CounselAssistV3() {
           </div>
 
           {/* 2. 점진적 본문 레이아웃 (좌측 컨텍스트 슬롯 + 우측 진단 워크스페이스 슬롯) */}
-          <div
-            style={{
-              flex: 1,
-              display: 'grid',
-              gridTemplateColumns: '340px 1fr',
-              gap: 16,
-              padding: 16,
-              overflowY: 'auto'
-            }}
-          >
-            {/* ── [좌측 슬롯] 고객 및 장비 컨텍스트 카드 ── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* 고객사 정보 카드: 고객이 선택되었을 때만 상세 노출, 미선택 시 심플 안내 */}
-              {selectedCustomer ? (
-                <div
-                  style={{
-                    background: '#ffffff',
-                    border: '1px solid #dcd5c9',
-                    borderRadius: 10,
-                    padding: 16,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span
-                      style={{
-                        fontSize: 13.5,
-                        fontWeight: 800,
-                        color: '#1d4ed8',
-                        background: '#eff6ff',
-                        padding: '2px 8px',
-                        borderRadius: 4
-                      }}
-                    >
-                      {selectedCustomer.salesType}
-                    </span>
-                    <span style={{ fontSize: 13.5, color: '#64748b', fontFamily: 'monospace' }}>
-                      {selectedCustomer.serialNumber}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', marginBottom: 10 }}>
-                    {selectedCustomer.name}
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                      padding: 10,
-                      background: '#f5f2eb',
-                      borderRadius: 6,
-                      border: '1px solid #dcd5c9',
-                      fontSize: 13.5
-                    }}
-                  >
-                    <div>
-                      <div style={{ color: '#059669', fontWeight: 800 }}>
-                        현장 실사용자: {selectedCustomer.siteWorkerName || '미화반장'}
-                      </div>
-                      <div style={{ color: '#0f172a', fontWeight: 700, fontFamily: 'monospace' }}>
-                        {siteWorkerPhone}
-                      </div>
-                    </div>
-                    <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: 6 }}>
-                      <div style={{ color: '#1d4ed8', fontWeight: 800 }}>
-                        원청 결재권자: {selectedCustomer.manager}
-                      </div>
-                      <div style={{ color: '#0f172a', fontWeight: 700, fontFamily: 'monospace' }}>
-                        {customerPhone}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 최근 정비 이력 */}
-                  {selectedCustomer.historyTimeline.length > 0 && (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 800, color: '#475569', marginBottom: 6 }}>
-                        최근 정비 이력
-                      </div>
-                      {selectedCustomer.historyTimeline.map((h, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            fontSize: 13.5,
-                            color: '#334155',
-                            padding: '5px 8px',
-                            background: '#f8fafc',
-                            borderRadius: 4,
-                            marginBottom: 4,
-                            borderLeft: '3px solid #2563eb'
-                          }}
-                        >
-                          <span style={{ fontWeight: 700, color: '#64748b', marginRight: 6 }}>{h.date}</span>
-                          <span>{h.title}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div
-                  style={{
-                    background: '#ece7de',
-                    border: '1px dashed #cbd5c9',
-                    borderRadius: 10,
-                    padding: 16
-                  }}
-                >
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
-                    고객사 미지정 상태
-                  </div>
-                  <div style={{ fontSize: 13.5, color: '#64748b', lineHeight: 1.5 }}>
-                    상단 검색창에 전화번호 뒷자리(예: 3456) 또는 고객사명(예: 반포자이)을 입력하면 고객 카드가 이 자리에 채워집니다.
-                  </div>
-                </div>
-              )}
-
-              {/* 장비 모델 컨텍스트 카드 (필요 시 제원 아코디언 토글) */}
-              <div
-                style={{
-                  background: '#ffffff',
-                  border: '1px solid #dcd5c9',
-                  borderRadius: 10,
-                  padding: 16
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontSize: 13.5, color: '#64748b', fontWeight: 700 }}>적용 장비 모델</div>
-                    <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>
-                      {effectiveModel}{' '}
-                      <span style={{ fontSize: 13.5, fontWeight: 600, color: '#475569' }}>
-                        ({currentModelSpec?.category || '습식 청소차'})
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowModelSpec(prev => !prev)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      background: '#f5f2eb',
-                      border: '1px solid #dcd5c9',
-                      borderRadius: 6,
-                      padding: '5px 10px',
-                      fontSize: 13.5,
-                      fontWeight: 700,
-                      color: '#334155',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <span>제원 {showModelSpec ? '접기' : '보기'}</span>
-                    {showModelSpec ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </button>
-                </div>
-
-                {showModelSpec && currentModelSpec && (
-                  <div
-                    style={{
-                      marginTop: 12,
-                      paddingTop: 10,
-                      borderTop: '1px solid #e2e8f0',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 6,
-                      fontSize: 13.5
-                    }}
-                  >
-                    <div>
-                      <strong style={{ color: '#475569' }}>배터리:</strong> {currentModelSpec.battery_spec}
-                    </div>
-                    <div>
-                      <strong style={{ color: '#475569' }}>브러시:</strong> {currentModelSpec.brush_spec}
-                    </div>
-                    <div>
-                      <strong style={{ color: '#475569' }}>스퀴지:</strong> {currentModelSpec.squeegee_width_mm}mm
-                    </div>
-                    <div>
-                      <strong style={{ color: '#475569' }}>탱크 용량:</strong> 정수 {currentModelSpec.clean_tank_l}L / 폐수{' '}
-                      {currentModelSpec.recovery_tank_l}L
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ── [우측 메인 슬롯] 진단 및 단계별 조치 워크스페이스 ── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {currentSession ? (
-                <div
-                  style={{
-                    background: '#ffffff',
-                    border: '1px solid #dcd5c9',
-                    borderRadius: 10,
-                    padding: 20,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 16
-                  }}
-                >
-                  {/* 진단 헤더 & 전화 응대 스크립트 */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      borderBottom: '1px solid #e2e8f0',
-                      paddingBottom: 12
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span
-                        style={{
-                          background: currentSession.urgency === '긴급' ? '#fef2f2' : '#eff6ff',
-                          color: currentSession.urgency === '긴급' ? '#dc2626' : '#1d4ed8',
-                          border: `1px solid ${currentSession.urgency === '긴급' ? '#fecaca' : '#bfdbfe'}`,
-                          padding: '3px 10px',
-                          borderRadius: 6,
-                          fontSize: 13.5,
-                          fontWeight: 800
-                        }}
-                      >
-                        {currentSession.urgency}
-                      </span>
-                      <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', margin: 0 }}>
-                        {currentSession.title}
-                      </h2>
-                      <span style={{ fontSize: 13.5, color: '#64748b', fontFamily: 'monospace' }}>
-                        [{currentSession.part_code}]
-                      </span>
-                    </div>
-
-                    <span
-                      style={{
-                        fontSize: 13.5,
-                        fontWeight: 800,
-                        padding: '4px 12px',
-                        borderRadius: 14,
-                        background:
-                          currentSession.status === 'resolved_by_call'
-                            ? '#ecfdf5'
-                            : currentSession.status === 'visit_required'
-                            ? '#fef2f2'
-                            : '#eff6ff',
-                        color:
-                          currentSession.status === 'resolved_by_call'
-                            ? '#059669'
-                            : currentSession.status === 'visit_required'
-                            ? '#dc2626'
-                            : '#1d4ed8'
-                      }}
-                    >
-                      {currentSession.status === 'resolved_by_call'
-                        ? '전화 조치 해결'
-                        : currentSession.status === 'visit_required'
-                        ? 'AS 출장 정비 대상'
-                        : `STEP ${currentSession.activeStepIndex + 1} 점검 진행중`}
-                    </span>
-                  </div>
-
-                  {/* 표준 안내 스크립트 */}
-                  <div
-                    style={{
-                      background: '#f5f2eb',
-                      borderLeft: '4px solid #2563eb',
-                      padding: '12px 16px',
-                      borderRadius: '0 8px 8px 0',
-                      fontSize: 14.5,
-                      fontWeight: 600,
-                      color: '#0f172a',
-                      lineHeight: 1.5
-                    }}
-                  >
-                    "{currentSession.selectedErrorCode?.call_script || currentSession.call_script}"
-                  </div>
-
-                  {/* 에러코드 선택 칩 (에러코드가 선택되었거나 에러코드 관련 증상일 때 표시) */}
-                  {(currentSession.category === '에러코드' ||
-                    currentSession.title.includes('에러') ||
-                    currentSession.selectedErrorCode) &&
-                    currentSession.official_error_codes && (
-                      <div
-                        style={{
-                          background: '#f8fafc',
-                          border: '1px solid #cbd5e1',
-                          borderRadius: 8,
-                          padding: 12
-                        }}
-                      >
-                        <div style={{ fontSize: 13.5, fontWeight: 800, color: '#334155', marginBottom: 8 }}>
-                          {getModelErrorCodePanelTitle(effectiveModel)}
-                        </div>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {currentSession.official_error_codes.map(ec => {
-                            const isSel = currentSession.selectedErrorCode?.code === ec.code;
-                            return (
-                              <button
-                                key={ec.code}
-                                type="button"
-                                onClick={() =>
-                                  setSymptomSessions(prev => ({
-                                    ...prev,
-                                    [currentSession.key]: {
-                                      ...currentSession,
-                                      selectedErrorCode: isSel ? null : ec
-                                    }
-                                  }))
-                                }
-                                style={{
-                                  padding: '5px 10px',
-                                  borderRadius: 6,
-                                  border: isSel ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                                  background: isSel ? '#eff6ff' : '#ffffff',
-                                  color: isSel ? '#1d4ed8' : '#334155',
-                                  fontSize: 13.5,
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                [{ec.code}] {ec.name}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                  {/* 단계별 점검 리스트 (Progressive Stepper) */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {currentSession.steps.map((st, idx) => {
-                      const isActive = idx === currentSession.activeStepIndex;
-                      const isResolved = st.status === 'resolved';
-                      const isFailed = st.status === 'unresolved';
-
-                      return (
-                        <div
-                          key={st.step_no}
-                          onClick={() =>
-                            setSymptomSessions(prev => ({
-                              ...prev,
-                              [currentSession.key]: { ...currentSession, activeStepIndex: idx }
-                            }))
-                          }
-                          style={{
-                            border: isActive
-                              ? '2px solid #2563eb'
-                              : isResolved
-                              ? '1px solid #a7f3d0'
-                              : isFailed
-                              ? '1px solid #fecaca'
-                              : '1px solid #dcd5c9',
-                            background: isActive
-                              ? '#ffffff'
-                              : isResolved
-                              ? '#ecfdf5'
-                              : isFailed
-                              ? '#fef2f2'
-                              : '#f8fafc',
-                            borderRadius: 8,
-                            padding: '12px 16px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <span
-                                style={{
-                                  padding: '2px 8px',
-                                  borderRadius: 4,
-                                  background: isActive ? '#2563eb' : '#cbd5e1',
-                                  color: isActive ? '#ffffff' : '#334155',
-                                  fontSize: 13.5,
-                                  fontWeight: 800,
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                STEP {st.step_no}
-                              </span>
-                              <span style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{st.title}</span>
-                            </div>
-
-                            {/* 현재 점검 단계 판정 버튼 */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                              <button
-                                type="button"
-                                onClick={() => handleStepResolve(idx)}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 4,
-                                  background: isResolved ? '#059669' : '#ecfdf5',
-                                  color: isResolved ? '#ffffff' : '#059669',
-                                  border: '1px solid #059669',
-                                  borderRadius: 6,
-                                  padding: '5px 12px',
-                                  fontSize: 13.5,
-                                  fontWeight: 800,
-                                  cursor: 'pointer',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                <Check size={14} />
-                                <span>정상 해결</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleStepFail(idx)}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 4,
-                                  background: isFailed ? '#dc2626' : '#fef2f2',
-                                  color: isFailed ? '#ffffff' : '#dc2626',
-                                  border: '1px solid #dc2626',
-                                  borderRadius: 6,
-                                  padding: '5px 12px',
-                                  fontSize: 13.5,
-                                  fontWeight: 800,
-                                  cursor: 'pointer',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                <AlertTriangle size={14} />
-                                <span>{idx >= currentSession.steps.length - 1 ? '불량 (출장 전환)' : '불량 (다음 단계)'}</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          {isActive && st.method && st.method !== st.title && (
-                            <div style={{ marginTop: 8, fontSize: 13.5, color: '#475569', paddingLeft: 68 }}>
-                              점검 방법: {st.method}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* 상담 메모 및 후속 연계 문서 발송 바 (진단 시점에만 노출) */}
-                  <div
-                    style={{
-                      marginTop: 6,
-                      paddingTop: 14,
-                      borderTop: '1px solid #dcd5c9',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 12
-                    }}
-                  >
-                    <input
-                      type="text"
-                      value={notes}
-                      onChange={e => setNotes(e.target.value)}
-                      placeholder="상담 특이사항 또는 현장 메모 입력..."
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        borderRadius: 6,
-                        border: '1px solid #cbd5e1',
-                        fontSize: 13.5,
-                        background: '#f8fafc'
-                      }}
-                    />
-
-                    {/* 후속 문서 발송 & 상담 완결 액션 바 */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                      {/* 좌측: 문서 발송 버튼군 */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          data-uia="btn-open-equipment-manual-modal"
-                          onClick={() => setShowEquipmentManualModal(true)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 5,
-                            background: '#ffffff',
-                            color: '#1e293b',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: 6,
-                            padding: '6px 10px',
-                            fontSize: 12.5,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          <BookOpen size={13} color="#2563eb" />
-                          <span>카탈로그·매뉴얼</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setShowSelfActionGuideModal(true)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 5,
-                            background: '#ffffff',
-                            color: '#1e293b',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: 6,
-                            padding: '6px 10px',
-                            fontSize: 12.5,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          <Smartphone size={13} color="#475569" />
-                          <span>자가조치 가이드</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setShowPartsOrderModal(true)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 5,
-                            background: '#ffffff',
-                            color: '#1e293b',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: 6,
-                            padding: '6px 10px',
-                            fontSize: 12.5,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          <Package size={13} color="#475569" />
-                          <span>소모품 견적</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setShowDispatchPackageModal(true)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 5,
-                            background: '#ffffff',
-                            color: '#1e293b',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: 6,
-                            padding: '6px 10px',
-                            fontSize: 12.5,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          <FileText size={13} color="#475569" />
-                          <span>출장 문서</span>
-                        </button>
-                      </div>
-
-                      {/* 우측: 최종 종결 및 첫 조회화면 복귀 버튼군 */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <button
-                          type="button"
-                          data-uia="btn-v3-bottom-smart-save"
-                          onClick={handleSmartSaveAndReturn}
-                          style={{
-                            padding: '8px 14px',
-                            borderRadius: 6,
-                            background: smartReturnDescriptor.color,
-                            border: 'none',
-                            color: '#ffffff',
-                            fontSize: 13.5,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            boxShadow: '0 2px 6px rgba(15, 23, 42, 0.14)'
-                          }}
-                        >
-                          {smartReturnDescriptor.badgeLabel}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSaveSession('pending')}
-                          style={{
-                            padding: '8px 14px',
-                            borderRadius: 6,
-                            background: '#f5f2eb',
-                            border: '1px solid #dcd5c9',
-                            color: '#334155',
-                            fontSize: 13.5,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          진행중 보류 저장
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSaveSession('resolved')}
-                          style={{
-                            padding: '8px 14px',
-                            borderRadius: 6,
-                            background: '#059669',
-                            border: 'none',
-                            color: '#ffffff',
-                            fontSize: 13.5,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          전화 조치 완료
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSaveSession('visit')}
-                          style={{
-                            padding: '8px 14px',
-                            borderRadius: 6,
-                            background: '#dc2626',
-                            border: 'none',
-                            color: '#ffffff',
-                            fontSize: 13.5,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          AS 출장 접수
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* 고객 또는 모델만 먼저 선택되고 아직 증상이 입력되지 않은 경우: 빈출 증상 6개만 깔끔하게 추천 */
-                <div
-                  style={{
-                    background: '#ffffff',
-                    border: '1px solid #dcd5c9',
-                    borderRadius: 10,
-                    padding: 24,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 14
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>
-                      [{effectiveModel}] 증상 키워드를 상단 검색창에 입력하거나 아래 빈출 증상을 선택하십시오
-                    </div>
-                    <div style={{ fontSize: 13.5, color: '#64748b', marginTop: 4 }}>
-                      증상이 선택되면 단계별 점검 체크리스트와 문서 발송 도구가 이 자리에 채워집니다.
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-                    {symptomPresets.slice(0, 6).map(preset => (
-                      <button
-                        key={preset.title}
-                        type="button"
-                        onClick={() => activateSymptomPreset(preset, effectiveModel)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '12px 16px',
-                          background: '#f5f2eb',
-                          border: '1px solid #dcd5c9',
-                          borderRadius: 8,
-                          cursor: 'pointer',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontSize: 14.5, fontWeight: 800, color: '#0f172a' }}>{preset.title}</div>
-                          <div style={{ fontSize: 13.5, color: '#64748b', marginTop: 2 }}>{preset.symptom}</div>
-                        </div>
-                        <ArrowRight size={16} color="#2563eb" style={{ flexShrink: 0 }} />
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* 증상 선택 전(고객/모델만 선택된 상태)에서도 매뉴얼 발송 및 즉시 진행중/완료 저장 지원 */}
-                  <div
-                    style={{
-                      marginTop: 6,
-                      paddingTop: 14,
-                      borderTop: '1px solid #dcd5c9',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 10
-                    }}
-                  >
-                    <input
-                      type="text"
-                      value={notes}
-                      onChange={e => setNotes(e.target.value)}
-                      placeholder="상담 메모 입력 (증상 미선택 상태에서도 메모와 함께 저장 가능)..."
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        borderRadius: 6,
-                        border: '1px solid #cbd5e1',
-                        fontSize: 13.5,
-                        background: '#f8fafc'
-                      }}
-                    />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                      <button
-                        type="button"
-                        onClick={() => setShowEquipmentManualModal(true)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 5,
-                          padding: '7px 12px',
-                          borderRadius: 6,
-                          background: '#ffffff',
-                          border: '1px solid #cbd5e1',
-                          color: '#1e293b',
-                          fontSize: 12.5,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        <BookOpen size={13} color="#2563eb" />
-                        <span>카탈로그·매뉴얼</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSaveSession('pending')}
-                        style={{
-                          padding: '8px 14px',
-                          borderRadius: 6,
-                          background: '#2563eb',
-                          border: 'none',
-                          color: '#ffffff',
-                          fontSize: 13.5,
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        진행중 저장 · 첫 화면 복귀
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSaveSession('resolved')}
-                        style={{
-                          padding: '8px 14px',
-                          borderRadius: 6,
-                          background: '#059669',
-                          border: 'none',
-                          color: '#ffffff',
-                          fontSize: 13.5,
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        단순안내 완료 저장 · 첫 화면 복귀
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          {/* 2. 점진적 본문 레이아웃 (좌측 컨텍스트 슬롯 + 우측 진단 워크스페이스 슬롯) */}
+          <CounselV3Workspace
+            selectedCustomer={selectedCustomer}
+            effectiveModel={effectiveModel}
+            currentModelSpec={currentModelSpec}
+            showModelSpec={showModelSpec}
+            setShowModelSpec={setShowModelSpec}
+            customerPhone={customerPhone}
+            siteWorkerPhone={siteWorkerPhone}
+            symptomPresets={symptomPresets}
+            currentSession={currentSession}
+            notes={notes}
+            setNotes={setNotes}
+            smartReturnDescriptor={smartReturnDescriptor}
+            activateSymptomPreset={activateSymptomPreset}
+            setSymptomSessions={setSymptomSessions}
+            handleStepResolve={handleStepResolve}
+            handleStepFail={handleStepFail}
+            handleSaveSession={handleSaveSession}
+            handleSmartSaveAndReturn={handleSmartSaveAndReturn}
+            setShowSelfActionGuideModal={setShowSelfActionGuideModal}
+            setShowPartsOrderModal={setShowPartsOrderModal}
+            setShowEquipmentManualModal={setShowEquipmentManualModal}
+            setShowDispatchPackageModal={setShowDispatchPackageModal}
+          />
         </div>
       )}
 
       {/* ── 연동 모달군 (필요 시점에만 마운트) ── */}
-      {showSelfActionGuideModal && (
-        <SelfActionGuideModal
-          equipmentModel={effectiveModel}
-          customerName={selectedCustomer?.name || '반포자이 아파트 관리사무소'}
-          manager={selectedCustomer?.manager || '박시설 시설과장'}
-          phone={customerPhone || selectedCustomer?.phone || '010-9876-5432'}
-          email={customerEmail || selectedCustomer?.managerEmail || 'facility@banpojai.co.kr'}
-          siteCompany={selectedCustomer?.useCompany || '(주)클린에코 청소용역'}
-          siteWorkerName={selectedCustomer?.siteWorkerName || '김순자 미화반장'}
-          siteWorkerPhone={siteWorkerPhone || selectedCustomer?.siteWorkerPhone || '010-3456-7890'}
-          serialNumber={selectedCustomer?.serialNumber || `${effectiveModel}-2024-0812`}
-          symptomTitle={currentSession?.title || '바닥 잔수 과다'}
-          symptomSteps={currentSession?.steps}
-          onClose={() => setShowSelfActionGuideModal(false)}
-          onOpenPartsQuotation={() => {
-            setShowSelfActionGuideModal(false);
-            setShowPartsOrderModal(true);
-          }}
-          onOpenDispatchPackage={() => {
-            setShowSelfActionGuideModal(false);
-            setShowDispatchPackageModal(true);
-          }}
-          onResolveDirect={() => {
-            setShowSelfActionGuideModal(false);
-            handleSaveSession('resolved');
-          }}
-          onToast={msg => showToast(msg, 3500)}
-        />
-      )}
+      <Suspense fallback={null}>
+        {showSelfActionGuideModal && (
+          <SelfActionGuideModal
+            equipmentModel={effectiveModel}
+            customerName={selectedCustomer?.name || '반포자이 아파트 관리사무소'}
+            manager={selectedCustomer?.manager || '박시설 시설과장'}
+            phone={customerPhone || selectedCustomer?.phone || '010-9876-5432'}
+            email={customerEmail || selectedCustomer?.managerEmail || 'facility@banpojai.co.kr'}
+            siteCompany={selectedCustomer?.useCompany || '(주)클린에코 청소용역'}
+            siteWorkerName={selectedCustomer?.siteWorkerName || '김순자 미화반장'}
+            siteWorkerPhone={siteWorkerPhone || selectedCustomer?.siteWorkerPhone || '010-3456-7890'}
+            serialNumber={selectedCustomer?.serialNumber || `${effectiveModel}-2024-0812`}
+            symptomTitle={currentSession?.title || '바닥 잔수 과다'}
+            symptomSteps={currentSession?.steps}
+            onClose={() => setShowSelfActionGuideModal(false)}
+            onOpenPartsQuotation={() => {
+              setShowSelfActionGuideModal(false);
+              setShowPartsOrderModal(true);
+            }}
+            onOpenDispatchPackage={() => {
+              setShowSelfActionGuideModal(false);
+              setShowDispatchPackageModal(true);
+            }}
+            onResolveDirect={() => {
+              setShowSelfActionGuideModal(false);
+              handleSaveSession('resolved');
+            }}
+            onToast={msg => showToast(msg, 3500)}
+          />
+        )}
 
-      {showPhotoManagerModal && (
-        <SymptomPhotoManagerModal
-          equipmentModel={effectiveModel}
-          symptomId={currentSession?.key || 'SUCTION_FAIL'}
-          symptomTitle={currentSession?.title || '바닥 잔수 과다'}
-          onClose={() => setShowPhotoManagerModal(false)}
-          onToast={msg => showToast(msg, 3000)}
-        />
-      )}
+        {showPartsOrderModal && (
+          <PartsOrderQuotationModal
+            equipmentModel={effectiveModel}
+            serialNumber={selectedCustomer?.serialNumber || `${effectiveModel}-2024-0812`}
+            customerName={selectedCustomer?.name || '반포자이 아파트 관리사무소'}
+            manager={selectedCustomer?.manager || '박시설 시설과장'}
+            phone={customerPhone || '010-9876-5432'}
+            email={customerEmail || 'facility@banpojai.co.kr'}
+            siteCompany={selectedCustomer?.useCompany || '(주)클린에코 청소용역'}
+            siteWorkerName={selectedCustomer?.siteWorkerName || '김순자 미화반장'}
+            siteWorkerPhone={siteWorkerPhone || '010-3456-7890'}
+            symptoms={sessionList.length > 0 ? sessionList.map(s => s.title) : ['바닥 잔수 과다']}
+            onClose={() => setShowPartsOrderModal(false)}
+            onToast={msg => showToast(msg, 3500)}
+          />
+        )}
 
-      {showPartsOrderModal && (
-        <PartsOrderQuotationModal
-          equipmentModel={effectiveModel}
-          serialNumber={selectedCustomer?.serialNumber || `${effectiveModel}-2024-0812`}
-          customerName={selectedCustomer?.name || '반포자이 아파트 관리사무소'}
-          manager={selectedCustomer?.manager || '박시설 시설과장'}
-          phone={customerPhone || '010-9876-5432'}
-          email={customerEmail || 'facility@banpojai.co.kr'}
-          siteCompany={selectedCustomer?.useCompany || '(주)클린에코 청소용역'}
-          siteWorkerName={selectedCustomer?.siteWorkerName || '김순자 미화반장'}
-          siteWorkerPhone={siteWorkerPhone || '010-3456-7890'}
-          symptoms={sessionList.length > 0 ? sessionList.map(s => s.title) : ['바닥 잔수 과다']}
-          onClose={() => setShowPartsOrderModal(false)}
-          onToast={msg => showToast(msg, 3500)}
-        />
-      )}
+        {showEquipmentManualModal && (
+          <EquipmentManualModal
+            equipmentModel={effectiveModel}
+            serialNumber={selectedCustomer?.serialNumber || `${effectiveModel}-2024-0812`}
+            customerName={selectedCustomer?.name || '반포자이 아파트 관리사무소'}
+            manager={selectedCustomer?.manager || '박시설 시설과장'}
+            phone={customerPhone || selectedCustomer?.phone || '010-9876-5432'}
+            email={customerEmail || selectedCustomer?.managerEmail || 'facility@banpojai.co.kr'}
+            siteCompany={selectedCustomer?.useCompany || '(주)클린에코 청소용역'}
+            siteWorkerName={selectedCustomer?.siteWorkerName || '김순자 미화반장'}
+            siteWorkerPhone={siteWorkerPhone || selectedCustomer?.siteWorkerPhone || '010-3456-7890'}
+            symptoms={sessionList.length > 0 ? sessionList.map(s => s.title) : ['장비 운용 및 점검']}
+            onClose={() => setShowEquipmentManualModal(false)}
+            onToast={msg => showToast(msg, 3500)}
+          />
+        )}
 
-      {showEquipmentManualModal && (
-        <EquipmentManualModal
-          equipmentModel={effectiveModel}
-          serialNumber={selectedCustomer?.serialNumber || `${effectiveModel}-2024-0812`}
-          customerName={selectedCustomer?.name || '반포자이 아파트 관리사무소'}
-          manager={selectedCustomer?.manager || '박시설 시설과장'}
-          phone={customerPhone || selectedCustomer?.phone || '010-9876-5432'}
-          email={customerEmail || selectedCustomer?.managerEmail || 'facility@banpojai.co.kr'}
-          siteCompany={selectedCustomer?.useCompany || '(주)클린에코 청소용역'}
-          siteWorkerName={selectedCustomer?.siteWorkerName || '김순자 미화반장'}
-          siteWorkerPhone={siteWorkerPhone || selectedCustomer?.siteWorkerPhone || '010-3456-7890'}
-          symptoms={sessionList.length > 0 ? sessionList.map(s => s.title) : ['장비 운용 및 점검']}
-          onClose={() => setShowEquipmentManualModal(false)}
-          onToast={msg => showToast(msg, 3500)}
-        />
-      )}
+        {showDispatchPackageModal && (
+          <DispatchDocPackageModal
+            initialDoc1st={dispatchDoc1st || undefined}
+            initialDoc2nd={dispatchDoc2nd || undefined}
+            initialTab={dispatchModalTab}
+            onClose={() => setShowDispatchPackageModal(false)}
+            onSave={(d1, d2) => {
+              setDispatchDoc1st(d1);
+              setDispatchDoc2nd(d2);
+              setShowDispatchPackageModal(false);
+              handleResetToZero();
+              showToast('AS 출장 접수 및 결재 문서 저장 완료 · 첫 조회화면으로 복귀하였습니다.', 3800);
+            }}
+            onToast={msg => showToast(msg, 3500)}
+          />
+        )}
 
-      {showDispatchPackageModal && (
-        <DispatchDocPackageModal
-          initialDoc1st={dispatchDoc1st || undefined}
-          initialDoc2nd={dispatchDoc2nd || undefined}
-          initialTab={dispatchModalTab}
-          onClose={() => setShowDispatchPackageModal(false)}
-          onSave={(d1, d2) => {
-            setDispatchDoc1st(d1);
-            setDispatchDoc2nd(d2);
-            setShowDispatchPackageModal(false);
-            handleResetToZero();
-            showToast('AS 출장 접수 및 결재 문서 저장 완료 · 첫 조회화면으로 복귀하였습니다.', 3800);
-          }}
-          onToast={msg => showToast(msg, 3500)}
-        />
-      )}
+      </Suspense>
 
       {/* 진행 대기열 모달 */}
       {showPendingModal && (
@@ -2251,388 +1185,6 @@ export default function CounselAssistV3() {
           }}
         />
       )}
-    </div>
-  );
-}
-
-// ─── 실시간 통합 자동완성 드롭다운 컴포넌트 ──────────────────────────────────
-function OmniSuggestDropdown({
-  parsed,
-  query,
-  onExecuteComposite,
-  onSelectCustomer,
-  onSelectModel,
-  onSelectSymptom
-}: {
-  parsed: OmniParsedResult;
-  query: string;
-  onExecuteComposite: () => void;
-  onSelectCustomer: (c: Customer) => void;
-  onSelectModel: (m: string) => void;
-  onSelectSymptom: (p: SymptomPreset, errCode?: OfficialErrorCode) => void;
-}) {
-  const { matchedCustomers, matchedModels, matchedErrorCodes, matchedSymptoms, compositePreview } = parsed;
-
-  return (
-    <div
-      data-uia="omni-suggest-dropdown"
-      style={{
-        position: 'absolute',
-        top: 'calc(100% + 6px)',
-        left: 0,
-        right: 0,
-        background: '#ffffff',
-        border: '1px solid #cbd5e1',
-        borderRadius: 14,
-        boxShadow: '0 14px 36px rgba(15, 23, 42, 0.16)',
-        zIndex: 3000,
-        maxHeight: 440,
-        overflowY: 'auto',
-        padding: 10,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10
-      }}
-    >
-      {/* 1. 복합 원클릭 실행 배너 */}
-      {compositePreview && (
-        <div
-          onClick={onExecuteComposite}
-          data-uia="omni-composite-action"
-          style={{
-            background: '#eff6ff',
-            border: '1.5px solid #2563eb',
-            borderRadius: 10,
-            padding: '10px 14px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 10
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span
-              style={{
-                background: '#2563eb',
-                color: '#ffffff',
-                fontSize: 13.5,
-                fontWeight: 800,
-                padding: '2px 8px',
-                borderRadius: 4,
-                whiteSpace: 'nowrap'
-              }}
-            >
-              통합 즉시 전개 (Enter)
-            </span>
-            {compositePreview.customer && (
-              <span style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a' }}>
-                고객: {compositePreview.customer.name}
-              </span>
-            )}
-            {compositePreview.model && (
-              <span style={{ fontSize: 13.5, fontWeight: 800, color: '#1d4ed8' }}>
-                모델: {compositePreview.model}
-              </span>
-            )}
-            {compositePreview.errorCode && (
-              <span style={{ fontSize: 13.5, fontWeight: 800, color: '#dc2626' }}>
-                에러코드: [{compositePreview.errorCode.code}] {compositePreview.errorCode.name}
-              </span>
-            )}
-            {compositePreview.symptom && (
-              <span style={{ fontSize: 13.5, fontWeight: 800, color: '#059669' }}>
-                증상: {compositePreview.symptom.title}
-              </span>
-            )}
-          </div>
-          <ArrowRight size={16} color="#2563eb" style={{ flexShrink: 0 }} />
-        </div>
-      )}
-
-      {/* 2. 고객사 / 전화번호 매칭 결과 */}
-      {matchedCustomers.length > 0 && (
-        <div>
-          <div style={{ fontSize: 13.5, fontWeight: 800, color: '#64748b', padding: '2px 6px 4px' }}>
-            고객사 및 전화번호 ({matchedCustomers.length}건)
-          </div>
-          {matchedCustomers.map(c => (
-            <div
-              key={c.id}
-              onClick={() => onSelectCustomer(c)}
-              style={{
-                padding: '8px 10px',
-                borderRadius: 8,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: 13.5
-              }}
-            >
-              <div>
-                <strong style={{ color: '#0f172a' }}>{c.name}</strong>{' '}
-                <span style={{ color: '#64748b' }}>
-                  ({c.siteWorkerName ? `${c.siteWorkerName} ${c.siteWorkerPhone || ''} / ` : ''}원청: {c.manager} {c.phone}
-                  {c.address ? ` · ${c.address}` : ''}
-                  {c.addressDetail ? ` (${c.addressDetail})` : ''})
-                </span>
-              </div>
-              <span
-                style={{
-                  background: '#0f172a',
-                  color: '#ffffff',
-                  padding: '2px 8px',
-                  borderRadius: 4,
-                  fontWeight: 800,
-                  fontSize: 13.5
-                }}
-              >
-                {c.assetModel}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 3. 장비 모델 매칭 결과 */}
-      {matchedModels.length > 0 && (
-        <div>
-          <div style={{ fontSize: 13.5, fontWeight: 800, color: '#64748b', padding: '2px 6px 4px' }}>
-            장비 모델 선택
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', padding: '0 6px' }}>
-            {matchedModels.map(m => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => onSelectModel(m)}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: 6,
-                  background: '#0f172a',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: 13.5,
-                  fontWeight: 800,
-                  cursor: 'pointer'
-                }}
-              >
-                {m} 모델 적용
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 4. 계기판 에러코드 매칭 결과 */}
-      {matchedErrorCodes.length > 0 && (
-        <div>
-          <div style={{ fontSize: 13.5, fontWeight: 800, color: '#64748b', padding: '2px 6px 4px' }}>
-            계기판 에러코드
-          </div>
-          {matchedErrorCodes.map(({ codeObj }) => (
-            <div
-              key={codeObj.code}
-              onClick={() =>
-                onSelectSymptom(
-                  {
-                    id: 'EXT_ERROR_CODE',
-                    title: '계기판 에러코드 점멸 및 경고음',
-                    symptom: `[${codeObj.code}] ${codeObj.name} - ${codeObj.meaning}`,
-                    urgency: '긴급',
-                    category: '에러코드'
-                  },
-                  codeObj
-                )
-              }
-              style={{
-                padding: '7px 10px',
-                borderRadius: 8,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: 13.5
-              }}
-            >
-              <div>
-                <strong style={{ color: '#dc2626' }}>[{codeObj.code}]</strong>{' '}
-                <strong style={{ color: '#0f172a' }}>{codeObj.name}</strong> —{' '}
-                <span style={{ color: '#64748b' }}>{codeObj.meaning}</span>
-              </div>
-              <span style={{ color: '#2563eb', fontWeight: 700 }}>진단 열기</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 5. 표준 장애 증상 매칭 결과 */}
-      {matchedSymptoms.length > 0 && (
-        <div>
-          <div style={{ fontSize: 13.5, fontWeight: 800, color: '#64748b', padding: '2px 6px 4px' }}>
-            증상 키워드 진단 ({matchedSymptoms.length}건)
-          </div>
-          {matchedSymptoms.map(({ preset }) => (
-            <div
-              key={preset.title}
-              onClick={() => onSelectSymptom(preset)}
-              style={{
-                padding: '8px 10px',
-                borderRadius: 8,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: 13.5
-              }}
-            >
-              <div>
-                <strong style={{ color: '#0f172a' }}>{preset.title}</strong>{' '}
-                <span style={{ color: '#64748b' }}>— {preset.symptom}</span>
-              </div>
-              <span
-                style={{
-                  color: preset.urgency === '긴급' ? '#dc2626' : '#059669',
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {preset.urgency}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {matchedCustomers.length === 0 &&
-        matchedModels.length === 0 &&
-        matchedErrorCodes.length === 0 &&
-        matchedSymptoms.length === 0 && (
-          <div
-            onClick={onExecuteComposite}
-            style={{ padding: 12, fontSize: 13.5, color: '#475569', cursor: 'pointer' }}
-          >
-            Enter를 눌러 <strong>"{query}"</strong> 수동 증상 진단을 시작합니다.
-          </div>
-        )}
-    </div>
-  );
-}
-
-function SimpleSessionListModal({
-  title,
-  records,
-  onClose,
-  onSelect
-}: {
-  title: string;
-  records: ConsultSessionRecord[];
-  onClose: () => void;
-  onSelect: (rec: ConsultSessionRecord) => void;
-}) {
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(15, 23, 42, 0.55)',
-        zIndex: 9500,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: '#f5f2eb',
-          borderRadius: 12,
-          width: '100%',
-          maxWidth: 680,
-          maxHeight: '75vh',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          border: '1px solid #cbd5e1'
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div
-          style={{
-            padding: '14px 20px',
-            background: '#0f172a',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}
-        >
-          <span style={{ fontSize: 16, fontWeight: 800 }}>{title}</span>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer' }}
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <div style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {records.length === 0 ? (
-            <div style={{ padding: 24, textAlign: 'center', color: '#64748b', fontSize: 14 }}>
-              저장된 상담 내역이 없습니다.
-            </div>
-          ) : (
-            records.map(r => (
-              <div
-                key={r.id}
-                onClick={() => onSelect(r)}
-                style={{
-                  background: '#ffffff',
-                  border: '1px solid #dcd5c9',
-                  borderRadius: 8,
-                  padding: '12px 16px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span
-                      style={{
-                        fontSize: 13.5,
-                        fontWeight: 800,
-                        padding: '2px 8px',
-                        borderRadius: 6,
-                        background: r.status === 'in_progress' ? '#fffbeb' : '#ecfdf5',
-                        color: r.status === 'in_progress' ? '#b45309' : '#047857',
-                        border: r.status === 'in_progress' ? '1px solid #f59e0b' : '1px solid #10b981',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      {r.status === 'in_progress'
-                        ? `진행중 · ${r.currentStepSummary}`
-                        : r.status === 'visit_required'
-                        ? '상담완료 · AS 출장 접수'
-                        : '상담완료 · 전화 조치 완료'}
-                    </span>
-                    <span style={{ fontSize: 14.5, fontWeight: 800, color: '#0f172a' }}>
-                      {r.customerName} ({r.modelName})
-                    </span>
-                    <span style={{ fontSize: 13.5, color: '#64748b' }}>· {r.updatedAt.slice(0, 16).replace('T', ' ')}</span>
-                  </div>
-                  <div style={{ fontSize: 13.5, color: '#475569', marginTop: 4 }}>{r.summaryText}</div>
-                </div>
-                <span style={{ fontSize: 13.5, fontWeight: 800, color: '#2563eb', whiteSpace: 'nowrap' }}>불러오기 →</span>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
     </div>
   );
 }

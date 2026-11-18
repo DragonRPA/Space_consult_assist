@@ -33,11 +33,11 @@ conn = psycopg.connect(DB_URL)
 cur = conn.cursor()
 
 # embedding_nomic 삭제 (768차원)
-cur.execute("ALTER TABLE consult_knowledge DROP COLUMN IF EXISTS embedding_nomic")
+cur.execute("ALTER TABLE space_consult_knowledge DROP COLUMN IF EXISTS embedding_nomic")
 print("✅ embedding_nomic 컬럼 삭제")
 
 # embedding_bge 추가 (1024차원)
-cur.execute("ALTER TABLE consult_knowledge ADD COLUMN IF NOT EXISTS embedding_bge vector(1024)")
+cur.execute("ALTER TABLE space_consult_knowledge ADD COLUMN IF NOT EXISTS embedding_bge vector(1024)")
 print("✅ embedding_bge vector(1024) 컬럼 추가")
 
 # match_similar_bge 함수
@@ -62,7 +62,7 @@ $fn$
   SELECT id, summary, equipment_model, symptoms,
          parts_mentioned, action_items, urgency,
          1 - (embedding_bge <=> query_embedding) AS similarity
-  FROM   consult_knowledge
+  FROM   space_consult_knowledge
   WHERE  call_type      = filter_type
     AND  embedding_bge  IS NOT NULL
     AND  is_excluded    = false
@@ -103,5 +103,5 @@ print("✅ 마이그레이션 완료!")
 print("다음: python embed_batch_bge.py 실행")
 print("배치 완료 후: HNSW 인덱스 생성 명령")
 print("  psql 또는 Supabase SQL에서 실행:")
-print("  CREATE INDEX idx_ck_embedding_bge ON consult_knowledge")
+print("  CREATE INDEX idx_ck_embedding_bge ON space_consult_knowledge")
 print("  USING hnsw (embedding_bge vector_cosine_ops) WITH (m=16, ef_construction=64);")

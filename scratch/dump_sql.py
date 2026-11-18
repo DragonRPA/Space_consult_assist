@@ -3,7 +3,7 @@ import psycopg
 from datetime import date, datetime
 import json
 
-DATABASE_URL = "postgresql://postgres.eknwzjcbchbefdlykqgl:jUHGAmVsSeXc1jdR@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres"
+DATABASE_URL = "postgresql://postgres.lkohpffieaanwhohttbu:BKK5s3E1ydVKx6qJ@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
 
 def dump_table(conn, table_name):
     cur = conn.cursor()

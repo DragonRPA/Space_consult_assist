@@ -6,8 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from app.models.base import Base
-import app.models.domain
+from app.models import Base
 
 config = context.config
 

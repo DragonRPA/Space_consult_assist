@@ -15,7 +15,7 @@ def analyze_symptoms():
             # 1. 모델별 전체 건수 확인
             cur.execute("""
                 SELECT COALESCE(equipment_model, '기타'), COUNT(*) 
-                FROM consult_knowledge 
+                FROM space_consult_knowledge 
                 WHERE call_type = '증상수리'
                 GROUP BY 1 
                 ORDER BY 2 DESC 
@@ -32,7 +32,7 @@ def analyze_symptoms():
             for tm in target_models:
                 cur.execute("""
                     SELECT symptoms, summary, parts_mentioned
-                    FROM consult_knowledge
+                    FROM space_consult_knowledge
                     WHERE call_type = '증상수리' 
                       AND equipment_model ILIKE %s
                       AND symptoms IS NOT NULL

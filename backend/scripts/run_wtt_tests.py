@@ -87,7 +87,7 @@ async def run_e2e_wtt():
         # -------------------------------------------------------------
         print(f"\n[S-5] 현장 부품 사용 등록 및 재고 차감 API (POST /api/v1/visits/{visit_id}/parts)")
         async with AsyncSessionLocal() as session:
-            part_row = (await session.execute(text("SELECT id, name, stock FROM parts LIMIT 1"))).fetchone()
+            part_row = (await session.execute(text("SELECT id, name, stock FROM space_parts LIMIT 1"))).fetchone()
         
         if part_row:
             part_id = str(part_row.id)

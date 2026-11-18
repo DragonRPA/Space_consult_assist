@@ -26,7 +26,7 @@ class TransferCenterResponse(BaseModel):
 
 @router.get("/", response_model=List[TransferCenterResponse])
 async def list_transfer_centers(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(text("SELECT id, name, address FROM transfer_centers ORDER BY name"))
+    result = await db.execute(text("SELECT id, name, address FROM space_transfer_centers ORDER BY name"))
     rows = result.fetchall()
     return [TransferCenterResponse(id=str(r.id), name=r.name, address=r.address) for r in rows]
 
@@ -35,7 +35,7 @@ async def list_transfer_centers(db: AsyncSession = Depends(get_db)):
 async def create_transfer_center(req: TransferCenterCreate, db: AsyncSession = Depends(get_db)):
     new_id = uuid.uuid4()
     result = await db.execute(
-        text("INSERT INTO transfer_centers (id, name, address) VALUES (:id, :name, :address) RETURNING id, name, address"),
+        text("INSERT INTO space_transfer_centers (id, name, address) VALUES (:id, :name, :address) RETURNING id, name, address"),
         {"id": new_id, "name": req.name, "address": req.address}
     )
     row = result.fetchone()
@@ -45,8 +45,8 @@ async def create_transfer_center(req: TransferCenterCreate, db: AsyncSession = D
 
 @router.delete("/{center_id}", status_code=204)
 async def delete_transfer_center(center_id: str, db: AsyncSession = Depends(get_db)):
-    chk = await db.execute(text("SELECT id FROM transfer_centers WHERE id = :cid"), {"cid": center_id})
+    chk = await db.execute(text("SELECT id FROM space_transfer_centers WHERE id = :cid"), {"cid": center_id})
     if not chk.fetchone():
         raise HTTPException(status_code=404, detail="이관센터를 찾을 수 없습니다.")
-    await db.execute(text("DELETE FROM transfer_centers WHERE id = :cid"), {"cid": center_id})
+    await db.execute(text("DELETE FROM space_transfer_centers WHERE id = :cid"), {"cid": center_id})
     await db.commit()

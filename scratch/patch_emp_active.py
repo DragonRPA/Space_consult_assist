@@ -2,7 +2,7 @@
 import psycopg
 import uuid
 
-DATABASE_URL = "postgresql://postgres.eknwzjcbchbefdlykqgl:jUHGAmVsSeXc1jdR@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres"
+DATABASE_URL = "postgresql://postgres.lkohpffieaanwhohttbu:BKK5s3E1ydVKx6qJ@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
 
 names = [
     "김성열", "박성현", "조현행", "임아람", "최문정", 
@@ -21,20 +21,20 @@ try:
                     SELECT 1 FROM information_schema.columns 
                     WHERE table_name='employees' AND column_name='is_active'
                 ) THEN
-                    ALTER TABLE employees ADD COLUMN is_active boolean DEFAULT true;
+                    ALTER TABLE space_employees ADD COLUMN is_active boolean DEFAULT true;
                 END IF;
                 IF NOT EXISTS (
                     SELECT 1 FROM information_schema.columns 
                     WHERE table_name='employees' AND column_name='display_order'
                 ) THEN
-                    ALTER TABLE employees ADD COLUMN display_order integer DEFAULT 999;
+                    ALTER TABLE space_employees ADD COLUMN display_order integer DEFAULT 999;
                 END IF;
             END
             $$;
             """)
             
             # Fetch existing employees
-            cur.execute("SELECT id, name FROM employees")
+            cur.execute("SELECT id, name FROM space_employees")
             existing = cur.fetchall()
             
             # We will try to map the new names to existing rows to avoid FK violation.
@@ -43,15 +43,15 @@ try:
                 emp_id = row[0]
                 if i < len(names):
                     # update name and display_order, active = true
-                    cur.execute("UPDATE employees SET name = %s, display_order = %s, is_active = true WHERE id = %s", (names[i], i+1, emp_id))
+                    cur.execute("UPDATE space_employees SET name = %s, display_order = %s, is_active = true WHERE id = %s", (names[i], i+1, emp_id))
                 else:
                     # deactivate
-                    cur.execute("UPDATE employees SET is_active = false, display_order = 999 WHERE id = %s", (emp_id,))
+                    cur.execute("UPDATE space_employees SET is_active = false, display_order = 999 WHERE id = %s", (emp_id,))
             
             # If there are more names than existing rows, insert them
             if len(names) > len(existing):
                 for i in range(len(existing), len(names)):
-                    cur.execute("INSERT INTO employees (id, name, display_order, is_active) VALUES (%s, %s, %s, true)", (str(uuid.uuid4()), names[i], i+1))
+                    cur.execute("INSERT INTO space_employees (id, name, display_order, is_active) VALUES (%s, %s, %s, true)", (str(uuid.uuid4()), names[i], i+1))
                     
         conn.commit()
         print("Success: Employees updated seamlessly without dropping FKs.")

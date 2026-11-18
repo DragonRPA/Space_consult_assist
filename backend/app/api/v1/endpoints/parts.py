@@ -30,7 +30,7 @@ async def list_parts(
     if search:
         query = text("""
             SELECT id, name, compatible_models, unit_price, stock, note
-            FROM parts
+            FROM space_parts
             WHERE name ILIKE :search
             ORDER BY name ASC
             LIMIT :limit OFFSET :offset
@@ -39,7 +39,7 @@ async def list_parts(
     else:
         query = text("""
             SELECT id, name, compatible_models, unit_price, stock, note
-            FROM parts
+            FROM space_parts
             ORDER BY name ASC
             LIMIT :limit OFFSET :offset
         """)

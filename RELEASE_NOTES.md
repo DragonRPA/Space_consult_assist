@@ -2,6 +2,18 @@
 
 ---
 
+## v1.3.1.Build.1 — 2026-11-19 03:56
+
+### 코드 구조·번들 분할, SSOT 명세 구축 및 스키마 동기화
+
+| 영역 / 파일 | 변경 내용 |
+|---|---|
+| `docs/CODE_FILE_SPECIFICATION.md`, `docs/code_file_manifest.json`, `scripts/generate_code_file_spec.cjs` | 전 코드 355개 파일(78,138줄) 대상 AST 의존성·역참조·기능 명세 SSOT 구축 및 `spec:sync` / `spec:verify` 검증 게이트 확립 |
+| `frontend/apps/desktop/src/*` | 4차 구조 분할 및 번들 스플리팅 완료(`GOD_FILE=0`, `EAGER_ROUTE_IMPORT=0`, `CIRCULAR_IMPORT=0`, `ORPHAN_CANDIDATE=0`), `sttArchiveSync.ts`(동적 `supabaseClient` 임포트)·`consultWrapupTypes.ts`·`counselV2Persistence.ts`·`omniQueryParser.ts`·`modelSpecsData.ts`·`modelErrorCodesData.ts` 분리 및 `oxlint` 경고 80건 ➔ 28건 감축(`only-export-components=0`, `no-unused-vars=0`) |
+| `backend/app/*`, `frontend/apps/desktop/src/*` | `space_*` 접두어 기반 Supabase PostgreSQL 스키마(`space_employees`, `space_schedule_events`, `space_stt_audio_archives` 등) 정합성 동기화 및 미사용 일회성 스크립트 정리 |
+
+---
+
 ## v1.3.0.Build.2 — 2026-09-14 16:26
 
 ### 🛠️ 로컬 GPU STT 실행 환경 정규화 및 모달 경로 정합성 확보

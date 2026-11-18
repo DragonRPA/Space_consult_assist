@@ -3,12 +3,8 @@
  * 증상별 가이드 사진 관리 API (Supabase Storage & Table 연동 + 클라이언트 고압축 + 오프라인 로컬 폴백)
  */
 
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://eknwzjcbchbefdlykqgl.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_y7xsEQsIj_lFTYiHtYOr5Q_44z2fM-Z';
-
-export const supabase = createClient(SUPABASE_URL || '', SUPABASE_KEY || '');
+import { supabase } from './supabaseClient';
+export { supabase };
 
 export const STORAGE_BUCKET = 'symptom-guide-photos';
 
@@ -93,7 +89,7 @@ export async function getSymptomPhotos(equipmentModel: string, symptomId: string
   try {
     // 1. Supabase DB 조회
     const { data, error } = await supabase
-      .from('symptom_guide_photos')
+      .from('space_symptom_guide_photos')
       .select('*')
       .eq('equipment_model', equipmentModel)
       .eq('symptom_id', symptomId)
@@ -185,7 +181,7 @@ export async function uploadSymptomPhoto(
   if (!isLocalOnly) {
     try {
       const { data: dbItem, error: dbError } = await supabase
-        .from('symptom_guide_photos')
+        .from('space_symptom_guide_photos')
         .insert([{
           equipment_model: photoItem.equipment_model,
           symptom_id: photoItem.symptom_id,
@@ -229,7 +225,7 @@ export async function saveReorderedPhotos(
     for (const p of updatedPhotos) {
       if (!p.id.startsWith('photo-')) {
         await supabase
-          .from('symptom_guide_photos')
+          .from('space_symptom_guide_photos')
           .update({
             order_no: p.order_no,
             step_no: p.step_no,
@@ -261,7 +257,7 @@ export async function deleteSymptomPhoto(
   try {
     if (!photoId.startsWith('photo-')) {
       await supabase
-        .from('symptom_guide_photos')
+        .from('space_symptom_guide_photos')
         .delete()
         .eq('id', photoId);
     }

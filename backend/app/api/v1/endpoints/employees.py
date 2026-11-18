@@ -25,7 +25,7 @@ class EmployeeCreate(BaseModel):
 @router.get("/", response_model=List[EmployeeItem])
 async def list_employees(db: AsyncSession = Depends(get_db)):
     """DB에 등록된 정식 임직원 / 현장 기사 목록 동적 반환"""
-    query = text("SELECT id, name, phone FROM employees ORDER BY name ASC")
+    query = text("SELECT id, name, phone FROM space_employees ORDER BY name ASC")
     res = await db.execute(query)
     rows = res.fetchall()
     return [{"id": str(r.id), "name": r.name, "phone": r.phone} for r in rows]
@@ -35,7 +35,7 @@ async def create_employee(req: EmployeeCreate, db: AsyncSession = Depends(get_db
     """직원 등록 (이름 중복 시 기존 레코드 반환)"""
     # 중복 체크
     chk = await db.execute(
-        text("SELECT id, name, phone FROM employees WHERE name = :name LIMIT 1"),
+        text("SELECT id, name, phone FROM space_employees WHERE name = :name LIMIT 1"),
         {"name": req.name.strip()}
     )
     existing = chk.fetchone()
@@ -44,7 +44,7 @@ async def create_employee(req: EmployeeCreate, db: AsyncSession = Depends(get_db
 
     new_id = uuid.uuid4()
     res = await db.execute(
-        text("INSERT INTO employees (id, name, phone) VALUES (:id, :name, :phone) RETURNING id, name, phone"),
+        text("INSERT INTO space_employees (id, name, phone) VALUES (:id, :name, :phone) RETURNING id, name, phone"),
         {"id": new_id, "name": req.name.strip(), "phone": req.phone}
     )
     row = res.fetchone()

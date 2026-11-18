@@ -50,7 +50,7 @@ function main() {
   sql += `BEGIN;\n\n`;
 
   sql += `-- 1. Ensure Table Structure\n`;
-  sql += `CREATE TABLE IF NOT EXISTS symptom_synonyms (\n`;
+  sql += `CREATE TABLE IF NOT EXISTS space_symptom_synonyms (\n`;
   sql += `    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n`;
   sql += `    part_code VARCHAR(50) NOT NULL,\n`;
   sql += `    category_l1 VARCHAR(100) NOT NULL,\n`;
@@ -63,10 +63,10 @@ function main() {
   sql += `);\n\n`;
 
   sql += `CREATE EXTENSION IF NOT EXISTS pg_trgm;\n`;
-  sql += `CREATE INDEX IF NOT EXISTS idx_symptom_synonyms_phrase_trgm ON symptom_synonyms USING gin (phrase gin_trgm_ops);\n\n`;
+  sql += `CREATE INDEX IF NOT EXISTS idx_symptom_synonyms_phrase_trgm ON space_symptom_synonyms USING gin (phrase gin_trgm_ops);\n\n`;
 
   sql += `-- 2. Insert Ground-Truth Phrases & Colloquial Variations\n`;
-  sql += `INSERT INTO symptom_synonyms (part_code, category_l1, phrase, source, frequency_count)\nVALUES\n`;
+  sql += `INSERT INTO space_symptom_synonyms (part_code, category_l1, phrase, source, frequency_count)\nVALUES\n`;
 
   const values = [];
   for (const item of techItems) {

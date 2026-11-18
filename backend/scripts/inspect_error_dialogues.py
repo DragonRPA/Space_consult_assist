@@ -15,7 +15,7 @@ def inspect_dialogues():
         with conn.cursor() as cur:
             query = """
                 SELECT id, equipment_model, summary, stt_text
-                FROM consult_knowledge
+                FROM space_consult_knowledge
                 WHERE stt_text ~* '(에러\s*코드|오류\s*코드|[0-9]+번\s*에러|e[0-9]|eh|al[0-9])'
                 LIMIT 30;
             """

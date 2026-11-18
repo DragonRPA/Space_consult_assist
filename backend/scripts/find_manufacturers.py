@@ -17,7 +17,7 @@ def find_manufacturers():
             # 1. file_name 패턴 분석 (거래처명, 상대방 회사명 등)
             cur.execute("""
                 SELECT file_name, equipment_model, summary
-                FROM consult_knowledge
+                FROM space_consult_knowledge
                 WHERE file_name ~* '(티에스|스페이스|크린|모터|상사|코리아|테크|이엔지|산업)'
                 LIMIT 30;
             """)
@@ -29,7 +29,7 @@ def find_manufacturers():
             # 2. 본문에서 제조사/수입사/브랜드 언급 검색
             cur.execute("""
                 SELECT file_name, equipment_model, summary, stt_text
-                FROM consult_knowledge
+                FROM space_consult_knowledge
                 WHERE stt_text ~* '(제조사|제조원|수입원|공장|본사|티에스식스티즈|스페이스)'
                 LIMIT 20;
             """)
